@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 const API_URL = (process.env.MAX_STUDIO_BASE_URL || 'https://max-studio.online').replace(/\/$/, '');
 const WEB_URL = (process.env.MAX_STUDIO_WEB_URL || 'https://max-studio.shop').replace(/\/$/, '');
 const API_KEY = process.env.MAX_STUDIO_API_KEY || '';
-const FLOW_TOKEN = process.env.FLOW_TOKEN || '';
+let FLOW_TOKEN = process.env.FLOW_TOKEN || '';
 const FLOW_COOKIE = process.env.FLOW_COOKIE || '';
 const MODES = ['v1', 'v2', 'v3'];
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), 'out');
@@ -89,6 +89,20 @@ async function imageToDataUri(path) {
   const mime = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' }[extname(path).toLowerCase()];
   if (!mime) throw new Error(`Không nhận dạng được định dạng ảnh: ${path}`);
   return `data:${mime};base64,${(await readFile(path)).toString('base64')}`;
+}
+
+// JWT Flow = access_token của phiên labs.google (theo hướng dẫn trên trang /docs của Max-Studio).
+// 23/10/2026: Google đã tắt endpoint này (HTTP 410 "Authentication endpoint has been deprecated and disabled").
+// Lấy từ cookie Flow ngay lúc chạy, chỉ giữ trong bộ nhớ, không ghi ra đâu.
+async function jwtFromCookie() {
+  const res = await fetch('https://labs.google/fx/api/auth/session', {
+    headers: { Cookie: FLOW_COOKIE, Accept: 'application/json' },
+    signal: AbortSignal.timeout(30_000),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.access_token) throw new Error(`Không lấy được JWT từ cookie (HTTP ${res.status}).`);
+  const expires = json.expires ? new Date(json.expires) : null;
+  return { token: json.access_token, expires };
 }
 
 function buildCreateRequest(mode, image, opts) {
@@ -198,12 +212,21 @@ async function cmdVideo(opts) {
   const imagePath = opts.image || opts._[0];
   if (!imagePath && !opts.media) throw new Error('Thiếu --image <đường dẫn ảnh> hoặc --media <uuid>');
 
+  let jwtExpires = null;
+  if (mode === 'v1' && !FLOW_TOKEN && FLOW_COOKIE) {
+    const jwt = await jwtFromCookie();
+    FLOW_TOKEN = jwt.token;
+    jwtExpires = jwt.expires?.toISOString() ?? null;
+    const mins = jwt.expires ? Math.round((jwt.expires - Date.now()) / 60000) : '?';
+    log(`Đã lấy JWT từ cookie Flow (dài ${FLOW_TOKEN.length} ký tự) · hết hạn lúc ${jwtExpires ?? '?'} (còn ~${mins} phút)`);
+  }
+
   const before = await getBalance();
   const image = opts.media || (await imageToDataUri(imagePath));
   const { url, body } = buildCreateRequest(mode, image, opts);
   const report = {
     at: new Date().toISOString(), mode, image: opts.media ? `media:${opts.media}` : imagePath, model: body.model, length: body.length,
-    resolution: body.resolution, prompt: body.prompt, balanceBefore: before.balance,
+    resolution: body.resolution, prompt: body.prompt, balanceBefore: before.balance, jwtExpires,
   };
   log(`Chế độ ${mode} · model ${JSON.stringify(body.model)} · ${body.length}s · ${body.resolution} · PORTRAIT (9:16)`);
   log(`Số dư trước khi chạy: ${before.balance}`);
