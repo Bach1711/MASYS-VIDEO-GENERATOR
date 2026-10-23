@@ -45,3 +45,7 @@ desktop.ini
 !.vscode/extensions.json
 .idea/
 .claude/settings.local.json
+
+# ── Giai đoạn 0: ảnh thử và video kết quả (ảnh người, không đưa lên git)
+gd0/samples/
+gd0/out/
