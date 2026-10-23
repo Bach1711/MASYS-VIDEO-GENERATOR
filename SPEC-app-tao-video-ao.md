@@ -1,10 +1,11 @@
 # MASYS Video Generator — Đặc tả sản phẩm (MVP)
 
-> Phiên bản 2.4 · 23/10/2026 · Trạng thái: **đã chốt phạm vi, chưa bắt đầu code, đang chờ Giai đoạn 0 (kiểm chứng Max-Studio)**
+> Phiên bản 2.5 · 23/10/2026 · Trạng thái: **đã chốt phạm vi, chưa bắt đầu code, đang chờ Giai đoạn 0 (kiểm chứng Max-Studio)**
 > Thay đổi so với 2.0: nhà cung cấp video chính đổi từ Gemini API (tính tiền theo lượt) sang **Max-Studio** (dùng credit Google Flow của khách). Gemini API giữ lại làm dự phòng, mặc định tắt.
 > Thay đổi so với 2.1: (1) mục 7 — lỗi khi hỏi trạng thái thì **hỏi lại, không gửi lại task**; (2) tách tài khoản và ký xác nhận rủi ro phải xong **trước Giai đoạn 0** (mục 5.0, 15); (3) tiêu chí 12.17 thêm Gemini API key.
 > Thay đổi so với 2.2: (1) bước 3.1 có ô **email tài khoản Flow** để cảnh báo trùng tài khoản; (2) chốt câu 14.6: dòng đã có link video **mặc định bỏ qua**, kể cả khi máy khác vừa ghi link trong lúc lô đang chạy.
 > Thay đổi so với 2.3: chốt D14 — **mỗi máy tự dán token Flow**; loại phương án chia sẻ token qua sheet.
+> Thay đổi so với 2.4: **mục tiêu trải nghiệm — khách chỉ cần dán Max-Studio API key là tạo được video trên Flow.** Ô token Flow chỉ xuất hiện nếu Giai đoạn 0 cho thấy Max-Studio bắt buộc gửi token theo từng request.
 > Tài liệu này viết để một người hoặc agent mới đọc **một lần là nắm được toàn bộ dự án**: làm gì, vì sao, đã chốt gì, còn gì chưa chốt, build theo thứ tự nào.
 
 ---
@@ -132,7 +133,8 @@ Nguyên tắc:
 3. **Trình hướng dẫn cài đặt 4 bước:**
    1. **Nhà cung cấp video:**
       - Nhập **email tài khoản Flow** (bắt buộc). Email này không phải bí mật, chỉ dùng để so với tài khoản Google ở bước 3 và được lưu trong file cấu hình xuất ra.
-      - Dán **Max-Studio API key** và **token Flow**, rồi bấm **Kiểm tra**. App gọi một lệnh không tạo video; nếu Max-Studio không có lệnh như vậy thì kiểm tra số dư (chốt ở Giai đoạn 0).
+      - **Mục tiêu: khách chỉ dán Max-Studio API key.** Nếu Giai đoạn 0 xác nhận Max-Studio giữ liên kết với tài khoản Flow phía họ, bỏ hẳn ô token Flow (và D14 không còn áp dụng). Chỉ khi bắt buộc mới hiện thêm ô token Flow.
+      - Dán **Max-Studio API key** (và **token Flow** nếu bắt buộc), rồi bấm **Kiểm tra**. App gọi một lệnh không tạo video; nếu Max-Studio không có lệnh như vậy thì kiểm tra số dư (chốt ở Giai đoạn 0).
       - App hiện số dư credit Max-Studio và trạng thái token.
       - Phía dưới, trong phần "Nâng cao", có ô **Gemini API key (dự phòng, tính tiền)**, có thể bỏ trống.
    2. **Mặc định:** bỏ âm thanh (bật), số job song song (mặc định 2, tối đa theo gói Max-Studio), **hạn mức credit mỗi ngày**.
@@ -439,6 +441,7 @@ Viết **một script Node nhỏ**, dùng 100 lượt thử miễn phí, rồi �
 
 | # | Kiểm tra | Điều kiện đạt |
 |---|---|---|
+| 0 | **Chỉ dùng Max-Studio API key có tạo được video không** (tài khoản Flow liên kết sẵn phía Max-Studio, request không cần gửi token) | Có → bỏ ô token Flow khỏi app, bỏ qua điểm 1. Không → làm tiếp điểm 1 |
 | 1 | Cách lấy token Flow; token sống bao lâu; có tự làm mới được không | Không phải dán lại token nhiều lần trong ngày |
 | 2 | Endpoint image-to-video, cách gửi ảnh, khung 9:16 | Tạo được video dọc 9:16 từ ảnh |
 | 3 | Hỏi trạng thái theo `taskid`; link video có hạn dùng không | Tải được `.mp4` |
@@ -448,7 +451,7 @@ Viết **một script Node nhỏ**, dùng 100 lượt thử miễn phí, rồi �
 | 7 | Mã lỗi: token hết hạn, hết credit, nội dung bị chặn, quá tải | Phân biệt được từng loại |
 | 8 | Chạy 5 video song song | Không bị chặn hay captcha |
 
-**Đạt đủ 8 điểm** thì chốt D3 và đi tiếp. **Không đạt** thì chuyển sang phương án 13.4 theo thứ tự, và cập nhật spec trước khi build.
+**Đạt đủ các điểm** thì chốt D3 và đi tiếp. **Không đạt** thì chuyển sang phương án 13.4 theo thứ tự, và cập nhật spec trước khi build.
 
 ### Giai đoạn 1 — Build app
 1. **Google:** OAuth Desktop với PKCE (tài khoản dữ liệu); đọc đúng dòng N, ghi đúng 1 ô ở dòng N (thử với dữ liệu giả).
