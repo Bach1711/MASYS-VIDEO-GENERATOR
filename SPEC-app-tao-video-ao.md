@@ -1,6 +1,6 @@
 # MASYS Video Generator — Đặc tả sản phẩm (MVP)
 
-> Phiên bản 2.7 · 23/10/2026 · Trạng thái: **đang code phần không phụ thuộc provider (GĐ1.1–1.2); Giai đoạn 0 bị chặn chờ Max-Studio**
+> Phiên bản 2.8 · 23/10/2026 · Trạng thái: **chuẩn bị Giai đoạn 0 với Gemini API (provider chính tạm thời); Max-Studio tạm gác**
 > Thay đổi so với 2.0: nhà cung cấp video chính đổi từ Gemini API (tính tiền theo lượt) sang **Max-Studio** (dùng credit Google Flow của khách). Gemini API giữ lại làm dự phòng, mặc định tắt.
 > Thay đổi so với 2.1: (1) mục 7 — lỗi khi hỏi trạng thái thì **hỏi lại, không gửi lại task**; (2) tách tài khoản và ký xác nhận rủi ro phải xong **trước Giai đoạn 0** (mục 5.0, 15); (3) tiêu chí 12.17 thêm Gemini API key.
 > Thay đổi so với 2.2: (1) bước 3.1 có ô **email tài khoản Flow** để cảnh báo trùng tài khoản; (2) chốt câu 14.6: dòng đã có link video **mặc định bỏ qua**, kể cả khi máy khác vừa ghi link trong lúc lô đang chạy.
@@ -8,17 +8,18 @@
 > Thay đổi so với 2.4: **mục tiêu trải nghiệm — khách chỉ cần dán Max-Studio API key là tạo được video trên Flow.** Ô token Flow chỉ xuất hiện nếu Giai đoạn 0 cho thấy Max-Studio bắt buộc gửi token theo từng request.
 > Thay đổi so với 2.5 (kết quả thử GĐ0 điểm 0): **chỉ dán API key hiện KHÔNG tạo được video** — API V2 (không cần giấy tờ Flow) chưa mở "ảnh thành video" (HTTP 422 *"No active pricing rule"*). **Chốt dùng API V3**: gửi kèm **cookie Google Labs của tài khoản Flow**. Trong spec, "token Flow" từ nay hiểu là **cookie Flow**; mọi quy tắc của token (D14, mục 10) áp dụng cho cookie.
 > Thay đổi so với 2.6 (kết quả thử V1/V3): mọi task video qua Max-Studio đều lỗi 5099; endpoint Google đổi cookie → JWT (`labs.google/fx/api/auth/session`) trả **410 "deprecated and disabled"**. **Quyết định: làm song song** — chờ Max-Studio sửa, đồng thời được phép code các bước **không phụ thuộc provider** (GĐ1.1 Google, GĐ1.2 Drive) trước khi GĐ0 đạt. Các bước còn lại vẫn chờ GĐ0.
+> Thay đổi so với 2.7: **đổi hướng — provider chính tạm thời là Gemini API chính thức (Omni Flash, khoảng $1/video)**, vì Max-Studio chưa tạo được video. Max-Studio tạm gác, gắn lại sau qua `VideoProvider` (D13). Thêm D15: **trang "Nhà cung cấp video" có nhiều ô key** (Gemini, Max-Studio, Meta Muse…); provider Meta Muse được làm **song song** (ô key + khung provider), chỉ tạo video khi có đường gọi API đã được duyệt (mục 8.5). Giai đoạn 0 chuyển thành kiểm chứng Gemini. Theo dõi chi phí bằng USD thay cho credit khi dùng Gemini.
 > Tài liệu này viết để một người hoặc agent mới đọc **một lần là nắm được toàn bộ dự án**: làm gì, vì sao, đã chốt gì, còn gì chưa chốt, build theo thứ tự nào.
 
 ---
 
 ## 0. Tóm tắt trong 30 giây
 
-- **Sản phẩm:** app **PC Windows** (Electron) đọc ảnh người mẫu và prompt từ **Google Sheet**, tạo video thử áo dọc 9:16 bằng **Veo 3 thông qua Max-Studio**, **upload video lên Google Drive**, rồi **ghi link Drive vào đúng ô** của đúng dòng trong sheet.
+- **Sản phẩm:** app **PC Windows** (Electron) đọc ảnh người mẫu và prompt từ **Google Sheet**, tạo video thử áo dọc 9:16 bằng **nhà cung cấp video người dùng chọn** (từ v2.8: **Gemini API — Omni Flash** là chính; Max-Studio và Meta Muse gắn thêm qua cùng interface), **upload video lên Google Drive**, rồi **ghi link Drive vào đúng ô** của đúng dòng trong sheet.
 - **Khách hàng:** một chủ kênh TikTok bán áo thun dùng người mẫu AI. Đội của họ dùng app trên **nhiều máy Windows 10**, khoảng **5–20 video/ngày**. Khách **có gói Google Flow với hơn nghìn credit** và muốn **không mất thêm tiền API**.
 - **Yêu cầu cốt lõi:** **đọc dòng N thì ghi về dòng N**, kể cả khi chạy nhiều dòng song song hoặc chạy trên nhiều máy cùng lúc.
 - **Không làm:** caption, nhạc, edit video, tự đăng TikTok, tự tạo ảnh người mẫu, web app, macOS.
-- **Chi phí vận hành:** gói Max-Studio **khoảng 199.000đ/tháng**, cộng với credit Flow khách đã có. Không có server nên không có tiền hosting.
+- **Chi phí vận hành:** với Gemini API khoảng **$1/video** (5–20 video/ngày ≈ $150–600/tháng, trả qua Google Cloud). Khi Max-Studio dùng được: khoảng 199.000đ/tháng + credit Flow. Không có server nên không có tiền hosting.
 - **⚠️ Rủi ro đã chấp nhận:** Max-Studio là dịch vụ **không chính thức**, do bên **ẩn danh** vận hành. Nó dùng token đăng nhập Flow của khách và có thể vi phạm điều khoản của Google. Cách giảm rủi ro được mô tả ở mục 3 (D7, D12) và mục 13.
 
 ---
@@ -70,7 +71,7 @@ Phần này giúp người mới **không mở lại những câu đã trả l�
 |---|---|---|---|
 | D1 | **App PC Windows** (Electron), không phải web | Khách yêu cầu | Web app (Next.js + Supabase) |
 | D2 | **Windows 10 64-bit là chính**, chạy được cả Windows 11 | Phần lớn máy của khách chạy Windows 10 | macOS, Windows 32-bit |
-| D3 | **Provider chính: Max-Studio** (Veo 3, dùng credit Flow). Chỉ chính thức chốt **sau khi Giai đoạn 0 đạt** (mục 15) | Khách có credit Flow và không muốn trả tiền API (khoảng $1/video). Google Flow **không có API công khai**, và credit Flow **không dùng được** qua Gemini API | Gemini API làm đường chính (vẫn giữ làm dự phòng, D12); bot tự bấm Flow; useapi.net (dự phòng thứ hai nếu Max-Studio không đạt); Meta Muse (chưa có API video chính thức, chưa kiểm chứng chất lượng) |
+| D3 | **(v2.8) Provider chính tạm thời: Gemini API chính thức** (`gemini-omni-1.1-flash`, khoảng $1/video). Chốt sau khi Giai đoạn 0 (Gemini) đạt (mục 15). Max-Studio **tạm gác** cho tới khi Max-Studio tạo được video thật | Max-Studio không tạo được video (V2 422, V3/V1 lỗi 5099, endpoint cookie→JWT của Google trả 410). Gemini là API chính thức: không giao cookie/token cho bên thứ ba, không rủi ro khoá tài khoản. Đánh đổi: tốn tiền theo lượt, không dùng được credit Flow | Chờ Max-Studio (không biết bao lâu); useapi.net; bot tự bấm Flow; Meta Muse (chưa có API video chính thức — làm song song, D15) |
 | D4 | **Khách đã có sẵn ảnh người mẫu** (dạng link trong sheet) | Khách yêu cầu | App tự tạo hoặc ghép áo lên người mẫu |
 | D5 | Dữ liệu vào và ra qua **Google Sheet**, người dùng **tự chọn cột và dòng** | Khách quản lý mọi thứ trong sheet | Tải ảnh lên tay; file `.xlsx`/`.csv` |
 | D6 | Kết quả là **link Google Drive** ghi vào sheet | Khách yêu cầu | Link tạm của nhà cung cấp; kho lưu trữ riêng của app |
@@ -79,8 +80,9 @@ Phần này giúp người mới **không mở lại những câu đã trả l�
 | D9 | **Không có đăng nhập, không phân quyền** trong app | App chạy trên máy của khách | Mật khẩu; Admin/Thành viên |
 | D10 | **Không chèn caption.** Bỏ âm thanh là tuỳ chọn, mặc định bật, lỗi ở bước này không làm hỏng job | Người edit thêm caption và nhạc sau | Chèn caption; gợi ý caption bằng AI |
 | D11 | **Dùng trên nhiều máy:** cột Trạng thái **bắt buộc**, có khoá dòng | Khách cài trên nhiều thiết bị | Đồng bộ cài đặt qua đám mây |
-| D12 | **Dự phòng Gemini API (Omni Flash) có trong app nhưng mặc định TẮT** | Để không phát sinh tiền ngoài ý muốn. Khi Max-Studio hỏng, khách tự quyết có bật dự phòng hay không | Tự động chuyển sang dự phòng (gây mất tiền bất ngờ); bỏ hẳn dự phòng (mất đường lui khi Max-Studio ngừng) |
+| D12 | **(v2.8) Không bao giờ tự chuyển nhà cung cấp.** Mỗi lô chạy bằng provider người dùng đã chọn; provider đó lỗi thì job `provider_error`, app chỉ **gợi ý** đổi provider, người dùng tự bấm. Provider tính tiền (Gemini) luôn hiện **cảnh báo chi phí** trước khi chạy lô | Để không phát sinh tiền ngoài ý muốn và không gửi dữ liệu tới dịch vụ người dùng chưa chọn | Tự động chuyển sang provider khác (gây mất tiền hoặc lộ dữ liệu bất ngờ) |
 | D13 | Tạo video nằm sau interface `VideoProvider` | Max-Studio có thể ngừng bất cứ lúc nào; phải thay provider được mà không sửa phần còn lại | Gắn chặt vào một dịch vụ |
+| D15 | **(v2.8) Trang "Nhà cung cấp video" có nhiều ô key**, mỗi provider một thẻ: **Gemini API key** (chính), **Max-Studio API key + email/cookie Flow** (tạm gác), **Meta Muse** (làm song song). Người dùng điền key nào thì provider đó dùng được; chọn **một provider mặc định**, có thể đổi cho từng lô. Thẻ của provider chưa sẵn sàng hiện rõ trạng thái *"Chưa hỗ trợ tạo video"* và không cho chọn | Khách muốn thử nhiều nguồn (Gemini, Meta Muse…) mà không phải sửa app; D13 đã tách provider nên thêm thẻ không đụng phần còn lại | Một ô key cố định cho một provider (mỗi lần đổi nguồn phải sửa app) |
 | D14 | **Mỗi máy tự dán token Flow** và lưu mã hoá trên máy đó. Token không bao giờ rời máy, ngoài việc gửi tới Max-Studio | Token Flow là bí mật nhạy cảm nhất (mục 10); để ở chỗ dùng chung là ai xem được chỗ đó cũng cầm được tài khoản Flow | **Chia sẻ token qua sheet** (token nằm dạng chữ thường, ai có quyền xem sheet đều đọc được); đồng bộ qua đám mây (không có server, D1) |
 
 ---
@@ -93,8 +95,9 @@ Phần này giúp người mới **không mở lại những câu đã trả l�
 │  Renderer (React UI)                      Main process (Node)                  │
 │  ─ Trình hướng dẫn cài đặt    ◄──IPC──►   ─ JobQueue (SQLite, chạy song song)   │
 │  ─ Ánh xạ cột                             ─ VideoProvider                      │
-│  ─ Chọn dòng + xem trước                     ├ MaxStudioProvider (chính)       │
-│  ─ Tiến độ lô                                └ GeminiOmniProvider (dự phòng)   │
+│  ─ Chọn dòng + xem trước                     ├ GeminiOmniProvider (chính)      │
+│  ─ Tiến độ lô                                ├ MaxStudioProvider (tạm gác)     │
+│                                              └ MuseProvider (song song)        │
 │  ─ Cài đặt (key, token Flow)              ─ GoogleClient: OAuth, Sheets, Drive │
 │                                           ─ AudioStripper: ffmpeg-static (-an) │
 │                                           ─ SecretStore: Electron safeStorage  │
@@ -104,9 +107,9 @@ Phần này giúp người mới **không mở lại những câu đã trả l�
                                            │ HTTPS
      ┌──────────────────────┬──────────────┼───────────────────┬──────────────────┐
      ▼                      ▼              ▼                   ▼                  │
-  Max-Studio API      Gemini API      Google Sheets API   Google Drive API        │
-  (X-API-Key +        (dự phòng,      (tài khoản dữ liệu, (tài khoản dữ liệu,     │
-   token Flow)         mặc định tắt)   OAuth)              OAuth)                 │
+  Max-Studio (gác)    Gemini API      Google Sheets API   Google Drive API        │
+  (X-API-Key +        (chính v2.8,    (tài khoản dữ liệu, (tài khoản dữ liệu,     │
+   token Flow)         x-goog-api-key) OAuth)              OAuth)                 │
      │                                                                            │
      ▼                                                                            │
   Google Flow / Veo 3 (tài khoản Flow, tiêu credit Flow)                          │
@@ -122,6 +125,8 @@ Nguyên tắc:
 ## 5. Luồng người dùng
 
 ### 5.0 Chuẩn bị (làm một lần, **trước Giai đoạn 0**)
+> **v2.8 (Gemini là chính):** chỉ cần (a) một **Gemini API key** từ một project Google Cloud **đã bật billing** (Omni Flash không có gói miễn phí), lưu vào 1Password; (b) **tài khoản dữ liệu** (bước 1 dưới đây); (c) OAuth client Desktop. Các bước 2–4 dưới đây chỉ cần khi gắn lại Max-Studio.
+
 > Giai đoạn 0 đã phải giao token Flow thật cho Max-Studio, nên cả 4 bước dưới đây phải xong **trước khi chạy script GĐ0**, không đợi tới lúc bàn giao.
 
 1. **Tách tài khoản (D7):** chọn hoặc tạo một Gmail làm **tài khoản dữ liệu**. Chuyển quyền sở hữu, hoặc chia sẻ quyền chỉnh sửa, sheet và thư mục ảnh/video cho tài khoản này. Tài khoản có gói Flow giữ nguyên làm **tài khoản Flow**.
@@ -133,25 +138,28 @@ Nguyên tắc:
 1. **Cài app:** chạy `MASYS-Video-Setup.exe`. Nếu file chưa ký số, Windows SmartScreen sẽ cảnh báo; bấm *Thông tin thêm → Vẫn chạy*.
 2. **Màn hình chào:** hỏi *"Đã có file cấu hình từ máy khác?"*. Có thì nhập file. Đặt **tên máy**.
 3. **Trình hướng dẫn cài đặt 4 bước:**
-   1. **Nhà cung cấp video:**
-      - Nhập **email tài khoản Flow** (bắt buộc). Email này không phải bí mật, chỉ dùng để so với tài khoản Google ở bước 3 và được lưu trong file cấu hình xuất ra.
+   1. **Nhà cung cấp video (D15)** — mỗi provider một thẻ, điền ít nhất một thẻ, chọn **provider mặc định**:
+      - **Gemini API (mặc định từ v2.8):** dán **Gemini API key** → **Kiểm tra** (gọi lệnh liệt kê model, không tạo video, không tốn tiền). Hiện dòng nhắc *"Tính tiền theo lượt, khoảng $1/video"*.
+      - **Meta Muse:** ô key/thông tin đăng nhập theo mục 8.5. Khi chưa có đường gọi API video đã duyệt, thẻ hiện *"Chưa hỗ trợ tạo video"* và không chọn làm mặc định được.
+      - **Max-Studio (tạm gác):** các ô dưới đây, ẩn sau *"Hiện thêm nhà cung cấp"* cho tới khi Max-Studio dùng được.
+      - Nhập **email tài khoản Flow** (bắt buộc nếu dùng Max-Studio). Email này không phải bí mật, chỉ dùng để so với tài khoản Google ở bước 3 và được lưu trong file cấu hình xuất ra.
       - **Mục tiêu: khách chỉ dán Max-Studio API key.** Nếu Giai đoạn 0 xác nhận Max-Studio giữ liên kết với tài khoản Flow phía họ, bỏ hẳn ô token Flow (và D14 không còn áp dụng). Chỉ khi bắt buộc mới hiện thêm ô token Flow.
       - Dán **Max-Studio API key** (và **token Flow** nếu bắt buộc), rồi bấm **Kiểm tra**. App gọi một lệnh không tạo video; nếu Max-Studio không có lệnh như vậy thì kiểm tra số dư (chốt ở Giai đoạn 0).
       - App hiện số dư credit Max-Studio và trạng thái token.
-      - Phía dưới, trong phần "Nâng cao", có ô **Gemini API key (dự phòng, tính tiền)**, có thể bỏ trống.
-   2. **Mặc định:** bỏ âm thanh (bật), số job song song (mặc định 2, tối đa theo gói Max-Studio), **hạn mức credit mỗi ngày**.
-   3. **Kết nối Google:** app mở trình duyệt mặc định. Màn hình nhắc **đăng nhập bằng tài khoản dữ liệu, KHÔNG dùng tài khoản Flow**. Nếu email kết nối trùng với email tài khoản Flow đã nhập ở bước 1 (so không phân biệt hoa thường), app hiện **cảnh báo đỏ** và yêu cầu xác nhận lần nữa mới cho đi tiếp. Bấm qua cảnh báo *"chưa xác minh"*: *Nâng cao → Đi tới app → Cho phép*.
+   2. **Mặc định:** bỏ âm thanh (bật), số job song song (mặc định 2, tối đa theo giới hạn của provider), **hạn mức mỗi ngày** (số video và **USD** khi dùng Gemini; credit khi dùng Max-Studio).
+   3. **Kết nối Google:** app mở trình duyệt mặc định. Màn hình nhắc **đăng nhập bằng tài khoản dữ liệu, KHÔNG dùng tài khoản Flow**. Nếu đã nhập email Flow và email kết nối trùng với email tài khoản Flow đã nhập ở bước 1 (so không phân biệt hoa thường), app hiện **cảnh báo đỏ** và yêu cầu xác nhận lần nữa mới cho đi tiếp. Bấm qua cảnh báo *"chưa xác minh"*: *Nâng cao → Đi tới app → Cho phép*.
    4. **Thư mục Drive lưu video:** dán link thư mục có sẵn, hoặc bấm "Tạo thư mục mới". App thử ghi để kiểm tra quyền.
 4. **Ánh xạ cột (mỗi sheet một lần):** dán link sheet, kiểm tra **quyền sửa**, chọn tab, xác nhận các cột Ảnh, Prompt, URL video, Trạng thái, rồi lưu.
 5. **Chạy thử 1 dòng (app khuyến nghị):** chọn dòng 5, chạy, xem video trong app, bấm **"Mở sheet tại ô D5"** để kiểm tra.
 
 ### 5.2 Dùng hằng ngày
-Mở app → chọn dòng → xem trước (dòng lỗi, dòng đã có video — **mặc định bỏ qua**, dòng máy khác đang tạo, **số credit sẽ dùng và số dư còn lại**) → **Chạy** → thu nhỏ xuống khay → Windows hiện thông báo khi xong lô.
+Mở app → chọn dòng → xem trước (dòng lỗi, dòng đã có video — **mặc định bỏ qua**, dòng máy khác đang tạo, provider sẽ dùng, **chi phí ước tính** — USD với Gemini, credit và số dư với Max-Studio) → **Chạy** → thu nhỏ xuống khay → Windows hiện thông báo khi xong lô.
 
 ### 5.3 Tình huống đặc biệt
 - **Token Flow hết hạn:** app **tạm dừng cả hàng đợi** và hiện thông báo Windows *"Token Flow hết hạn, hãy cập nhật"*. Dán token mới vào Cài đặt là chạy tiếp, không mất job.
 - **Hết credit (Max-Studio hoặc Flow):** tạm dừng và báo rõ loại credit nào đã hết.
-- **Max-Studio lỗi hoặc ngừng hoạt động:** job chuyển sang `provider_error`. App gợi ý: *"Thử lại sau"* hoặc *"Bật dự phòng Gemini API (tính khoảng $1/video)"*. **Không bao giờ tự bật dự phòng.**
+- **Provider đang dùng lỗi hoặc ngừng hoạt động:** job chuyển sang `provider_error`. App gợi ý: *"Thử lại sau"* hoặc *"Chạy lại bằng provider khác"* (kèm cảnh báo chi phí nếu là provider tính tiền). **Không bao giờ tự chuyển provider (D12).**
+- **Gemini API key sai, bị thu hồi hoặc project hết hạn mức/billing:** tạm dừng hàng đợi, báo *"Kiểm tra Gemini API key / billing"*.
 - **Tắt app hoặc mất điện:** mở lại, app đề nghị chạy tiếp các dòng còn lại. Job đã gửi sang Max-Studio thì **hỏi lại theo `taskid` đã lưu**, không gửi lại để tránh tiêu credit hai lần.
 - **Mất kết nối Google (tài khoản dữ liệu):** dừng các job đang chờ, báo *"Kết nối lại Google"*.
 
@@ -173,7 +181,7 @@ Mở app → chọn dòng → xem trước (dòng lỗi, dòng đã có video �
 - **Đọc lại sheet ngay trước khi hiện bảng xem trước.**
 - Dòng không được chạy: thiếu ảnh, thiếu prompt, link ảnh hỏng, hoặc đang bị máy khác khoá (khoá chưa quá 30 phút).
 - Dòng đã có link video: **mặc định bỏ qua**, hiện trong bảng xem trước là *"Đã có video — bỏ qua"* và không tạo job. Muốn tạo lại thì người dùng tích **"Ghi đè"** cho từng dòng đó.
-- Hiện số video, **số credit ước tính** và **số dư credit Max-Studio**. Chặn chạy nếu số dư không đủ hoặc vượt hạn mức ngày.
+- Hiện số video, provider của lô và **chi phí ước tính** (USD với Gemini; credit và số dư với Max-Studio). Chặn chạy nếu vượt hạn mức ngày hoặc số dư không đủ.
 
 **F4. Đồng bộ đúng dòng (yêu cầu cốt lõi)**
 - Mỗi job lưu cố định: `spreadsheetId`, `tab`, `rowNumber`, `outputCell`, `statusCell`, `inputSnapshot` (link ảnh và prompt lúc tạo job).
@@ -187,6 +195,8 @@ Mở app → chọn dòng → xem trước (dòng lỗi, dòng đã có video �
   5. **Ngay trước bước 1**, đọc lại ô đầu ra. Nếu ô đã có link video (ví dụ máy khác vừa làm xong dòng này sau khi mình xem trước) và job không bật "Ghi đè" thì **không khoá, không tạo video**; job chuyển sang `skipped_has_video`.
 
 **F5. Tạo video**
+- **(v2.8) Provider chính: `GeminiOmniProvider`** (mục 8.2). Kết quả trả về trong cùng request nên `submit` trả luôn video; vẫn lưu một mã job (`providerTaskId` = mã do app sinh) để không gửi lại khi app khởi động lại giữa chừng — nếu request bị đứt mà không biết Google đã tính tiền hay chưa, job chuyển `failed` với lý do *"Không rõ đã tạo hay chưa"*, **không tự gửi lại**. Lỗi: 400 (ảnh/prompt sai) → `failed`; 401/403 → tạm dừng, báo key; 429 → chờ rồi thử lại; nội dung bị chặn → `failed`; 5xx → thử lại tối đa 3 lần **chỉ khi chắc chắn chưa tạo** (chi tiết chốt ở Giai đoạn 0).
+- Các mục dưới đây của Max-Studio áp dụng khi gắn lại `MaxStudioProvider`:
 - **Provider chính: `MaxStudioProvider`** (chi tiết ở mục 8.1):
   - Tạo task image-to-video với `ratio: "9:16"`, nhận `taskid`, **lưu `taskid` vào SQLite ngay**.
   - Hỏi trạng thái định kỳ (mỗi 10–15 giây; chốt ở Giai đoạn 0) đến khi xong, rồi tải file video.
@@ -200,9 +210,10 @@ Mở app → chọn dòng → xem trước (dòng lỗi, dòng đã có video �
   | Token Flow hết hạn hoặc không hợp lệ | **Tạm dừng cả hàng đợi**, báo cập nhật token |
   | Hết credit Max-Studio hoặc credit Flow | Tạm dừng hàng đợi, báo rõ loại credit |
   | Nội dung bị chặn | Không thử lại, ghi `Lỗi: nội dung bị chặn` vào ô Trạng thái |
-  | Max-Studio không phản hồi hoặc ngừng dịch vụ | `provider_error`; gợi ý bật dự phòng (không tự bật) |
+  | Max-Studio không phản hồi hoặc ngừng dịch vụ | `provider_error`; gợi ý đổi provider (không tự đổi, D12) |
 
-- **Provider dự phòng: `GeminiOmniProvider`** (mục 8.2), chỉ chạy khi người dùng **chủ động bật** cho một lô và đã nhập Gemini API key. Trước khi chạy, app hiện cảnh báo chi phí (khoảng $1/video).
+- **`MuseProvider`** (mục 8.5): làm song song; chỉ bật khi có đường gọi API video đã được duyệt.
+- Đổi provider cho một lô là việc **người dùng chủ động chọn** (D12). Provider tính tiền luôn hiện cảnh báo chi phí trước khi chạy.
 
 **F6. Lưu lên Drive và ghi link** (bằng tài khoản dữ liệu)
 - Lưu tạm trong `%APPDATA%\MASYS-Video\tmp`, rồi upload resumable vào `<thư mục gốc>/<tên sheet>/<YYYY-MM-DD>/row<N>_<HHmm>.mp4`.
@@ -221,7 +232,7 @@ Mở app → chọn dòng → xem trước (dòng lỗi, dòng đã có video �
   - Credit Max-Studio đã dùng mỗi ngày và mỗi tháng, cùng số dư (lấy từ trường `balance` trong phản hồi).
   - Credit Flow ước tính, nếu Giai đoạn 0 đo được tỉ lệ quy đổi.
 - **Hạn mức credit mỗi ngày** cho từng máy.
-- Riêng khi bật dự phòng Gemini: hiện thêm chi phí USD ước tính.
+- **(v2.8) Với Gemini: theo dõi chi phí USD** = số giây video × đơn giá (đơn giá lưu trong cài đặt, đo lại ở Giai đoạn 0), theo ngày/tháng, có **hạn mức USD mỗi ngày** cho từng máy. Google không trả số dư qua API; muốn chặn cứng thì đặt thêm budget/quota trong Google Cloud.
 
 **F9. Chạy trên máy**
 - Có biểu tượng ở khay hệ thống. Đóng cửa sổ khi đang chạy lô thì hỏi thu nhỏ hay dừng.
@@ -232,7 +243,7 @@ Mở app → chọn dòng → xem trước (dòng lỗi, dòng đã có video �
 - Nút **"Xuất nhật ký"** tạo file `.zip` không chứa key hay token.
 
 **F10. Dùng trên nhiều máy**
-- Mỗi máy tự nhập Max-Studio API key và token Flow, tự kết nối Google. **Mọi máy dùng cùng tài khoản dữ liệu và cùng tài khoản Flow.**
+- Mỗi máy tự nhập key của các provider (Gemini, Max-Studio + token Flow, Meta Muse), tự kết nối Google. Key không đi theo file cấu hình. **Mọi máy dùng cùng tài khoản dữ liệu và cùng tài khoản Flow.**
 - Xuất/nhập cấu hình (file `.json`, **không chứa bí mật**), có cả email tài khoản Flow.
 - **Token Flow (D14):** mỗi máy tự dán token trong Cài đặt. Khi token hết hạn, máy nào gặp lỗi thì máy đó tạm dừng hàng đợi và báo; người dùng dán token mới **trên từng máy**. Không chia sẻ token qua sheet, file cấu hình hay bất kỳ chỗ dùng chung nào.
 
@@ -303,13 +314,20 @@ queued → locking ──(máy khác đang giữ)──► skipped_locked
 | Giá | Starter 199.000đ/tháng (500 lượt/ngày, 5 task song song); Pro 999.000đ; Ultra 2.999.000đ. Có 100 lượt thử miễn phí | Một video trừ bao nhiêu credit Max-Studio và bao nhiêu credit Flow. CHỐT Ở GĐ0 |
 | Lỗi | Chưa có tài liệu | Mã lỗi cho token hết hạn, hết credit, nội dung bị chặn, quá tải. CHỐT Ở GĐ0 |
 
-### 8.2 Gemini Omni Flash (dự phòng, mặc định tắt)
+### 8.2 Gemini Omni Flash (provider chính từ v2.8)
 - `POST https://generativelanguage.googleapis.com/v1beta/interactions`, header `x-goog-api-key`.
 - Body: `model: "gemini-omni-1.1-flash"`; `input` gồm ảnh (base64) và prompt; `response_format: {type: "video", aspect_ratio: "9:16", resolution: "720p"}`.
 - Kết quả trả về **trong cùng request** (base64, hoặc `uri` khi video lớn hơn 4MB).
 - Giá khoảng $0.10/giây (khoảng $1/video). Không có gói miễn phí.
 - Veo 3.1 bản preview trên Gemini API **đã tắt từ 22/10/2026**.
 - Tài liệu: https://ai.google.dev/gemini-api/docs/omni
+- **CHỐT Ở GĐ0 (Gemini):** body/endpoint còn đúng không; thời gian chờ thật; giá thật mỗi video 8 giây; chất lượng giữ mặt và hình in áo; có tự sinh âm thanh không; mã lỗi khi key sai, hết quota, nội dung bị chặn; giới hạn số request song song.
+
+### 8.5 Meta Muse (làm song song, D15)
+- **Hiện trạng (23/10/2026):** API chính thức của Meta mới có **Muse Image**, **chưa có Muse Video**. Khuyến mãi "hàng triệu/1 tỷ token miễn phí" là cho người dùng cá nhân trên app/web Meta, **không phải credit API**.
+- Đường gọi tự động duy nhất hiện nay là **useapi.net** (bên thứ ba, phải giao thông tin đăng nhập tài khoản Meta) — cùng loại rủi ro như Max-Studio. **Chưa được duyệt**; dùng đường này phải hỏi người phụ trách và ghi rủi ro như mục 13.3.
+- Phạm vi làm song song: thẻ Meta Muse trong trang Nhà cung cấp (ô key, nút Kiểm tra, trạng thái *"Chưa hỗ trợ tạo video"*), khung `MuseProvider` theo interface F11. Phần gọi tạo video **chỉ code khi** có API video chính thức của Meta hoặc khi người phụ trách duyệt đường useapi.net, và sau khi thử chất lượng hình in 3–5 ảnh.
+- Mọi quy tắc bí mật ở mục 10 áp dụng cho key/thông tin đăng nhập Meta.
 
 ### 8.3 OAuth Google (tài khoản dữ liệu)
 - OAuth client loại **Desktop app**, loopback `http://127.0.0.1:<cổng ngẫu nhiên>` kết hợp **PKCE**, mở trình duyệt mặc định.
@@ -328,13 +346,13 @@ queued → locking ──(máy khác đang giữ)──► skipped_locked
 
 | Bảng | Các trường chính |
 |---|---|
-| `settings` | `machineName`, `flowAccountEmail`, `primaryProvider` (`maxstudio`), `fallbackEnabled` (mặc định `false`), `stripAudio`, `concurrency`, `dailyCreditLimit`, `driveRootFolderId`, `localCopyDir?` |
+| `settings` | `machineName`, `flowAccountEmail`, `defaultProvider` (`gemini` | `maxstudio` | `muse`; mặc định `gemini`), `stripAudio`, `concurrency`, `dailyCreditLimit`, `dailyUsdLimit`, `geminiUsdPerSecond`, `driveRootFolderId`, `localCopyDir?` |
 | `sheet_configs` | `spreadsheetId`, `tab`, `headerRow`, `colImage`, `colPrompt`, `colVideoUrl`, `colStatus`, `updatedAt` |
 | `batches` | `id`, `spreadsheetId`, `tab`, `rowsSpec`, `provider`, `status`, `createdAt` |
 | `jobs` | `id`, `batchId`, `rowNumber`, `outputCell`, `statusCell`, `inputSnapshot` (JSON), `overwrite`, `state`, `attempts`, `error`, `provider`, `providerTaskId`, `tmpPath`, `driveFileId`, `driveLink`, `audioStripped`, `creditsUsed`, `costUsd?`, `updatedAt` |
 | `usage_daily` | `date`, `provider`, `videos`, `creditsUsed`, `costUsd?`, `lastBalance` |
 
-**Bí mật** gồm Max-Studio API key, token Flow, refresh token Google và Gemini API key (nếu có). **Không lưu dạng chữ thường trong DB**; chúng được mã hoá bằng `safeStorage` (DPAPI của Windows).
+**Bí mật** gồm Gemini API key, Max-Studio API key, token/cookie Flow, key/thông tin đăng nhập Meta Muse và refresh token Google — mỗi provider một mục riêng, có nút **"Xoá"** riêng. **Không lưu dạng chữ thường trong DB**; chúng được mã hoá bằng `safeStorage` (DPAPI của Windows).
 
 ---
 
@@ -356,7 +374,7 @@ queued → locking ──(máy khác đang giữ)──► skipped_locked
 - Caption, chữ, logo, nhạc, edit video.
 - Tự tạo ảnh người mẫu (dù Max-Studio có model tạo ảnh); tự đăng TikTok.
 - Tự viết bot hoặc tự gọi API nội bộ của Flow (đã giao cho Max-Studio).
-- Provider useapi.net và Meta Muse (chỉ làm nếu Max-Studio không đạt hoặc ngừng dịch vụ).
+- Provider useapi.net. Gọi Meta Muse qua useapi.net khi chưa được duyệt (mục 8.5).
 - Ảnh chèn trực tiếp vào ô sheet.
 
 ---
@@ -372,15 +390,16 @@ queued → locking ──(máy khác đang giữ)──► skipped_locked
 8. **Khoá bị bỏ dở:** máy A tắt khi đang tạo dòng 6 → sau 30 phút, máy B chạy được dòng 6.
 9. **Token Flow hết hạn giữa lô:** hàng đợi tạm dừng, có thông báo Windows; dán token mới thì chạy tiếp, không mất job, không tạo trùng.
 10. **Hết credit:** app chặn từ bước xem trước nếu số dư không đủ; nếu hết giữa lô thì tạm dừng và báo đúng loại credit.
-11. **Max-Studio ngừng phản hồi:** job chuyển sang `provider_error`; app **không** tự chuyển sang Gemini.
-12. **Bật dự phòng Gemini cho một lô:** app hiện cảnh báo chi phí; video vẫn về đúng ô.
+11. **Provider đang dùng ngừng phản hồi:** job chuyển sang `provider_error`; app **không** tự chuyển sang provider khác.
+12. **Chạy một lô bằng Gemini:** app hiện cảnh báo chi phí và chi phí USD ước tính; video về đúng ô; chi phí đã dùng cập nhật sau lô. Vượt hạn mức USD ngày thì app chặn từ bước xem trước.
 13. **Dòng lỗi** (ảnh hỏng, nội dung bị chặn) → ô Trạng thái đúng dòng ghi lỗi, các dòng khác vẫn xong.
 14. **Âm thanh:** bật bỏ âm thanh thì video trên Drive không có track âm thanh; FFmpeg lỗi thì vẫn có link video gốc.
 15. Link Drive mở được trên trình duyệt chưa đăng nhập, file nằm đúng thư mục con, vẫn mở được sau 7 ngày.
 16. Đóng rồi mở lại app: không phải nhập lại key hay token, không phải kết nối lại Google, ánh xạ cột vẫn còn.
-17. Mở DB, file cấu hình và nhật ký bằng công cụ bất kỳ: **không thấy** Max-Studio API key, token Flow, Gemini API key hay token Google ở dạng chữ thường.
+17. Mở DB, file cấu hình và nhật ký bằng công cụ bất kỳ: **không thấy** Gemini API key, Max-Studio API key, token Flow, key Meta Muse hay token Google ở dạng chữ thường.
 18. Kết nối Google bằng chính email tài khoản Flow đã nhập ở bước 3.1 → app hiện cảnh báo đỏ.
 19. **Dòng đã có video:** chọn `2-5` khi dòng 3 đã có link → dòng 3 bị bỏ qua, link cũ giữ nguyên, không tiêu credit. Máy A ghi xong dòng 4 trong lúc máy B đang chờ chạy dòng 4 → máy B bỏ qua (`skipped_has_video`).
+20. **Nhiều ô key (D15):** điền Gemini key và để trống các thẻ khác → app chạy được bằng Gemini; thẻ Meta Muse hiện *"Chưa hỗ trợ tạo video"* và không chọn được làm mặc định; xoá key một provider không ảnh hưởng key provider khác.
 
 ---
 
@@ -391,7 +410,7 @@ queued → locking ──(máy khác đang giữ)──► skipped_locked
 | Đường | Chi phí | Ghi chú |
 |---|---|---|
 | **Max-Studio (chính)** | **199.000đ/tháng** (gói Starter) + credit Flow có sẵn | Rẻ nhất trong các đường tự động; tỉ lệ credit Flow mỗi video chốt ở GĐ0 |
-| Gemini API (dự phòng) | Khoảng $1/video. 5 video/ngày ≈ $120–150/tháng | Có thể bù bằng credit hằng tháng của gói AI Pro (khoảng $10) hoặc $300 dùng thử của Google Cloud mới (chưa xác nhận áp dụng cho Gemini API key) |
+| **Gemini API (chính từ v2.8)** | Khoảng $1/video. 5 video/ngày ≈ $150/tháng; 20 video/ngày ≈ $600/tháng | Có thể bù bằng credit hằng tháng của gói AI Pro (khoảng $10) hoặc $300 dùng thử của Google Cloud mới (chưa xác nhận áp dụng cho Gemini API key) |
 
 Drive miễn phí 15GB chứa được khoảng 1.000–2.000 video.
 
@@ -410,7 +429,7 @@ Gói Flow (Google AI Pro/Ultra) **không cấp API key**, và credit Flow chỉ 
 **Điều kiện bắt buộc:**
 1. Tách tài khoản (D7).
 2. Qua được Giai đoạn 0.
-3. Giữ dự phòng Gemini trong app (D12).
+3. Giữ Gemini API trong app làm đường lui (D12, D15).
 4. Thanh toán Max-Studio **theo tháng**, không trả trước dài hạn.
 5. Khách **ký xác nhận rủi ro** trước khi bàn giao.
 
@@ -432,12 +451,32 @@ Gói Flow (Google AI Pro/Ultra) **không cấp API key**, và credit Flow chỉ 
 7. Có cần giữ thêm bản video trên máy cho người edit không?
 8. Khách chấp nhận cảnh báo SmartScreen, hay muốn mua chứng chỉ ký số?
 9. Cần báo khách: áo dùng nhân vật có bản quyền dễ bị TikTok Shop gỡ; TikTok yêu cầu gắn nhãn nội dung do AI tạo.
+10. **(v2.8) Meta Muse:** chờ API video chính thức của Meta, hay duyệt đi qua useapi.net (giao thông tin đăng nhập Meta cho bên thứ ba)?
+11. **(v2.8)** Khách đồng ý chi phí Gemini (khoảng $1/video) chưa? Thẻ thanh toán gắn với project Google Cloud nào?
 
 ---
 
 ## 15. Thứ tự build
 
-### Giai đoạn 0 — Kiểm chứng Max-Studio (bắt buộc, trước khi viết app)
+### Giai đoạn 0 (v2.8) — Kiểm chứng Gemini Omni Flash (bắt buộc, trước khi code phần tạo video)
+**Điều kiện trước khi bắt đầu:** có Gemini API key từ project đã bật billing (mục 5.0).
+
+Viết **một script Node nhỏ** (ticket CON-23), không tự gửi lại khi lỗi, rồi điền kết quả vào mục 8.2:
+
+| # | Kiểm tra | Điều kiện đạt |
+|---|---|---|
+| 1 | Endpoint, body, khung 9:16 còn đúng tài liệu | Tạo được video dọc 9:16 từ ảnh |
+| 2 | Thời gian chờ một video | Dưới khoảng 5 phút |
+| 3 | **Chất lượng: giữ mặt người mẫu và hình in áo**, thử 3–5 ảnh thật | Ít nhất 4/5 đạt (người phụ trách duyệt) |
+| 4 | Giá thật mỗi video (xem trong Google Cloud Billing) | Đo được con số, gần $1/video |
+| 5 | Có tự sinh âm thanh không | Biết có cần bước bỏ âm thanh |
+| 6 | Mã lỗi: key sai, hết quota/billing, nội dung bị chặn, quá tải | Phân biệt được từng loại |
+| 7 | 2–3 video song song | Không bị 429 liên tục |
+
+**Đạt** thì chốt D3 (Gemini) và làm tiếp Giai đoạn 1 từ bước 3. **Không đạt** thì dừng, cập nhật spec.
+
+### Giai đoạn 0 cũ — Kiểm chứng Max-Studio (TẠM GÁC từ v2.8, ticket CON-31)
+> Giữ nguyên để làm tiếp khi Max-Studio sửa xong. Kết quả đến nay: điểm 0 không đạt; V3/V1 lỗi 5099; endpoint cookie→JWT trả 410.
 **Điều kiện trước khi bắt đầu:** đã xong cả 4 bước ở mục 5.0 (tách tài khoản, có Max-Studio API key, có token Flow, khách đã ký xác nhận rủi ro).
 
 Viết **một script Node nhỏ**, dùng 100 lượt thử miễn phí, rồi điền kết quả vào mục 8.1:
@@ -457,14 +496,15 @@ Viết **một script Node nhỏ**, dùng 100 lượt thử miễn phí, rồi �
 **Đạt đủ các điểm** thì chốt D3 và đi tiếp. **Không đạt** thì chuyển sang phương án 13.4 theo thứ tự, và cập nhật spec trước khi build.
 
 ### Giai đoạn 1 — Build app
-> **Ngoại lệ (v2.7):** bước 1 và 2 được làm song song với GĐ0 vì không phụ thuộc nhà cung cấp video (D13). Từ bước 3 trở đi vẫn phải chờ GĐ0 đạt.
+> **v2.8:** bước 1 và 2 không phụ thuộc provider nên làm song song với GĐ0 (Gemini). Bước "Meta Muse" làm song song với cả giai đoạn. Max-Studio làm sau cùng, khi Max-Studio dùng được.
 
+0. **`GeminiOmniProvider`** — ticket CON-23: script GĐ0 rồi chuyển thành provider chính, kèm phân loại lỗi và cảnh báo chi phí.
 1. **Google:** OAuth Desktop với PKCE (tài khoản dữ liệu); đọc đúng dòng N, ghi đúng 1 ô ở dòng N (thử với dữ liệu giả).
 2. **Drive:** upload resumable, đặt quyền link, ghi link vào sheet.
-3. **`MaxStudioProvider`** theo kết quả GĐ0, kèm phân loại lỗi.
-4. **Hàng đợi:** SQLite, chạy song song, thử lại, lưu `providerTaskId` để chạy tiếp, khoá dòng, kiểm tra lệch dòng, tạm dừng khi token hoặc credit có vấn đề.
-5. **Bỏ âm thanh** bằng `ffmpeg-static`.
-6. **Giao diện:** trình hướng dẫn cài đặt (Max-Studio key, token Flow, cảnh báo trùng tài khoản), ánh xạ cột, xem trước kèm số credit, tiến độ, khay hệ thống, thông báo.
-7. **`GeminiOmniProvider`** (dự phòng, mặc định tắt) và cảnh báo chi phí khi bật.
-8. `safeStorage`, theo dõi credit, xuất/nhập cấu hình, xuất nhật ký.
-9. **Đóng gói** `.exe`, tự cập nhật, thử trên máy Windows 10 sạch, rồi bàn giao kèm hướng dẫn tách tài khoản, lấy và thu hồi token, và văn bản xác nhận rủi ro.
+3. **Hàng đợi:** SQLite, chạy song song, thử lại, lưu `providerTaskId` để chạy tiếp, khoá dòng, kiểm tra lệch dòng, tạm dừng khi token hoặc credit có vấn đề.
+4. **Bỏ âm thanh** bằng `ffmpeg-static`.
+5. **Giao diện:** trình hướng dẫn cài đặt (**trang Nhà cung cấp nhiều ô key — D15**, cảnh báo trùng tài khoản), ánh xạ cột, xem trước kèm chi phí ước tính, tiến độ, khay hệ thống, thông báo.
+6. `safeStorage` (mỗi provider một mục bí mật), theo dõi chi phí USD/credit, xuất/nhập cấu hình, xuất nhật ký.
+7. **Đóng gói** `.exe`, tự cập nhật, thử trên máy Windows 10 sạch, rồi bàn giao kèm hướng dẫn tách tài khoản, lấy và thu hồi token, và văn bản xác nhận rủi ro.
+- **Song song cả giai đoạn — Meta Muse (D15, mục 8.5):** thẻ key + khung `MuseProvider`; phần tạo video chờ API chính thức hoặc người phụ trách duyệt useapi.net.
+- **Sau cùng — `MaxStudioProvider`** (CON-31 rồi CON-32), khi Max-Studio tạo được video thật.
