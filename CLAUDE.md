@@ -1,9 +1,10 @@
 # MASYS Video Generator
 
-Đặc tả đầy đủ: `SPEC-app-tao-video-ao.md` (v2.6) — đọc trước khi làm bất cứ việc gì. Không mở lại các quyết định ở mục 3 (D1–D14) nếu chưa hỏi người phụ trách.
+Đặc tả đầy đủ: `SPEC-app-tao-video-ao.md` (v2.7) — đọc trước khi làm bất cứ việc gì. Không mở lại các quyết định ở mục 3 (D1–D14) nếu chưa hỏi người phụ trách.
 
 ## Cổng Giai đoạn 0
 - **Chưa viết app** (Electron, hàng đợi, UI…) khi ticket Giai đoạn 0 (kiểm chứng Max-Studio) chưa Done. GĐ0 chỉ là một script Node nhỏ.
+- **Ngoại lệ (spec v2.7):** được làm trước CON-24 (Google/Sheets) và CON-25 (Drive) vì không phụ thuộc provider video.
 - Mọi ô "CHỐT Ở GĐ0" trong spec §8.1 phải được điền bằng kết quả thử thật trước khi code `MaxStudioProvider`. Không đoán endpoint/mã lỗi.
 - GĐ0 không đạt → dừng, cập nhật spec theo §13.4 trước khi build tiếp.
 

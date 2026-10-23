@@ -1,12 +1,13 @@
 # MASYS Video Generator — Đặc tả sản phẩm (MVP)
 
-> Phiên bản 2.6 · 23/10/2026 · Trạng thái: **đã chốt phạm vi, chưa bắt đầu code, đang chờ Giai đoạn 0 (kiểm chứng Max-Studio)**
+> Phiên bản 2.7 · 23/10/2026 · Trạng thái: **đang code phần không phụ thuộc provider (GĐ1.1–1.2); Giai đoạn 0 bị chặn chờ Max-Studio**
 > Thay đổi so với 2.0: nhà cung cấp video chính đổi từ Gemini API (tính tiền theo lượt) sang **Max-Studio** (dùng credit Google Flow của khách). Gemini API giữ lại làm dự phòng, mặc định tắt.
 > Thay đổi so với 2.1: (1) mục 7 — lỗi khi hỏi trạng thái thì **hỏi lại, không gửi lại task**; (2) tách tài khoản và ký xác nhận rủi ro phải xong **trước Giai đoạn 0** (mục 5.0, 15); (3) tiêu chí 12.17 thêm Gemini API key.
 > Thay đổi so với 2.2: (1) bước 3.1 có ô **email tài khoản Flow** để cảnh báo trùng tài khoản; (2) chốt câu 14.6: dòng đã có link video **mặc định bỏ qua**, kể cả khi máy khác vừa ghi link trong lúc lô đang chạy.
 > Thay đổi so với 2.3: chốt D14 — **mỗi máy tự dán token Flow**; loại phương án chia sẻ token qua sheet.
 > Thay đổi so với 2.4: **mục tiêu trải nghiệm — khách chỉ cần dán Max-Studio API key là tạo được video trên Flow.** Ô token Flow chỉ xuất hiện nếu Giai đoạn 0 cho thấy Max-Studio bắt buộc gửi token theo từng request.
 > Thay đổi so với 2.5 (kết quả thử GĐ0 điểm 0): **chỉ dán API key hiện KHÔNG tạo được video** — API V2 (không cần giấy tờ Flow) chưa mở "ảnh thành video" (HTTP 422 *"No active pricing rule"*). **Chốt dùng API V3**: gửi kèm **cookie Google Labs của tài khoản Flow**. Trong spec, "token Flow" từ nay hiểu là **cookie Flow**; mọi quy tắc của token (D14, mục 10) áp dụng cho cookie.
+> Thay đổi so với 2.6 (kết quả thử V1/V3): mọi task video qua Max-Studio đều lỗi 5099; endpoint Google đổi cookie → JWT (`labs.google/fx/api/auth/session`) trả **410 "deprecated and disabled"**. **Quyết định: làm song song** — chờ Max-Studio sửa, đồng thời được phép code các bước **không phụ thuộc provider** (GĐ1.1 Google, GĐ1.2 Drive) trước khi GĐ0 đạt. Các bước còn lại vẫn chờ GĐ0.
 > Tài liệu này viết để một người hoặc agent mới đọc **một lần là nắm được toàn bộ dự án**: làm gì, vì sao, đã chốt gì, còn gì chưa chốt, build theo thứ tự nào.
 
 ---
@@ -456,6 +457,8 @@ Viết **một script Node nhỏ**, dùng 100 lượt thử miễn phí, rồi �
 **Đạt đủ các điểm** thì chốt D3 và đi tiếp. **Không đạt** thì chuyển sang phương án 13.4 theo thứ tự, và cập nhật spec trước khi build.
 
 ### Giai đoạn 1 — Build app
+> **Ngoại lệ (v2.7):** bước 1 và 2 được làm song song với GĐ0 vì không phụ thuộc nhà cung cấp video (D13). Từ bước 3 trở đi vẫn phải chờ GĐ0 đạt.
+
 1. **Google:** OAuth Desktop với PKCE (tài khoản dữ liệu); đọc đúng dòng N, ghi đúng 1 ô ở dòng N (thử với dữ liệu giả).
 2. **Drive:** upload resumable, đặt quyền link, ghi link vào sheet.
 3. **`MaxStudioProvider`** theo kết quả GĐ0, kèm phân loại lỗi.
