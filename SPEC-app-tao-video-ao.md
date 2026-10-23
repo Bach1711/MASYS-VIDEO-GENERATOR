@@ -1,7 +1,8 @@
 # MASYS Video Generator — Đặc tả sản phẩm (MVP)
 
-> Phiên bản 2.1 · 23/10/2026 · Trạng thái: **đã chốt phạm vi, chưa bắt đầu code, đang chờ Giai đoạn 0 (kiểm chứng Max-Studio)**
+> Phiên bản 2.2 · 23/10/2026 · Trạng thái: **đã chốt phạm vi, chưa bắt đầu code, đang chờ Giai đoạn 0 (kiểm chứng Max-Studio)**
 > Thay đổi so với 2.0: nhà cung cấp video chính đổi từ Gemini API (tính tiền theo lượt) sang **Max-Studio** (dùng credit Google Flow của khách). Gemini API giữ lại làm dự phòng, mặc định tắt.
+> Thay đổi so với 2.1: (1) mục 7 — lỗi khi hỏi trạng thái thì **hỏi lại, không gửi lại task**; (2) tách tài khoản và ký xác nhận rủi ro phải xong **trước Giai đoạn 0** (mục 5.0, 15); (3) tiêu chí 12.17 thêm Gemini API key.
 > Tài liệu này viết để một người hoặc agent mới đọc **một lần là nắm được toàn bộ dự án**: làm gì, vì sao, đã chốt gì, còn gì chưa chốt, build theo thứ tự nào.
 
 ---
@@ -114,7 +115,9 @@ Nguyên tắc:
 
 ## 5. Luồng người dùng
 
-### 5.0 Chuẩn bị trước khi cài (làm một lần, khi bàn giao)
+### 5.0 Chuẩn bị (làm một lần, **trước Giai đoạn 0**)
+> Giai đoạn 0 đã phải giao token Flow thật cho Max-Studio, nên cả 4 bước dưới đây phải xong **trước khi chạy script GĐ0**, không đợi tới lúc bàn giao.
+
 1. **Tách tài khoản (D7):** chọn hoặc tạo một Gmail làm **tài khoản dữ liệu**. Chuyển quyền sở hữu, hoặc chia sẻ quyền chỉnh sửa, sheet và thư mục ảnh/video cho tài khoản này. Tài khoản có gói Flow giữ nguyên làm **tài khoản Flow**.
 2. Đăng ký **Max-Studio**, mua gói (Starter là đủ), lấy **Max-Studio API key**.
 3. Lấy **token Flow** của tài khoản Flow theo hướng dẫn của Max-Studio (cách lấy sẽ chốt ở Giai đoạn 0).
@@ -240,10 +243,13 @@ queued → locking ──(máy khác đang giữ)──► skipped_locked
       fetching_image ──(ảnh hỏng)──► failed
            │
            ▼
-      submitting ──► polling ──(lỗi tạm thời: thử lại ≤3)──► submitting
-           │            ├─(token hết hạn / hết credit)──► paused_auth / paused_credit (dừng cả hàng đợi)
-           │            ├─(nội dung bị chặn)──► failed
-           │            └─(dịch vụ ngừng)──► provider_error
+      submitting ──(lỗi tạm thời, CHƯA có taskid: thử lại ≤3)──► submitting
+           │
+           ▼  (nhận taskid → lưu SQLite ngay)
+      polling ──(lỗi tạm thời khi hỏi: HỎI LẠI, không gửi lại task)──► polling
+           │   ├─(token hết hạn / hết credit)──► paused_auth / paused_credit (dừng cả hàng đợi)
+           │   ├─(nội dung bị chặn)──► failed
+           │   └─(dịch vụ ngừng)──► provider_error
            ▼
       downloading
            │
@@ -261,6 +267,7 @@ queued → locking ──(máy khác đang giữ)──► skipped_locked
 ```
 
 - Mỗi lần đổi trạng thái đều ghi vào SQLite **trước khi** làm bước tiếp theo.
+- **Job đã có `providerTaskId` thì không bao giờ gửi lại task** (mỗi lần gửi là tiêu credit). Mọi lỗi tạm thời sau thời điểm đó chỉ dẫn tới hỏi lại trạng thái. Token hết hạn hoặc hết credit cũng có thể xảy ra ngay ở `submitting`; khi đó xử lý giống như ở `polling`.
 - **Khi khởi động lại:**
   - Job ở `polling` thì **hỏi tiếp bằng `providerTaskId` đã lưu**, không gửi lại.
   - Job ở `submitting` mà chưa có `providerTaskId` thì gửi lại.
@@ -360,7 +367,7 @@ queued → locking ──(máy khác đang giữ)──► skipped_locked
 14. **Âm thanh:** bật bỏ âm thanh thì video trên Drive không có track âm thanh; FFmpeg lỗi thì vẫn có link video gốc.
 15. Link Drive mở được trên trình duyệt chưa đăng nhập, file nằm đúng thư mục con, vẫn mở được sau 7 ngày.
 16. Đóng rồi mở lại app: không phải nhập lại key hay token, không phải kết nối lại Google, ánh xạ cột vẫn còn.
-17. Mở DB, file cấu hình và nhật ký bằng công cụ bất kỳ: **không thấy** Max-Studio API key, token Flow hay token Google ở dạng chữ thường.
+17. Mở DB, file cấu hình và nhật ký bằng công cụ bất kỳ: **không thấy** Max-Studio API key, token Flow, Gemini API key hay token Google ở dạng chữ thường.
 18. Kết nối Google bằng chính email của tài khoản Flow → app hiện cảnh báo đỏ.
 
 ---
@@ -419,6 +426,8 @@ Gói Flow (Google AI Pro/Ultra) **không cấp API key**, và credit Flow chỉ 
 ## 15. Thứ tự build
 
 ### Giai đoạn 0 — Kiểm chứng Max-Studio (bắt buộc, trước khi viết app)
+**Điều kiện trước khi bắt đầu:** đã xong cả 4 bước ở mục 5.0 (tách tài khoản, có Max-Studio API key, có token Flow, khách đã ký xác nhận rủi ro).
+
 Viết **một script Node nhỏ**, dùng 100 lượt thử miễn phí, rồi điền kết quả vào mục 8.1:
 
 | # | Kiểm tra | Điều kiện đạt |
