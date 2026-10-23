@@ -9,6 +9,7 @@
 // Chế độ API (--mode):
 //   v2 (mặc định): chỉ cần Max-Studio API key. Max-Studio dùng tài khoản Google của HỌ → trừ credit Max-Studio.
 //   v1:            cần thêm FLOW_TOKEN (JWT của tài khoản Flow) → chạy trên tài khoản Flow của khách.
+//   v3:            giống v1 nhưng gửi FLOW_COOKIE (cookie Google Labs của tài khoản Flow) thay cho JWT.
 //
 // Kết quả mỗi lần chạy được ghi thêm một dòng vào gd0/out/report.jsonl để điền spec §8.1.
 
@@ -20,6 +21,8 @@ const API_URL = (process.env.MAX_STUDIO_BASE_URL || 'https://max-studio.online')
 const WEB_URL = (process.env.MAX_STUDIO_WEB_URL || 'https://max-studio.shop').replace(/\/$/, '');
 const API_KEY = process.env.MAX_STUDIO_API_KEY || '';
 const FLOW_TOKEN = process.env.FLOW_TOKEN || '';
+const FLOW_COOKIE = process.env.FLOW_COOKIE || '';
+const MODES = ['v1', 'v2', 'v3'];
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), 'out');
 
 const POLL_EVERY_MS = 12_000;
@@ -35,7 +38,7 @@ const DEFAULT_PROMPT =
 // ── Che bí mật: mọi thứ in ra màn hình hoặc ghi file đều đi qua đây (spec §10) ──
 function redact(value) {
   let text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-  for (const secret of [API_KEY, FLOW_TOKEN]) {
+  for (const secret of [API_KEY, FLOW_TOKEN, FLOW_COOKIE]) {
     if (secret && secret.length >= 8) text = text.split(secret).join(`***${secret.slice(-4)}`);
   }
   // Ảnh base64 trong body rất dài — rút gọn cho dễ đọc
@@ -100,6 +103,13 @@ function buildCreateRequest(mode, image, opts) {
     return {
       url: `${API_URL}/api/v1/create-task/image-to-video`,
       body: { ...common, mediaId: image, model: [opts.model || 'Veo_3.1-Fast'], jwt: FLOW_TOKEN },
+    };
+  }
+  if (mode === 'v3') {
+    if (!FLOW_COOKIE) throw new Error('Chế độ v3 cần FLOW_COOKIE (item "Flow Cookie" trong 1Password).');
+    return {
+      url: `${API_URL}/api/v3/create-task/image-to-video`,
+      body: { ...common, mediaId: image, model: [opts.model || 'Veo_3.1-Fast'], cookie: FLOW_COOKIE },
     };
   }
   return {
@@ -183,7 +193,7 @@ async function cmdBalance() {
 }
 
 async function cmdVideo(opts) {
-  const mode = opts.mode === 'v1' ? 'v1' : 'v2';
+  const mode = MODES.includes(opts.mode) ? opts.mode : 'v2';
   const imagePath = opts.image || opts._[0];
   if (!imagePath) throw new Error('Thiếu --image <đường dẫn ảnh>');
 
@@ -210,12 +220,12 @@ async function cmdVideo(opts) {
     return;
   }
   report.taskId = taskId;
-  log(`Task id: ${taskId} — nếu script bị tắt giữa chừng, chạy tiếp bằng: status ${taskId}${mode === 'v1' ? ' --mode v1' : ''}`);
+  log(`Task id: ${taskId} — nếu script bị tắt giữa chừng, chạy tiếp bằng: status ${taskId}${mode === 'v2' ? '' : ` --mode ${mode}`}`);
   await finishTask(mode, taskId, report);
 }
 
 async function cmdStatus(opts) {
-  const mode = opts.mode === 'v1' ? 'v1' : 'v2';
+  const mode = MODES.includes(opts.mode) ? opts.mode : 'v2';
   const taskId = opts._[0];
   if (!taskId) throw new Error('Thiếu taskId');
   await finishTask(mode, taskId, { at: new Date().toISOString(), mode, taskId, resumed: true, balanceBefore: NaN });
@@ -228,7 +238,7 @@ if (!API_KEY) {
 }
 const commands = { balance: cmdBalance, video: cmdVideo, status: cmdStatus };
 if (!commands[command]) {
-  console.error('Lệnh: balance | video --image <ảnh> [--mode v1|v2] [--prompt ...] [--length 8] | status <taskId> [--mode v1|v2]');
+  console.error('Lệnh: balance | video --image <ảnh> [--mode v1|v2|v3] [--prompt ...] [--length 8] | status <taskId> [--mode v1|v2|v3]');
   process.exit(1);
 }
 commands[command](opts).catch((err) => {

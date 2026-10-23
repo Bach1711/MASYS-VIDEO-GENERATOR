@@ -1,11 +1,12 @@
 # MASYS Video Generator — Đặc tả sản phẩm (MVP)
 
-> Phiên bản 2.5 · 23/10/2026 · Trạng thái: **đã chốt phạm vi, chưa bắt đầu code, đang chờ Giai đoạn 0 (kiểm chứng Max-Studio)**
+> Phiên bản 2.6 · 23/10/2026 · Trạng thái: **đã chốt phạm vi, chưa bắt đầu code, đang chờ Giai đoạn 0 (kiểm chứng Max-Studio)**
 > Thay đổi so với 2.0: nhà cung cấp video chính đổi từ Gemini API (tính tiền theo lượt) sang **Max-Studio** (dùng credit Google Flow của khách). Gemini API giữ lại làm dự phòng, mặc định tắt.
 > Thay đổi so với 2.1: (1) mục 7 — lỗi khi hỏi trạng thái thì **hỏi lại, không gửi lại task**; (2) tách tài khoản và ký xác nhận rủi ro phải xong **trước Giai đoạn 0** (mục 5.0, 15); (3) tiêu chí 12.17 thêm Gemini API key.
 > Thay đổi so với 2.2: (1) bước 3.1 có ô **email tài khoản Flow** để cảnh báo trùng tài khoản; (2) chốt câu 14.6: dòng đã có link video **mặc định bỏ qua**, kể cả khi máy khác vừa ghi link trong lúc lô đang chạy.
 > Thay đổi so với 2.3: chốt D14 — **mỗi máy tự dán token Flow**; loại phương án chia sẻ token qua sheet.
 > Thay đổi so với 2.4: **mục tiêu trải nghiệm — khách chỉ cần dán Max-Studio API key là tạo được video trên Flow.** Ô token Flow chỉ xuất hiện nếu Giai đoạn 0 cho thấy Max-Studio bắt buộc gửi token theo từng request.
+> Thay đổi so với 2.5 (kết quả thử GĐ0 điểm 0): **chỉ dán API key hiện KHÔNG tạo được video** — API V2 (không cần giấy tờ Flow) chưa mở "ảnh thành video" (HTTP 422 *"No active pricing rule"*). **Chốt dùng API V3**: gửi kèm **cookie Google Labs của tài khoản Flow**. Trong spec, "token Flow" từ nay hiểu là **cookie Flow**; mọi quy tắc của token (D14, mục 10) áp dụng cho cookie.
 > Tài liệu này viết để một người hoặc agent mới đọc **một lần là nắm được toàn bộ dự án**: làm gì, vì sao, đã chốt gì, còn gì chưa chốt, build theo thứ tự nào.
 
 ---
@@ -53,7 +54,7 @@ Thay toàn bộ phần làm tay ở 1.1 bằng: **chọn dòng → bấm Chạy 
 | **Provider** | Dịch vụ tạo video đứng sau interface `VideoProvider`. Chính: `MaxStudioProvider`. Dự phòng: `GeminiOmniProvider` |
 | **Max-Studio** | Dịch vụ API bên thứ ba (max-studio.shop), thay mặt tài khoản Flow của khách để gọi Veo 3 |
 | **Max-Studio API key** | Key của tài khoản Max-Studio, gửi trong header `X-API-Key` |
-| **Token Flow** | "Google Token Veo3 (JWT)" của **tài khoản Flow**, gửi kèm mỗi request tới Max-Studio. Đây là bí mật |
+| **Token Flow / cookie Flow** | Giấy tờ của **tài khoản Flow** gửi kèm mỗi request tới Max-Studio. Từ v2.6 dùng API V3 nên đây là **cookie Google Labs** (trường `cookie`); API V1 dùng JWT (trường `jwt`). Đây là bí mật nhạy cảm nhất |
 | **Tài khoản Flow** | Tài khoản Google có gói Flow (đang giữ credit). Chỉ dùng cho việc tạo video. Người dùng nhập email của tài khoản này ở bước 3.1 để app cảnh báo trùng |
 | **Tài khoản dữ liệu** | Tài khoản Gmail mà app kết nối bằng OAuth để đọc sheet và upload Drive. **Phải khác tài khoản Flow** (D7) |
 | **Tên máy** | Tên đặt cho mỗi máy cài app (mặc định là tên máy Windows) |
@@ -292,11 +293,12 @@ queued → locking ──(máy khác đang giữ)──► skipped_locked
 
 | Mục | Đã biết | Còn phải chốt |
 |---|---|---|
-| Trang | https://max-studio.shop · docs: https://max-studio.shop/docs | Tên miền API chính thức: ví dụ trong tài liệu dùng `max-studio.online`, khác với trang chính `.shop`. CHỐT Ở GĐ0 |
+| Trang | https://max-studio.shop · docs: https://max-studio.shop/docs (mã nguồn `js/docs*.js`) | — |
+| Tên miền | **API tạo task:** `https://max-studio.online`. **Tài khoản** (số dư `GET /api/balance`, `GET /api/v1/quota`): `https://max-studio.shop` | — |
 | Xác thực | Header `X-API-Key: <Max-Studio API key>` | — |
-| Token Flow | *"Cần Google Token Veo3 (JWT) cho mỗi lượt request"* | Cách lấy token, gửi ở trường nào, **sống bao lâu**, có tự làm mới được không. CHỐT Ở GĐ0 |
-| Tạo video | Ví dụ text-to-video: `POST /api/v1/create-task/text-to-video` với `prompt`, `model`, `ratio`, `quantity`. Có image-to-video và extend video | Endpoint image-to-video, cách gửi ảnh (file hay URL hay base64), giá trị `model` cho Veo 3. CHỐT Ở GĐ0 |
-| Kết quả | Phản hồi có `taskid`, `status`, `balance` | Endpoint hỏi trạng thái, link video, link có hạn dùng không. CHỐT Ở GĐ0 |
+| 3 phiên bản API | **V1:** gửi JWT tài khoản Flow (`jwt`). **V2:** không cần giấy tờ Flow, Max-Studio dùng tài khoản của họ, chỉ model `Veo_3.1-Lite_Lower_Priority` — **"ảnh thành video" chưa mở** (422). **V3 (đã chọn):** như V1 nhưng gửi **cookie Google Labs** (`cookie`) | Cookie sống bao lâu, lấy thế nào. CHỐT Ở GĐ0 |
+| Tạo video (V3) | `POST /api/v3/create-task/image-to-video`, body: `mediaId` (UUID / URL / **base64 data URI**), `prompt`, `ratio` (`PORTRAIT` = 9:16), `model` (mảng; `Veo_3.1-Lite`, `Veo_3.1-Fast`, `Veo_3.1-Quality`, `Omni_Flash`…), `length` (4/6/8; Omni_Flash thêm 10), `resolution` (`720p`/`360p`), `seed?`, `cookie` | Model nào giữ hình in áo tốt nhất. CHỐT Ở GĐ0 |
+| Kết quả | Tạo task trả `taskid`, `status: "pending"`, `balance`. Hỏi trạng thái: `GET /api/v3/check-status/{task_id}`; xong khi `status` = `successfully` (lỗi: `failed`/`error`); link video ở `result[].fifeUrl` | Link có hạn dùng không. CHỐT Ở GĐ0 |
 | Giá | Starter 199.000đ/tháng (500 lượt/ngày, 5 task song song); Pro 999.000đ; Ultra 2.999.000đ. Có 100 lượt thử miễn phí | Một video trừ bao nhiêu credit Max-Studio và bao nhiêu credit Flow. CHỐT Ở GĐ0 |
 | Lỗi | Chưa có tài liệu | Mã lỗi cho token hết hạn, hết credit, nội dung bị chặn, quá tải. CHỐT Ở GĐ0 |
 
@@ -337,7 +339,7 @@ queued → locking ──(máy khác đang giữ)──► skipped_locked
 
 ## 10. Bảo mật
 - Key và token chỉ có trong main process, được mã hoá khi lưu. Giao diện chỉ hiện 4 ký tự cuối.
-- **Token Flow là bí mật nhạy cảm nhất:** nó cho phép thao tác trên tài khoản Flow. Vì vậy:
+- **Token/cookie Flow là bí mật nhạy cảm nhất.** Cookie Google Labs (V3) gần như là cả phiên đăng nhập Google của tài khoản Flow, nên còn nhạy cảm hơn JWT. Vì vậy:
   - Chỉ gửi token tới Max-Studio, không gửi đi đâu khác, và không bao giờ ghi vào nhật ký.
   - Có nút **"Xoá token"** trong Cài đặt.
   - Hướng dẫn bàn giao ghi rõ cách **thu hồi token** (đăng xuất mọi phiên của tài khoản Flow, đổi mật khẩu) khi nghi bị lộ hoặc khi ngừng dùng Max-Studio.
@@ -441,7 +443,7 @@ Viết **một script Node nhỏ**, dùng 100 lượt thử miễn phí, rồi �
 
 | # | Kiểm tra | Điều kiện đạt |
 |---|---|---|
-| 0 | **Chỉ dùng Max-Studio API key có tạo được video không** (tài khoản Flow liên kết sẵn phía Max-Studio, request không cần gửi token) | Có → bỏ ô token Flow khỏi app, bỏ qua điểm 1. Không → làm tiếp điểm 1 |
+| 0 | **Chỉ dùng Max-Studio API key có tạo được video không** (tài khoản Flow liên kết sẵn phía Max-Studio, request không cần gửi token) | ✅ Đã thử 23/10/2026: **KHÔNG** — V2 trả 422, không trừ credit. Chuyển sang V3 (cookie Flow), làm tiếp điểm 1 |
 | 1 | Cách lấy token Flow; token sống bao lâu; có tự làm mới được không | Không phải dán lại token nhiều lần trong ngày |
 | 2 | Endpoint image-to-video, cách gửi ảnh, khung 9:16 | Tạo được video dọc 9:16 từ ảnh |
 | 3 | Hỏi trạng thái theo `taskid`; link video có hạn dùng không | Tải được `.mp4` |
