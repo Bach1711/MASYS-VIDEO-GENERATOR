@@ -1,8 +1,9 @@
 # MASYS Video Generator — Đặc tả sản phẩm (MVP)
 
-> Phiên bản 2.2 · 23/10/2026 · Trạng thái: **đã chốt phạm vi, chưa bắt đầu code, đang chờ Giai đoạn 0 (kiểm chứng Max-Studio)**
+> Phiên bản 2.3 · 23/10/2026 · Trạng thái: **đã chốt phạm vi, chưa bắt đầu code, đang chờ Giai đoạn 0 (kiểm chứng Max-Studio)**
 > Thay đổi so với 2.0: nhà cung cấp video chính đổi từ Gemini API (tính tiền theo lượt) sang **Max-Studio** (dùng credit Google Flow của khách). Gemini API giữ lại làm dự phòng, mặc định tắt.
 > Thay đổi so với 2.1: (1) mục 7 — lỗi khi hỏi trạng thái thì **hỏi lại, không gửi lại task**; (2) tách tài khoản và ký xác nhận rủi ro phải xong **trước Giai đoạn 0** (mục 5.0, 15); (3) tiêu chí 12.17 thêm Gemini API key.
+> Thay đổi so với 2.2: (1) bước 3.1 có ô **email tài khoản Flow** để cảnh báo trùng tài khoản; (2) chốt câu 14.6: dòng đã có link video **mặc định bỏ qua**, kể cả khi máy khác vừa ghi link trong lúc lô đang chạy.
 > Tài liệu này viết để một người hoặc agent mới đọc **một lần là nắm được toàn bộ dự án**: làm gì, vì sao, đã chốt gì, còn gì chưa chốt, build theo thứ tự nào.
 
 ---
@@ -51,7 +52,7 @@ Thay toàn bộ phần làm tay ở 1.1 bằng: **chọn dòng → bấm Chạy 
 | **Max-Studio** | Dịch vụ API bên thứ ba (max-studio.shop), thay mặt tài khoản Flow của khách để gọi Veo 3 |
 | **Max-Studio API key** | Key của tài khoản Max-Studio, gửi trong header `X-API-Key` |
 | **Token Flow** | "Google Token Veo3 (JWT)" của **tài khoản Flow**, gửi kèm mỗi request tới Max-Studio. Đây là bí mật |
-| **Tài khoản Flow** | Tài khoản Google có gói Flow (đang giữ credit). Chỉ dùng cho việc tạo video |
+| **Tài khoản Flow** | Tài khoản Google có gói Flow (đang giữ credit). Chỉ dùng cho việc tạo video. Người dùng nhập email của tài khoản này ở bước 3.1 để app cảnh báo trùng |
 | **Tài khoản dữ liệu** | Tài khoản Gmail mà app kết nối bằng OAuth để đọc sheet và upload Drive. **Phải khác tài khoản Flow** (D7) |
 | **Tên máy** | Tên đặt cho mỗi máy cài app (mặc định là tên máy Windows) |
 
@@ -128,17 +129,18 @@ Nguyên tắc:
 2. **Màn hình chào:** hỏi *"Đã có file cấu hình từ máy khác?"*. Có thì nhập file. Đặt **tên máy**.
 3. **Trình hướng dẫn cài đặt 4 bước:**
    1. **Nhà cung cấp video:**
+      - Nhập **email tài khoản Flow** (bắt buộc). Email này không phải bí mật, chỉ dùng để so với tài khoản Google ở bước 3 và được lưu trong file cấu hình xuất ra.
       - Dán **Max-Studio API key** và **token Flow**, rồi bấm **Kiểm tra**. App gọi một lệnh không tạo video; nếu Max-Studio không có lệnh như vậy thì kiểm tra số dư (chốt ở Giai đoạn 0).
       - App hiện số dư credit Max-Studio và trạng thái token.
       - Phía dưới, trong phần "Nâng cao", có ô **Gemini API key (dự phòng, tính tiền)**, có thể bỏ trống.
    2. **Mặc định:** bỏ âm thanh (bật), số job song song (mặc định 2, tối đa theo gói Max-Studio), **hạn mức credit mỗi ngày**.
-   3. **Kết nối Google:** app mở trình duyệt mặc định. Màn hình nhắc **đăng nhập bằng tài khoản dữ liệu, KHÔNG dùng tài khoản Flow**. Nếu email kết nối trùng với email tài khoản Flow (khi biết được), app cảnh báo đỏ. Bấm qua cảnh báo *"chưa xác minh"*: *Nâng cao → Đi tới app → Cho phép*.
+   3. **Kết nối Google:** app mở trình duyệt mặc định. Màn hình nhắc **đăng nhập bằng tài khoản dữ liệu, KHÔNG dùng tài khoản Flow**. Nếu email kết nối trùng với email tài khoản Flow đã nhập ở bước 1 (so không phân biệt hoa thường), app hiện **cảnh báo đỏ** và yêu cầu xác nhận lần nữa mới cho đi tiếp. Bấm qua cảnh báo *"chưa xác minh"*: *Nâng cao → Đi tới app → Cho phép*.
    4. **Thư mục Drive lưu video:** dán link thư mục có sẵn, hoặc bấm "Tạo thư mục mới". App thử ghi để kiểm tra quyền.
 4. **Ánh xạ cột (mỗi sheet một lần):** dán link sheet, kiểm tra **quyền sửa**, chọn tab, xác nhận các cột Ảnh, Prompt, URL video, Trạng thái, rồi lưu.
 5. **Chạy thử 1 dòng (app khuyến nghị):** chọn dòng 5, chạy, xem video trong app, bấm **"Mở sheet tại ô D5"** để kiểm tra.
 
 ### 5.2 Dùng hằng ngày
-Mở app → chọn dòng → xem trước (dòng lỗi, dòng đã có video, dòng máy khác đang tạo, **số credit sẽ dùng và số dư còn lại**) → **Chạy** → thu nhỏ xuống khay → Windows hiện thông báo khi xong lô.
+Mở app → chọn dòng → xem trước (dòng lỗi, dòng đã có video — **mặc định bỏ qua**, dòng máy khác đang tạo, **số credit sẽ dùng và số dư còn lại**) → **Chạy** → thu nhỏ xuống khay → Windows hiện thông báo khi xong lô.
 
 ### 5.3 Tình huống đặc biệt
 - **Token Flow hết hạn:** app **tạm dừng cả hàng đợi** và hiện thông báo Windows *"Token Flow hết hạn, hãy cập nhật"*. Dán token mới vào Cài đặt là chạy tiếp, không mất job.
@@ -164,7 +166,7 @@ Mở app → chọn dòng → xem trước (dòng lỗi, dòng đã có video, d
 - Cách chọn: gõ khoảng dòng (`5`, `2-3, 7, 10-12`), tích chọn, hoặc "Chọn các dòng chưa có URL video".
 - **Đọc lại sheet ngay trước khi hiện bảng xem trước.**
 - Dòng không được chạy: thiếu ảnh, thiếu prompt, link ảnh hỏng, hoặc đang bị máy khác khoá (khoá chưa quá 30 phút).
-- Dòng đã có link video: phải tích **"Ghi đè"** mới chạy.
+- Dòng đã có link video: **mặc định bỏ qua**, hiện trong bảng xem trước là *"Đã có video — bỏ qua"* và không tạo job. Muốn tạo lại thì người dùng tích **"Ghi đè"** cho từng dòng đó.
 - Hiện số video, **số credit ước tính** và **số dư credit Max-Studio**. Chặn chạy nếu số dư không đủ hoặc vượt hạn mức ngày.
 
 **F4. Đồng bộ đúng dòng (yêu cầu cốt lõi)**
@@ -176,6 +178,7 @@ Mở app → chọn dòng → xem trước (dòng lỗi, dòng đã có video, d
   2. Đợi 2 giây rồi đọc lại.
   3. Ô vẫn ghi tên máy mình thì chạy; nếu không thì `skipped_locked`.
   4. Khoá quá 30 phút coi như bị bỏ dở.
+  5. **Ngay trước bước 1**, đọc lại ô đầu ra. Nếu ô đã có link video (ví dụ máy khác vừa làm xong dòng này sau khi mình xem trước) và job không bật "Ghi đè" thì **không khoá, không tạo video**; job chuyển sang `skipped_has_video`.
 
 **F5. Tạo video**
 - **Provider chính: `MaxStudioProvider`** (chi tiết ở mục 8.1):
@@ -224,7 +227,7 @@ Mở app → chọn dòng → xem trước (dòng lỗi, dòng đã có video, d
 
 **F10. Dùng trên nhiều máy**
 - Mỗi máy tự nhập Max-Studio API key và token Flow, tự kết nối Google. **Mọi máy dùng cùng tài khoản dữ liệu và cùng tài khoản Flow.**
-- Xuất/nhập cấu hình (file `.json`, **không chứa bí mật**).
+- Xuất/nhập cấu hình (file `.json`, **không chứa bí mật**), có cả email tài khoản Flow.
 - **Token Flow:** khi token hết hạn, mọi máy đều phải cập nhật token. Cách làm cụ thể tuỳ kết quả Giai đoạn 0 (xem câu hỏi mở 14.1).
 
 **F11. Interface provider**
@@ -238,6 +241,7 @@ Mở app → chọn dòng → xem trước (dòng lỗi, dòng đã có video, d
 
 ```
 queued → locking ──(máy khác đang giữ)──► skipped_locked
+           │     └─(ô đầu ra đã có link, không bật Ghi đè)──► skipped_has_video
            │
            ▼
       fetching_image ──(ảnh hỏng)──► failed
@@ -317,10 +321,10 @@ queued → locking ──(máy khác đang giữ)──► skipped_locked
 
 | Bảng | Các trường chính |
 |---|---|
-| `settings` | `machineName`, `primaryProvider` (`maxstudio`), `fallbackEnabled` (mặc định `false`), `stripAudio`, `concurrency`, `dailyCreditLimit`, `driveRootFolderId`, `localCopyDir?` |
+| `settings` | `machineName`, `flowAccountEmail`, `primaryProvider` (`maxstudio`), `fallbackEnabled` (mặc định `false`), `stripAudio`, `concurrency`, `dailyCreditLimit`, `driveRootFolderId`, `localCopyDir?` |
 | `sheet_configs` | `spreadsheetId`, `tab`, `headerRow`, `colImage`, `colPrompt`, `colVideoUrl`, `colStatus`, `updatedAt` |
 | `batches` | `id`, `spreadsheetId`, `tab`, `rowsSpec`, `provider`, `status`, `createdAt` |
-| `jobs` | `id`, `batchId`, `rowNumber`, `outputCell`, `statusCell`, `inputSnapshot` (JSON), `state`, `attempts`, `error`, `provider`, `providerTaskId`, `tmpPath`, `driveFileId`, `driveLink`, `audioStripped`, `creditsUsed`, `costUsd?`, `updatedAt` |
+| `jobs` | `id`, `batchId`, `rowNumber`, `outputCell`, `statusCell`, `inputSnapshot` (JSON), `overwrite`, `state`, `attempts`, `error`, `provider`, `providerTaskId`, `tmpPath`, `driveFileId`, `driveLink`, `audioStripped`, `creditsUsed`, `costUsd?`, `updatedAt` |
 | `usage_daily` | `date`, `provider`, `videos`, `creditsUsed`, `costUsd?`, `lastBalance` |
 
 **Bí mật** gồm Max-Studio API key, token Flow, refresh token Google và Gemini API key (nếu có). **Không lưu dạng chữ thường trong DB**; chúng được mã hoá bằng `safeStorage` (DPAPI của Windows).
@@ -368,7 +372,8 @@ queued → locking ──(máy khác đang giữ)──► skipped_locked
 15. Link Drive mở được trên trình duyệt chưa đăng nhập, file nằm đúng thư mục con, vẫn mở được sau 7 ngày.
 16. Đóng rồi mở lại app: không phải nhập lại key hay token, không phải kết nối lại Google, ánh xạ cột vẫn còn.
 17. Mở DB, file cấu hình và nhật ký bằng công cụ bất kỳ: **không thấy** Max-Studio API key, token Flow, Gemini API key hay token Google ở dạng chữ thường.
-18. Kết nối Google bằng chính email của tài khoản Flow → app hiện cảnh báo đỏ.
+18. Kết nối Google bằng chính email tài khoản Flow đã nhập ở bước 3.1 → app hiện cảnh báo đỏ.
+19. **Dòng đã có video:** chọn `2-5` khi dòng 3 đã có link → dòng 3 bị bỏ qua, link cũ giữ nguyên, không tiêu credit. Máy A ghi xong dòng 4 trong lúc máy B đang chờ chạy dòng 4 → máy B bỏ qua (`skipped_has_video`).
 
 ---
 
@@ -416,7 +421,7 @@ Gói Flow (Google AI Pro/Ultra) **không cấp API key**, và credit Flow chỉ 
 3. **Tài khoản dữ liệu** là Gmail nào? Ai chuyển hoặc chia sẻ sheet và thư mục Drive sang tài khoản đó?
 4. Mỗi video trừ bao nhiêu credit Flow? Số credit hiện có đủ dùng bao lâu, và khi hết thì khách gia hạn gói Flow thế nào? (Trả lời ở GĐ0.)
 5. Xin **1 sheet mẫu thật** để chốt cột và nơi lưu ảnh.
-6. Dòng đã có link video: mặc định bỏ qua hay ghi đè?
+6. ~~Dòng đã có link video: mặc định bỏ qua hay ghi đè?~~ **Đã chốt (v2.3): mặc định bỏ qua**, ghi đè phải tích riêng từng dòng.
 7. Có cần giữ thêm bản video trên máy cho người edit không?
 8. Khách chấp nhận cảnh báo SmartScreen, hay muốn mua chứng chỉ ký số?
 9. Cần báo khách: áo dùng nhân vật có bản quyền dễ bị TikTok Shop gỡ; TikTok yêu cầu gắn nhãn nội dung do AI tạo.
