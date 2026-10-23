@@ -1,6 +1,6 @@
 # MASYS Video Generator
 
-Đặc tả đầy đủ: `SPEC-app-tao-video-ao.md` (v2.3) — đọc trước khi làm bất cứ việc gì. Không mở lại các quyết định ở mục 3 (D1–D13) nếu chưa hỏi người phụ trách.
+Đặc tả đầy đủ: `SPEC-app-tao-video-ao.md` (v2.4) — đọc trước khi làm bất cứ việc gì. Không mở lại các quyết định ở mục 3 (D1–D14) nếu chưa hỏi người phụ trách.
 
 ## Cổng Giai đoạn 0
 - **Chưa viết app** (Electron, hàng đợi, UI…) khi ticket Giai đoạn 0 (kiểm chứng Max-Studio) chưa Done. GĐ0 chỉ là một script Node nhỏ.

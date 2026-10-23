@@ -1,9 +1,10 @@
 # MASYS Video Generator — Đặc tả sản phẩm (MVP)
 
-> Phiên bản 2.3 · 23/10/2026 · Trạng thái: **đã chốt phạm vi, chưa bắt đầu code, đang chờ Giai đoạn 0 (kiểm chứng Max-Studio)**
+> Phiên bản 2.4 · 23/10/2026 · Trạng thái: **đã chốt phạm vi, chưa bắt đầu code, đang chờ Giai đoạn 0 (kiểm chứng Max-Studio)**
 > Thay đổi so với 2.0: nhà cung cấp video chính đổi từ Gemini API (tính tiền theo lượt) sang **Max-Studio** (dùng credit Google Flow của khách). Gemini API giữ lại làm dự phòng, mặc định tắt.
 > Thay đổi so với 2.1: (1) mục 7 — lỗi khi hỏi trạng thái thì **hỏi lại, không gửi lại task**; (2) tách tài khoản và ký xác nhận rủi ro phải xong **trước Giai đoạn 0** (mục 5.0, 15); (3) tiêu chí 12.17 thêm Gemini API key.
 > Thay đổi so với 2.2: (1) bước 3.1 có ô **email tài khoản Flow** để cảnh báo trùng tài khoản; (2) chốt câu 14.6: dòng đã có link video **mặc định bỏ qua**, kể cả khi máy khác vừa ghi link trong lúc lô đang chạy.
+> Thay đổi so với 2.3: chốt D14 — **mỗi máy tự dán token Flow**; loại phương án chia sẻ token qua sheet.
 > Tài liệu này viết để một người hoặc agent mới đọc **một lần là nắm được toàn bộ dự án**: làm gì, vì sao, đã chốt gì, còn gì chưa chốt, build theo thứ tự nào.
 
 ---
@@ -77,6 +78,7 @@ Phần này giúp người mới **không mở lại những câu đã trả l�
 | D11 | **Dùng trên nhiều máy:** cột Trạng thái **bắt buộc**, có khoá dòng | Khách cài trên nhiều thiết bị | Đồng bộ cài đặt qua đám mây |
 | D12 | **Dự phòng Gemini API (Omni Flash) có trong app nhưng mặc định TẮT** | Để không phát sinh tiền ngoài ý muốn. Khi Max-Studio hỏng, khách tự quyết có bật dự phòng hay không | Tự động chuyển sang dự phòng (gây mất tiền bất ngờ); bỏ hẳn dự phòng (mất đường lui khi Max-Studio ngừng) |
 | D13 | Tạo video nằm sau interface `VideoProvider` | Max-Studio có thể ngừng bất cứ lúc nào; phải thay provider được mà không sửa phần còn lại | Gắn chặt vào một dịch vụ |
+| D14 | **Mỗi máy tự dán token Flow** và lưu mã hoá trên máy đó. Token không bao giờ rời máy, ngoài việc gửi tới Max-Studio | Token Flow là bí mật nhạy cảm nhất (mục 10); để ở chỗ dùng chung là ai xem được chỗ đó cũng cầm được tài khoản Flow | **Chia sẻ token qua sheet** (token nằm dạng chữ thường, ai có quyền xem sheet đều đọc được); đồng bộ qua đám mây (không có server, D1) |
 
 ---
 
@@ -228,7 +230,7 @@ Mở app → chọn dòng → xem trước (dòng lỗi, dòng đã có video �
 **F10. Dùng trên nhiều máy**
 - Mỗi máy tự nhập Max-Studio API key và token Flow, tự kết nối Google. **Mọi máy dùng cùng tài khoản dữ liệu và cùng tài khoản Flow.**
 - Xuất/nhập cấu hình (file `.json`, **không chứa bí mật**), có cả email tài khoản Flow.
-- **Token Flow:** khi token hết hạn, mọi máy đều phải cập nhật token. Cách làm cụ thể tuỳ kết quả Giai đoạn 0 (xem câu hỏi mở 14.1).
+- **Token Flow (D14):** mỗi máy tự dán token trong Cài đặt. Khi token hết hạn, máy nào gặp lỗi thì máy đó tạm dừng hàng đợi và báo; người dùng dán token mới **trên từng máy**. Không chia sẻ token qua sheet, file cấu hình hay bất kỳ chỗ dùng chung nào.
 
 **F11. Interface provider**
 - `VideoProvider.submit(input) → { taskId }`, `poll(taskId) → { state, videoUrl?, error? }`, `download(videoUrl) → bytes`.
@@ -416,7 +418,7 @@ Gói Flow (Google AI Pro/Ultra) **không cấp API key**, và credit Flow chỉ 
 ---
 
 ## 14. Câu hỏi còn mở
-1. **Token Flow sống bao lâu và có tự làm mới được không?** Nếu phải dán lại thường xuyên, cần quyết cách cập nhật cho nhiều máy (mỗi máy tự dán, hay chia sẻ qua sheet). Đây là câu **quan trọng nhất**, quyết định Max-Studio có dùng được thật hay không. Trả lời ở GĐ0.
+1. **Token Flow sống bao lâu và có tự làm mới được không?** Cách cập nhật cho nhiều máy đã chốt là mỗi máy tự dán (D14), nên token càng sống ngắn thì càng phiền: nếu phải dán lại nhiều lần trong ngày trên mọi máy thì coi như GĐ0 không đạt điểm 1. Đây là câu **quan trọng nhất**, quyết định Max-Studio có dùng được thật hay không. Trả lời ở GĐ0.
 2. **Ai đăng ký tài khoản Max-Studio và lấy token Flow** để chạy GĐ0: người làm app hay khách?
 3. **Tài khoản dữ liệu** là Gmail nào? Ai chuyển hoặc chia sẻ sheet và thư mục Drive sang tài khoản đó?
 4. Mỗi video trừ bao nhiêu credit Flow? Số credit hiện có đủ dùng bao lâu, và khi hết thì khách gia hạn gói Flow thế nào? (Trả lời ở GĐ0.)
