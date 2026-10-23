@@ -194,13 +194,15 @@ async function cmdBalance() {
 
 async function cmdVideo(opts) {
   const mode = MODES.includes(opts.mode) ? opts.mode : 'v2';
+  // --media <uuid>: ảnh đã upload trước (mediaGenerationId từ upload-image) thay cho file ảnh
   const imagePath = opts.image || opts._[0];
-  if (!imagePath) throw new Error('Thiếu --image <đường dẫn ảnh>');
+  if (!imagePath && !opts.media) throw new Error('Thiếu --image <đường dẫn ảnh> hoặc --media <uuid>');
 
   const before = await getBalance();
-  const { url, body } = buildCreateRequest(mode, await imageToDataUri(imagePath), opts);
+  const image = opts.media || (await imageToDataUri(imagePath));
+  const { url, body } = buildCreateRequest(mode, image, opts);
   const report = {
-    at: new Date().toISOString(), mode, image: imagePath, model: body.model, length: body.length,
+    at: new Date().toISOString(), mode, image: opts.media ? `media:${opts.media}` : imagePath, model: body.model, length: body.length,
     resolution: body.resolution, prompt: body.prompt, balanceBefore: before.balance,
   };
   log(`Chế độ ${mode} · model ${JSON.stringify(body.model)} · ${body.length}s · ${body.resolution} · PORTRAIT (9:16)`);
