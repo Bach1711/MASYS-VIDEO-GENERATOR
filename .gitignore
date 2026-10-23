@@ -1,0 +1,47 @@
+# ── Bí mật: KHÔNG BAO GIỜ commit ─────────────────────────────
+# .env chỉ chứa địa chỉ op://… nên được commit.
+# .env.local là bản đã giải mã bằng `op inject` → bỏ qua.
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.pfx
+client_secret*.json
+credentials*.json
+token*.json
+
+# 1Password Emergency Kit
+*Emergency Kit*
+*Emergency-Kit*
+*EmergencyKit*
+*emergency-kit*
+
+# ── Node / Electron ─────────────────────────────────────────
+node_modules/
+dist/
+out/
+release/
+build/
+*.tsbuildinfo
+.vite/
+coverage/
+
+# ── Dữ liệu chạy thử trên máy ───────────────────────────────
+*.db
+*.db-journal
+*.sqlite
+tmp/
+*.mp4
+logs/
+*.log
+npm-debug.log*
+
+# ── Hệ điều hành / IDE ──────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.claude/settings.local.json
