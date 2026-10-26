@@ -75,6 +75,7 @@ export function Layout(props: { title: string; children: Child }) {
             <a href="/">Trang chủ</a>
             <a href="/sheets">Kết nối sheet</a>
             <a href="/scan">Quét và chọn dòng</a>
+            <a href="/bot">Bot Muse</a>
             <a href="/settings">Cài đặt</a>
           </div>
         </nav>

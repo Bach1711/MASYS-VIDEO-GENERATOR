@@ -18,6 +18,9 @@ export interface AppConfig {
   port: number;
   dataDir: string;
   dbPath: string;
+  /** Hồ sơ Chrome của bot: giữ phiên đăng nhập Muse, coi như bí mật (spec §10). */
+  botProfileDir: string;
+  screenshotDir: string;
   serviceAccount: ServiceAccountStatus;
 }
 
@@ -74,6 +77,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     port,
     dataDir,
     dbPath: path.join(dataDir, "data.db"),
+    botProfileDir: path.join(dataDir, "bot-profile"),
+    screenshotDir: path.join(dataDir, "screenshots"),
     serviceAccount: checkServiceAccount(env.GOOGLE_SERVICE_ACCOUNT_JSON),
   };
 }

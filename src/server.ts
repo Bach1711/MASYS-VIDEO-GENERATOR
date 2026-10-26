@@ -1,4 +1,7 @@
 import { serve } from "@hono/node-server";
+import { MuseBot } from "./bot/museBot.js";
+import { DEFAULT_MUSE_URL } from "./bot/museSelectors.js";
+import { getSettings } from "./db/settings.js";
 import { HOST, loadConfig } from "./config.js";
 import { openDatabase } from "./db/index.js";
 import { serviceAccountTokenProvider } from "./google/auth.js";
@@ -28,13 +31,20 @@ const sheets = google && new SheetsClient(google);
 const drive = google && new DriveClient(google);
 const thumbs = drive && new ThumbnailCache(drive);
 
-const app = createApp(config, db, { sheets, drive, thumbs });
+const bot = new MuseBot({
+  profileDir: config.botProfileDir,
+  screenshotDir: config.screenshotDir,
+  museUrl: () => getSettings(db).museUrl ?? DEFAULT_MUSE_URL,
+});
+
+const app = createApp(config, db, { sheets, drive, thumbs, bot });
 const server = serve({ fetch: app.fetch, hostname: HOST, port: config.port }, (info) => {
   logger.info(`Tool đang chạy tại http://localhost:${info.port}`);
 });
 
-function shutdown() {
+async function shutdown() {
   server.close();
+  await bot.close().catch(() => {});
   db.close();
   process.exit(0);
 }
