@@ -30,7 +30,11 @@ coverage/
 # ── Dữ liệu chạy thử trên máy ───────────────────────────────
 *.db
 *.db-journal
+*.db-wal
+*.db-shm
 *.sqlite
+*.sqlite3
+masys-video/
 tmp/
 *.mp4
 logs/
