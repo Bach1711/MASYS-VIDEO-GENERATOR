@@ -60,7 +60,34 @@ describe("trang Kết nối sheet", () => {
     expect(res.status).toBe(303);
     expect(getSheetConfig(db, ID, "Trang tính1")).toEqual({
       spreadsheetId: ID, tab: "Trang tính1", headerRow: 1, colImage: "A", colPrompt: "B", colVideo: "C", colStatus: "D",
+      spreadsheetTitle: null,
     });
+  });
+
+  it("lưu tên file sheet khi lưu ánh xạ; danh sách hiện tên file thay cho mã", async () => {
+    const { app, db } = setup({
+      readRow: async () => ["Ảnh", "Prompt", "Video", "Trạng Thái"],
+      getSpreadsheet: async () => ({ spreadsheetId: ID, title: "MASYS Video – Danh sách", tabs: [] }),
+    });
+    const form = new URLSearchParams({ id: ID, tab: "Trang tính1", headerRow: "1", colImage: "A", colPrompt: "B", colVideo: "C", colStatus: "D" });
+    await app.request("/sheets/map", { method: "POST", body: form });
+    expect(getSheetConfig(db, ID, "Trang tính1")?.spreadsheetTitle).toBe("MASYS Video – Danh sách");
+    const html = await (await app.request("/sheets")).text();
+    expect(html).toContain("MASYS Video – Danh sách");
+    expect(html).not.toContain(`${ID.slice(0, 8)}…`);
+  });
+
+  it("ánh xạ lưu từ trước (chưa có tên) được tự điền tên khi mở danh sách", async () => {
+    let calls = 0;
+    const { app, db } = setup({
+      getSpreadsheet: async () => (calls++, { spreadsheetId: ID, title: "Sheet cũ", tabs: [] }),
+    });
+    saveSheetConfig(db, { spreadsheetId: ID, tab: "A", headerRow: 1, colImage: "A", colPrompt: "B", colVideo: "C", colStatus: "D" });
+    saveSheetConfig(db, { spreadsheetId: ID, tab: "B", headerRow: 1, colImage: "A", colPrompt: "B", colVideo: "C", colStatus: "D" });
+    expect(await (await app.request("/sheets")).text()).toContain("Sheet cũ");
+    expect(getSheetConfig(db, ID, "B")?.spreadsheetTitle).toBe("Sheet cũ");
+    await app.request("/sheets");
+    expect(calls).toBe(1);
   });
 
   it("từ chối ánh xạ trùng cột", async () => {

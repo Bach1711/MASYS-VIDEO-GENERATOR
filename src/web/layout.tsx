@@ -52,6 +52,9 @@ export function Layout(props: { title: string; children: Child }) {
           .b-has_video { background:var(--info-bg); color:var(--info-fg); }
           .b-running { background:var(--warn-bg); color:var(--warn-fg); }
           .b-missing_data { background:var(--bad-bg); color:var(--bad-fg); }
+          ul.tabs { list-style:none; margin:8px 0 0; padding:0; }
+          ul.tabs li { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:8px 0; border-top:1px solid var(--border); }
+          .sheet-group .row-between { margin-bottom:0; }
           ul.problems { margin:4px 0 0; padding-left:18px; font-size:.85rem; color:var(--muted); }
           :root { --info-bg:#e3edff; --info-fg:#173f86; --bad-bg:#fde7e7; --bad-fg:#8a1c1c; }
           @media (prefers-color-scheme: dark) { :root { --info-bg:#1b2a47; --info-fg:#a9c6ff; --bad-bg:#3d1b1b; --bad-fg:#ffb3b3; } }

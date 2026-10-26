@@ -2,7 +2,16 @@ import type { Hono } from "hono";
 import type { Child } from "hono/jsx";
 import type { AppConfig } from "../config.js";
 import type { DB } from "../db/index.js";
-import { getSheetConfig, listSheetConfigs, saveSheetConfig, validateSheetConfig, type SheetConfig } from "../db/sheetConfigs.js";
+import {
+  fillMissingTitles,
+  getSheetConfig,
+  listSheetConfigs,
+  saveSheetConfig,
+  setSpreadsheetTitle,
+  sheetName,
+  validateSheetConfig,
+  type SheetConfig,
+} from "../db/sheetConfigs.js";
 import { columnLetter, parseSpreadsheetId } from "../google/a1.js";
 import { describeGoogleError, shareHint } from "../google/errors.js";
 import { guessColumns, ROLE_LABELS, type ColumnRole } from "../google/mapping.js";
@@ -46,8 +55,9 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
     </Alert>
   );
 
-  app.get("/sheets", (c) => {
+  app.get("/sheets", async (c) => {
     const saved = c.req.query("saved");
+    if (sheets) await fillMissingTitles(db, async (id) => (await sheets.getSpreadsheet(id)).title);
     const configs = listSheetConfigs(db);
     return c.html(
       page(
@@ -77,7 +87,7 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
                   <tr>
                     <td>
                       <a href={sheetUrl(cfg.spreadsheetId)} target="_blank" rel="noreferrer">
-                        <code>{cfg.spreadsheetId.slice(0, 8)}…</code>
+                        {sheetName(cfg)}
                       </a>
                     </td>
                     <td>{cfg.tab}</td>
@@ -113,6 +123,8 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
     try {
       const info = await sheets.getSpreadsheet(id);
       const editable = await sheets.canEdit(id);
+      // Giữ tên file trong danh sách đã lưu đúng với tên hiện tại (có thể vừa đổi tên).
+      setSpreadsheetTitle(db, id, info.title);
       return c.html(
         page(
           <>
@@ -167,6 +179,11 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
     const problem = validateSheetConfig(cfg);
     if (problem) {
       return c.html(page(await mappingForm({ id: cfg.spreadsheetId, tab: cfg.tab, headerRow: cfg.headerRow, saved: cfg, error: problem })), 400);
+    }
+    try {
+      cfg.spreadsheetTitle = (await sheets?.getSpreadsheet(cfg.spreadsheetId))?.title;
+    } catch {
+      // vẫn lưu được ánh xạ; tên file sẽ được điền ở lần mở danh sách sau
     }
     saveSheetConfig(db, cfg);
     logger.info({ spreadsheetId: cfg.spreadsheetId, tab: cfg.tab }, "Đã lưu ánh xạ cột");

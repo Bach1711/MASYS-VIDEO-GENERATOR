@@ -3,7 +3,7 @@ import type { Child } from "hono/jsx";
 import type { AppConfig } from "../config.js";
 import type { DB } from "../db/index.js";
 import { getDailyQuota, type DailyQuota } from "../db/quota.js";
-import { getSheetConfig, listSheetConfigs, type SheetConfig } from "../db/sheetConfigs.js";
+import { fillMissingTitles, getSheetConfig, groupBySheet, listSheetConfigs, sheetName, type SheetConfig } from "../db/sheetConfigs.js";
 import { columnIndex } from "../google/a1.js";
 import type { DriveClient } from "../google/drive.js";
 import { describeGoogleError } from "../google/errors.js";
@@ -208,30 +208,45 @@ export function registerScanRoutes(app: Hono, deps: ScanDeps) {
     if (!sheets || !drive) return c.html(page("Quét và chọn dòng", <><h1>Quét và chọn dòng</h1>{noClient}</>));
 
     if (!id || tab === undefined) {
-      const configs = listSheetConfigs(db);
+      await fillMissingTitles(db, async (sid) => (await sheets.getSpreadsheet(sid)).title);
+      const groups = groupBySheet(listSheetConfigs(db));
       return c.html(
         page(
           "Quét và chọn dòng",
           <>
             <h1>Quét và chọn dòng</h1>
-            {configs.length === 0 ? (
+            {groups.length === 0 ? (
               <Alert kind="warn">
                 Chưa có sheet nào được ánh xạ cột. Vào <a href="/sheets">Kết nối sheet</a> trước.
               </Alert>
             ) : (
-              <div class="card">
-                <div class="muted">Chọn sheet/tab để quét:</div>
-                <ul>
-                  {configs.map((cfg) => (
-                    <li>
-                      <a class="button" href={scanUrl(cfg.spreadsheetId, cfg.tab)}>
-                        Quét
-                      </a>{" "}
-                      tab <strong>{cfg.tab}</strong> <span class="muted">({cfg.spreadsheetId.slice(0, 8)}…)</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <>
+                <p class="muted">
+                  Chọn trang tính để quét. Muốn thêm file hoặc trang tính khác: vào <a href="/sheets">Kết nối sheet</a>.
+                </p>
+                {groups.map((g) => (
+                  <div class="card sheet-group">
+                    <div class="row-between">
+                      <strong>📄 {g.name}</strong>
+                      <a class="muted" href={`https://docs.google.com/spreadsheets/d/${g.spreadsheetId}`} target="_blank" rel="noreferrer">
+                        Mở Google Sheet ↗
+                      </a>
+                    </div>
+                    <ul class="tabs">
+                      {g.tabs.map((cfg) => (
+                        <li>
+                          <span>
+                            Trang tính <strong>{cfg.tab}</strong>
+                          </span>
+                          <a class="button" href={scanUrl(cfg.spreadsheetId, cfg.tab)}>
+                            Quét
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </>
             )}
           </>,
         ),
@@ -251,7 +266,7 @@ export function registerScanRoutes(app: Hono, deps: ScanDeps) {
       result = await scanTab(sheets, drive, cfg);
     } catch (e) {
       logger.warn({ err: e, spreadsheetId: id, tab }, "Không quét được tab");
-      return c.html(page("Quét và chọn dòng", <><h1>Quét · {tab}</h1><Alert kind="warn">{describeGoogleError(e, clientEmail)}</Alert></>), 502);
+      return c.html(page("Quét và chọn dòng", <><h1>Quét · {sheetName(cfg)} → {tab}</h1><Alert kind="warn">{describeGoogleError(e, clientEmail)}</Alert></>), 502);
     }
     thumbs?.remember(result.images);
     const quota = getDailyQuota(db);
@@ -264,9 +279,11 @@ export function registerScanRoutes(app: Hono, deps: ScanDeps) {
 
     return c.html(
       page(
-        `Quét · ${tab}`,
+        `Quét · ${sheetName(cfg)} → ${tab}`,
         <>
-          <h1>Quét · {tab}</h1>
+          <h1>
+            Quét · {sheetName(cfg)} → {tab}
+          </h1>
           {unlocked && <Alert kind="ok">Đã bỏ khoá dòng {unlocked} (xoá chữ "Đang chạy" trong ô Trạng thái).</Alert>}
           {unlockFail && <Alert kind="warn">Không bỏ khoá dòng {unlockFail}: {notice ?? "ô Trạng thái không còn là \"Đang chạy\"."}</Alert>}
           <div class="row-between">
@@ -425,7 +442,9 @@ export function registerScanRoutes(app: Hono, deps: ScanDeps) {
       page(
         "Chạy",
         <>
-          <h1>Các dòng sẽ chạy · {tab}</h1>
+          <h1>
+            Các dòng sẽ chạy · {sheetName(cfg)} → {tab}
+          </h1>
           <QuotaBox quota={quota} />
           {rejected.length > 0 && (
             <Alert kind="warn">

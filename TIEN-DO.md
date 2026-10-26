@@ -86,7 +86,7 @@ flowchart LR
 
 ## Nhật ký cập nhật
 
-- **26/10/2026 · CON-37** (chờ duyệt): trang **Quét và chọn dòng**. Bảng mọi dòng có ảnh thu nhỏ (qua service account), prompt, trạng thái, nhãn *Sẵn sàng / Đã có video / Đang chạy / Thiếu dữ liệu* kèm lý do; Ghi đè từng dòng; Bỏ khoá có xác nhận; chọn bằng tích, khoảng `2-5, 8`, "Chọn mọi dòng chưa có video"; "Hôm nay: X/5 video" và khoá nút Chạy khi vượt. Nút Chạy hiện mới dẫn tới trang tóm tắt (gửi Muse làm từ CON-38). Đã thử với sheet thật: dòng 2–3 Sẵn sàng, ảnh thu nhỏ hiện đúng.
+- **26/10/2026 · CON-37** (chờ duyệt): trang **Quét và chọn dòng**. Bảng mọi dòng có ảnh thu nhỏ (qua service account), prompt, trạng thái, nhãn *Sẵn sàng / Đã có video / Đang chạy / Thiếu dữ liệu* kèm lý do; Ghi đè từng dòng; Bỏ khoá có xác nhận; chọn bằng tích, khoảng `2-5, 8`, "Chọn mọi dòng chưa có video"; "Hôm nay: X/5 video" và khoá nút Chạy khi vượt. Nút Chạy hiện mới dẫn tới trang tóm tắt (gửi Muse làm từ CON-38). Sau khi người phụ trách bấm thử: danh sách quét gom theo **tên file → trang tính** thay cho mã file. Đã thử với sheet thật: dòng 2–3 Sẵn sàng, ảnh thu nhỏ hiện đúng.
 
 - **26/10/2026 · CON-36** (xong, đã duyệt và gộp vào main): trang **Kết nối sheet** (dán link → danh sách tab → tự đoán 4 cột → lưu theo sheet + tab); báo *"Chia sẻ sheet cho (email service account) với quyền chỉnh sửa"* khi thiếu quyền hoặc chỉ có quyền xem; đọc toàn tab và dòng N; ghi đúng 1 ô Trạng thái (`RAW`, Google phải xác nhận đúng ô); bản chụp tab + so sánh. Đã thử với sheet thật: ghi D2 → chỉ D2 đổi → trả lại như cũ.
 

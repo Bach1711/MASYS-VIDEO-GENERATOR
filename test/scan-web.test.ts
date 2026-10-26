@@ -61,7 +61,7 @@ function setup(opts: { grid?: Grid; sentToday?: number } = {}) {
     }
   }
   const app = createApp(config, db, { sheets, drive, thumbs: new ThumbnailCache(drive) });
-  return { app, writes, thumbFetches };
+  return { app, db, writes, thumbFetches };
 }
 
 const scanPath = `/scan?id=${ID}&tab=${encodeURIComponent(TAB)}`;
@@ -155,6 +155,26 @@ describe("trang Quét", () => {
     p.change(p.sel(2), true);
     expect(p.$("#runBtn").disabled).toBe(true);
     expect(p.$("#runMsg").textContent).toContain("đã đủ 5 video");
+  });
+});
+
+describe("danh sách chọn trang tính để quét", () => {
+  it("gom theo tên file, mỗi trang tính một nút Quét", async () => {
+    const { app, db } = setup();
+    saveSheetConfig(db, { ...CFG, tab: "Tháng 11", spreadsheetTitle: "MASYS Video – Danh sách" });
+    saveSheetConfig(db, { ...CFG, spreadsheetId: "2AAAAAAAAAAAAAAAAAAAAAAAAAAAA", tab: "Trang tính1", spreadsheetTitle: "Sheet khách B" });
+    const html = await (await app.request("/scan")).text();
+    const w = new Window();
+    w.document.write(html);
+    const groups = Array.from(w.document.querySelectorAll(".sheet-group")).map((g) => ({
+      name: g.querySelector("strong")!.textContent,
+      tabs: Array.from(g.querySelectorAll("ul.tabs li strong")).map((s) => s.textContent),
+    }));
+    expect(groups).toEqual([
+      { name: "📄 MASYS Video – Danh sách", tabs: ["Tháng 11", "Trang tính1"] },
+      { name: "📄 Sheet khách B", tabs: ["Trang tính1"] },
+    ]);
+    await w.happyDOM.close();
   });
 });
 
