@@ -1,8 +1,8 @@
-import type { Context, Hono } from "hono";
+import type { Hono } from "hono";
 import type { Child } from "hono/jsx";
 import type { AppConfig } from "../config.js";
 import type { DB } from "../db/index.js";
-import { getDailyQuota, type DailyQuota } from "../db/quota.js";
+import { getDailyQuota } from "../db/quota.js";
 import { fillMissingTitles, getSheetConfig, groupBySheet, listSheetConfigs, sheetName, type SheetConfig } from "../db/sheetConfigs.js";
 import { columnIndex } from "../google/a1.js";
 import type { DriveClient } from "../google/drive.js";
@@ -13,6 +13,7 @@ import { isRunningStatus, LABEL_TEXT, type RowLabel, type ScannedRow } from "../
 import { parseRowRanges } from "../scan/ranges.js";
 import { scanTab } from "../scan/scan.js";
 import type { ThumbnailCache } from "../scan/thumbnails.js";
+import { Alert, QuotaBox, scanUrl, truncate } from "./components.js";
 import { Layout } from "./layout.js";
 
 export interface ScanDeps {
@@ -25,31 +26,6 @@ export interface ScanDeps {
 
 const LABEL_ORDER: RowLabel[] = ["ready", "has_video", "running", "missing_data"];
 const DRIVE_FILE_ID = /^[A-Za-z0-9_-]{10,}$/;
-
-const scanUrl = (id: string, tab: string, extra = "") =>
-  `/scan?id=${encodeURIComponent(id)}&tab=${encodeURIComponent(tab)}${extra}`;
-
-function truncate(s: string, n: number) {
-  return s.length > n ? `${s.slice(0, n)}…` : s;
-}
-
-function Alert(props: { kind: "warn" | "ok"; children: Child }) {
-  return (
-    <div class={`card ${props.kind}`} role={props.kind === "warn" ? "alert" : "status"}>
-      {props.children}
-    </div>
-  );
-}
-
-function QuotaBox(props: { quota: DailyQuota }) {
-  const q = props.quota;
-  return (
-    <div class="card quota">
-      Hôm nay: <strong>{q.used}/{q.limit} video</strong>
-      <span class="muted"> · còn {q.remaining} lượt (giới hạn mỗi ngày, D13)</span>
-    </div>
-  );
-}
 
 function RowView(props: { r: ScannedRow; cfg: SheetConfig; thumbs?: ThumbnailCache }) {
   const { r, cfg, thumbs } = props;
@@ -317,7 +293,7 @@ export function registerScanRoutes(app: Hono, deps: ScanDeps) {
             </div>
             <div id="rangeMsg" class="muted" aria-live="polite"></div>
           </div>
-          <form id="run" method="post" action="/batch/preview" class="card row-between" data-remaining={String(quota.remaining)} data-limit={String(quota.limit)}>
+          <form id="run" method="post" action="/batch/prepare" class="card row-between" data-remaining={String(quota.remaining)} data-limit={String(quota.limit)}>
             <input type="hidden" name="id" value={id} />
             <input type="hidden" name="tab" value={tab} />
             <div>
@@ -395,79 +371,4 @@ export function registerScanRoutes(app: Hono, deps: ScanDeps) {
       return c.notFound();
     }
   });
-
-  // Tạm thời ở CON-37: kiểm tra lại lựa chọn ở phía server rồi tóm tắt.
-  // Chỉnh yêu cầu và gửi Muse làm ở CON-38 trở đi.
-  app.post("/batch/preview", async (c) => batchPreview(c));
-
-  async function batchPreview(c: Context) {
-    const body = await c.req.parseBody({ all: true });
-    const list = (v: unknown) => (Array.isArray(v) ? v : v === undefined ? [] : [v]).map(Number).filter(Number.isInteger);
-    const id = String(body.id ?? "");
-    const tab = String(body.tab ?? "");
-    const rows = [...new Set(list(body.row))].sort((a, b) => a - b);
-    const overwrite = new Set(list(body.overwrite));
-    const cfg = getSheetConfig(db, id, tab);
-    if (!sheets || !drive || !cfg) return c.text("Yêu cầu không hợp lệ", 400);
-
-    const back = <a href={scanUrl(id, tab)}>← Quay lại bảng quét</a>;
-    const quota = getDailyQuota(db);
-    if (rows.length === 0) return c.html(page("Chạy", <><h1>Chạy</h1><Alert kind="warn">Chưa chọn dòng nào.</Alert>{back}</>), 400);
-    if (rows.length > quota.remaining) {
-      return c.html(
-        page("Chạy", <><h1>Chạy</h1><QuotaBox quota={quota} /><Alert kind="warn">Đã chọn {rows.length} dòng nhưng hôm nay chỉ còn {quota.remaining} video.</Alert>{back}</>),
-        400,
-      );
-    }
-
-    // Quét lại để chắc các dòng vẫn chọn được (có thể ai đó vừa dán link video hay đổi dữ liệu).
-    let scanned;
-    try {
-      scanned = await scanTab(sheets, drive, cfg);
-    } catch (e) {
-      return c.html(page("Chạy", <><h1>Chạy</h1><Alert kind="warn">{describeGoogleError(e, clientEmail)}</Alert>{back}</>), 502);
-    }
-    const byRow = new Map(scanned.rows.map((r) => [r.row, r]));
-    const accepted: ScannedRow[] = [];
-    const rejected: { row: number; why: string }[] = [];
-    for (const n of rows) {
-      const r = byRow.get(n);
-      if (!r) rejected.push({ row: n, why: "không còn dữ liệu" });
-      else if (r.selectable) accepted.push(r);
-      else if (r.label === "has_video" && r.canOverwrite && overwrite.has(n)) accepted.push(r);
-      else rejected.push({ row: n, why: LABEL_TEXT[r.label] });
-    }
-
-    return c.html(
-      page(
-        "Chạy",
-        <>
-          <h1>
-            Các dòng sẽ chạy · {sheetName(cfg)} → {tab}
-          </h1>
-          <QuotaBox quota={quota} />
-          {rejected.length > 0 && (
-            <Alert kind="warn">
-              Đã bỏ khỏi lô vì dữ liệu vừa thay đổi: {rejected.map((r) => `dòng ${r.row} (${r.why})`).join("; ")}.
-            </Alert>
-          )}
-          <div class="card">
-            <ul>
-              {accepted.map((r) => (
-                <li>
-                  Dòng {r.row}
-                  {r.label === "has_video" && <strong> · Ghi đè</strong>}: <span class="muted">{truncate(r.prompt, 100)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <Alert kind="warn">
-            Bước tiếp theo (sửa prompt, thêm yêu cầu, chọn thư mục Drive, xem trước yêu cầu gửi Muse) sẽ có ở ticket CON-38. Chưa có gì được gửi
-            cho Muse.
-          </Alert>
-          {back}
-        </>,
-      ),
-    );
-  }
 }

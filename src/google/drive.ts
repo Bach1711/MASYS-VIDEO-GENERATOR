@@ -53,4 +53,40 @@ export class DriveClient {
     if (!file.mimeType.startsWith("image/")) throw new GoogleApiError(415, "File không phải ảnh");
     return this.http.bytes(`${DRIVE}/${enc(file.id)}?alt=media&supportsAllDrives=true`, MAX_ORIGINAL);
   }
+
+  /** Thư mục con trực tiếp (chưa xoá) của một thư mục, theo tên (F4). */
+  async listFolders(parentId: string): Promise<DriveFolder[]> {
+    const q = `'${parentId.replace(/['\\]/g, "\\$&")}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`;
+    const r = await this.http<{ files?: DriveFolder[] }>(
+      "GET",
+      `${DRIVE}?q=${enc(q)}&fields=${enc("files(id,name)")}&orderBy=name&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+    );
+    return r.files ?? [];
+  }
+
+  /**
+   * Thư mục tồn tại, chưa nằm trong thùng rác và đúng là thư mục. Nếu không thì báo bằng Error thường
+   * (không phải GoogleApiError) để không bị hiểu nhầm thành lỗi chia sẻ sheet.
+   */
+  async getFolder(folderId: string): Promise<DriveFolder> {
+    let f: DriveFile;
+    try {
+      f = await this.getFile(folderId);
+    } catch (e) {
+      if (e instanceof GoogleApiError && (e.status === 403 || e.status === 404)) {
+        throw new Error("Không mở được thư mục: không tồn tại hoặc chưa chia sẻ cho service account");
+      }
+      throw e;
+    }
+    if (f.mimeType !== FOLDER_MIME) throw new Error(`"${f.name}" không phải thư mục`);
+    if (f.trashed) throw new Error(`Thư mục "${f.name}" đang nằm trong thùng rác`);
+    return { id: f.id, name: f.name };
+  }
+}
+
+export const FOLDER_MIME = "application/vnd.google-apps.folder";
+
+export interface DriveFolder {
+  id: string;
+  name: string;
 }
