@@ -17,7 +17,10 @@ export function HomePage(props: { serviceAccount: ServiceAccountStatus; dailyVid
           <div>{sa.problem}</div>
         </div>
       )}
-      <div class="card muted">Giới hạn mỗi ngày: {props.dailyVideoLimit} video. Các chức năng sẽ có ở các bước tiếp theo.</div>
+      <div class="card">
+        Bước đầu tiên: <a href="/sheets">kết nối sheet và ánh xạ cột</a>.
+        <div class="muted">Giới hạn mỗi ngày: {props.dailyVideoLimit} video.</div>
+      </div>
     </Layout>
   );
 }

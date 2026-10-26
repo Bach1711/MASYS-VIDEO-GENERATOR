@@ -20,11 +20,21 @@ describe("checkServiceAccount", () => {
     expect(!r.ok && r.problem).not.toContain("bí-mật-hỏng");
   });
 
-  it("chỉ giữ email khi khoá hợp lệ", () => {
+  it("chỉ giữ email và hai trường cần để xác thực khi khoá hợp lệ", () => {
     const r = checkServiceAccount(
-      JSON.stringify({ type: "service_account", client_email: "bot@p.iam.gserviceaccount.com", private_key: "PK" }),
+      JSON.stringify({
+        type: "service_account",
+        client_email: "bot@p.iam.gserviceaccount.com",
+        private_key: "PK",
+        private_key_id: "kid",
+        project_id: "p",
+      }),
     );
-    expect(r).toEqual({ ok: true, clientEmail: "bot@p.iam.gserviceaccount.com" });
+    expect(r).toEqual({
+      ok: true,
+      clientEmail: "bot@p.iam.gserviceaccount.com",
+      credentials: { client_email: "bot@p.iam.gserviceaccount.com", private_key: "PK" },
+    });
   });
 });
 

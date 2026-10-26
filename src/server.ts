@@ -1,6 +1,9 @@
 import { serve } from "@hono/node-server";
 import { HOST, loadConfig } from "./config.js";
 import { openDatabase } from "./db/index.js";
+import { serviceAccountTokenProvider } from "./google/auth.js";
+import { createGoogleHttp } from "./google/http.js";
+import { SheetsClient } from "./google/sheets.js";
 import { logger } from "./logger.js";
 import { createApp } from "./web/app.js";
 
@@ -16,7 +19,11 @@ if (config.serviceAccount.ok) {
 const db = openDatabase(config.dbPath);
 logger.info({ dataDir: config.dataDir }, "Đã mở cơ sở dữ liệu");
 
-const app = createApp(config, db);
+const sheets = config.serviceAccount.ok
+  ? new SheetsClient(createGoogleHttp(serviceAccountTokenProvider(config.serviceAccount.credentials)))
+  : undefined;
+
+const app = createApp(config, db, { sheets });
 const server = serve({ fetch: app.fetch, hostname: HOST, port: config.port }, (info) => {
   logger.info(`Tool đang chạy tại http://localhost:${info.port}`);
 });

@@ -4,8 +4,14 @@ import path from "node:path";
 // Spec §10: giao diện chỉ nghe 127.0.0.1. Cố định trong code, không đọc từ env.
 export const HOST = "127.0.0.1";
 
+export interface ServiceAccountCredentials {
+  client_email: string;
+  private_key: string;
+}
+
+// `credentials` chỉ để đưa vào src/google/auth.ts; tên trường khớp bộ che của logger.
 export type ServiceAccountStatus =
-  | { ok: true; clientEmail: string }
+  | { ok: true; clientEmail: string; credentials: ServiceAccountCredentials }
   | { ok: false; problem: string };
 
 export interface AppConfig {
@@ -44,7 +50,11 @@ export function checkServiceAccount(raw: string | undefined): ServiceAccountStat
       problem: "GOOGLE_SERVICE_ACCOUNT_JSON không phải khoá service account (thiếu type/client_email/private_key).",
     };
   }
-  return { ok: true, clientEmail: sa.client_email };
+  return {
+    ok: true,
+    clientEmail: sa.client_email,
+    credentials: { client_email: sa.client_email, private_key: sa.private_key },
+  };
 }
 
 /** Thư mục dữ liệu nằm ngoài repo: %LOCALAPPDATA%\masys-video (spec §8.3, §9). */

@@ -8,9 +8,9 @@ export function Layout(props: { title: string; children: Child }) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{props.title}</title>
         <style>{`
-          :root { --bg:#f7f7f8; --fg:#1b1b1f; --muted:#5f6068; --card:#fff; --border:#dcdce0; --warn-bg:#fff4e5; --warn-fg:#7a4100; }
+          :root { --bg:#f7f7f8; --fg:#1b1b1f; --muted:#5f6068; --card:#fff; --border:#dcdce0; --warn-bg:#fff4e5; --warn-fg:#7a4100; --ok-bg:#e6f6e6; --ok-fg:#1d5a1d; --link:#1f5fbf; --accent:#1f5fbf; }
           @media (prefers-color-scheme: dark) {
-            :root { --bg:#141417; --fg:#ececf0; --muted:#a0a1aa; --card:#1d1d22; --border:#33343b; --warn-bg:#3a2a12; --warn-fg:#ffd59a; }
+            :root { --bg:#141417; --fg:#ececf0; --muted:#a0a1aa; --card:#1d1d22; --border:#33343b; --warn-bg:#3a2a12; --warn-fg:#ffd59a; --ok-bg:#16301a; --ok-fg:#a6e3a6; --link:#8ab4ff; --accent:#3b73d1; }
           }
           body { margin:0; font-family: system-ui, "Segoe UI", sans-serif; background:var(--bg); color:var(--fg); }
           main { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
@@ -19,9 +19,30 @@ export function Layout(props: { title: string; children: Child }) {
           .warn { background:var(--warn-bg); color:var(--warn-fg); border-color:transparent; }
           .muted { color:var(--muted); }
           code { font-family: ui-monospace, Consolas, monospace; }
+          h2 { font-size: 1.1rem; margin: 24px 0 8px; }
+          nav { border-bottom:1px solid var(--border); background:var(--card); }
+          nav div { max-width:960px; margin:0 auto; padding:10px 16px; display:flex; gap:16px; flex-wrap:wrap; }
+          a { color:var(--link); }
+          .ok { background:var(--ok-bg); color:var(--ok-fg); border-color:transparent; }
+          label { display:block; font-weight:600; margin-bottom:6px; }
+          .row { display:flex; gap:8px; flex-wrap:wrap; }
+          .row input { flex:1 1 240px; }
+          .field { margin-bottom:12px; }
+          input, select, button { font:inherit; padding:6px 10px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--fg); }
+          select { min-width: 240px; max-width:100%; }
+          button { background:var(--accent); color:#fff; border-color:var(--accent); cursor:pointer; }
+          table { width:100%; border-collapse:collapse; background:var(--card); }
+          th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); }
+          .scroll { overflow-x:auto; }
         `}</style>
       </head>
       <body>
+        <nav>
+          <div>
+            <a href="/">Trang chủ</a>
+            <a href="/sheets">Kết nối sheet</a>
+          </div>
+        </nav>
         <main>{props.children}</main>
       </body>
     </html>
