@@ -1,6 +1,6 @@
 # MASYS Video Generator
 
-Tool chạy trên một máy Windows: đọc Google Sheet, điều khiển Meta Muse AI tạo video. Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md). Tiến độ: [`docs/PROGRESS.md`](docs/PROGRESS.md).
+Tool chạy trên một máy Windows: đọc Google Sheet, điều khiển Meta Muse AI tạo video. Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md). Tiến độ: [`TIEN-DO.md`](TIEN-DO.md), hoặc mở `TIEN-DO.html` bằng trình duyệt để xem sơ đồ.
 
 ## Chạy
 
