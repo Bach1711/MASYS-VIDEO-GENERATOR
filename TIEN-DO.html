@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tiến độ MASYS</title>
+<!-- File này được tạo tự động từ TIEN-DO.md bằng "npm run tien-do". Đừng sửa tay. -->
+<style>
+  :root { --bg:#f7f7f8; --fg:#1b1b1f; --muted:#5f6068; --card:#fff; --border:#dcdce0; --link:#1f5fbf; --code:#f0f0f3; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#141417; --fg:#ececf0; --muted:#a0a1aa; --card:#1d1d22; --border:#33343b; --link:#8ab4ff; --code:#24242a; }
+  }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family: system-ui, "Segoe UI", sans-serif; line-height:1.55; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  a { color: var(--link); }
+  h1 { font-size: 1.6rem; margin-top: 0; }
+  h2 { font-size: 1.2rem; margin-top: 32px; border-bottom:1px solid var(--border); padding-bottom:4px; }
+  blockquote { margin: 0 0 16px; padding: 8px 12px; border-left: 3px solid var(--border); color: var(--muted); }
+  pre, code { font-family: ui-monospace, Consolas, monospace; background: var(--code); border-radius: 4px; }
+  code { padding: 1px 4px; }
+  pre { padding: 10px 12px; overflow-x: auto; }
+  pre code { padding: 0; }
+  .mermaid { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; }
+  .tbl { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; background: var(--card); }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  #offline { display:none; padding:10px 12px; border-radius:6px; background:#fff4e5; color:#7a4100; margin-bottom:16px; }
+</style>
+</head>
+<body>
+<main>
+  <div id="offline">Không tải được thư viện hiển thị (cần mạng). Nội dung gốc ở TIEN-DO.md.</div>
+  <div id="content"></div>
+</main>
+<script type="text/plain" id="source"># Tiến độ dự án MASYS Video Generator
+
+> Cập nhật lần cuối: **26/10/2026**, sau CON-36. File này được cập nhật trong PR của mỗi ticket CON.
+> Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
+> Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v4.1 · Linear: project **MASYS Video Generator**
+
+**Tổng quan:** 2/8 ticket xong · 6 chưa làm
+
+```
+[■■□□□□□□]  2/8 — xong CON-35, CON-36
+```
+
+## Sơ đồ kiến trúc theo trạng thái
+
+Màu: 🟩 xong (đã merge) · 🟦 chờ duyệt (PR mở) · 🟨 đang làm · ⬜ chưa làm · 🟪 hệ thống bên ngoài
+
+```mermaid
+flowchart LR
+    user(["👤 Người dùng"])
+
+    subgraph PC["Máy Windows chạy tool (một tiến trình Node, 127.0.0.1)"]
+        direction TB
+        ui["Giao diện localhost<br/>khung: CON-35"]
+        server["Server cục bộ Hono<br/>CON-35"]
+        secrets["Nạp bí mật qua op run<br/>+ logger che bí mật<br/>CON-35"]
+        db[("SQLite ngoài repo<br/>5 bảng §9<br/>CON-35")]
+
+        sheet["SheetsClient + trang Kết nối sheet<br/>đọc tab, ánh xạ cột, bản chụp tab,<br/>ghi 1 ô Trạng thái<br/>CON-36"]
+        scan["Quét và chọn dòng<br/>nhãn, ảnh thu nhỏ, giới hạn ngày<br/>CON-37"]
+        editor["Chỉnh yêu cầu<br/>prompt, yêu cầu thêm,<br/>thư mục Drive, xem trước<br/>CON-38"]
+        bot["MuseBot (Playwright)<br/>hồ sơ bot, đăng nhập/captcha,<br/>chat mới, gửi, chụp lỗi<br/>CON-39"]
+        queue["RunQueue + kiểm tra D12<br/>theo dõi ô Video, sửa nhầm ô,<br/>khôi phục<br/>CON-40"]
+        drive["DriveChecker<br/>liệt kê thư mục, kiểm tra file<br/>CON-38 / CON-40"]
+        progress["Tiến độ, lịch sử,<br/>nhật ký, Cài đặt<br/>CON-41"]
+    end
+
+    subgraph EXT["Bên ngoài"]
+        gsheets[("Google Sheets")]
+        gdrive[("Google Drive")]
+        chrome["Chrome<br/>hồ sơ bot"]
+        muse["Meta Muse AI"]
+        op["1Password"]
+    end
+
+    user --> ui --> server
+    server --> scan & editor & progress
+    scan --> sheet
+    editor --> drive
+    server --> queue
+    queue --> sheet & drive & bot
+    queue --> db
+    progress --> db
+    sheet -- "ánh xạ cột" --> db
+    sheet -- "service account" --> gsheets
+    drive -- "service account" --> gdrive
+    bot --> chrome --> muse
+    muse -- "MCP: lưu video" --> gdrive
+    muse -- "MCP: ghi link ô Video" --> gsheets
+    op -. "op run" .-> secrets --> server
+
+    classDef done fill:#c8f0c8,stroke:#2e7d32,color:#10300f
+    classDef review fill:#cfe3ff,stroke:#1f5fbf,color:#0c2550
+    classDef doing fill:#fff1b8,stroke:#b38600,color:#3d2e00
+    classDef todo fill:#eeeeee,stroke:#9e9e9e,color:#333333
+    classDef ext fill:#ead9ff,stroke:#6a3fb5,color:#2a1250
+
+    class ui,server,secrets,db,sheet done
+    class scan,editor,bot,queue,drive,progress todo
+    class gsheets,gdrive,chrome,muse,op ext
+```
+
+## Bảng ticket (Giai đoạn 1, spec §15)
+
+| # | Ticket | Nội dung | Trạng thái | PR | Hoàn thành |
+|---|---|---|---|---|---|
+| 1 | [CON-35](https://linear.app/conducdaudan/issue/CON-35) | Khung dự án: Node + TS, server cục bộ + giao diện, SQLite, op run | 🟩 Xong | [#1](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/1) | 26/10/2026 |
+| 2 | [CON-36](https://linear.app/conducdaudan/issue/CON-36) | Google: service account, đọc tab, ánh xạ cột, ghi 1 ô Trạng thái | 🟩 Xong | [#2](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/2) | 26/10/2026 |
+| 3 | [CON-37](https://linear.app/conducdaudan/issue/CON-37) | Quét và chọn dòng, nhãn, ảnh thu nhỏ, giới hạn ngày | ⬜ Chưa làm | — | — |
+| 4 | [CON-38](https://linear.app/conducdaudan/issue/CON-38) | Chỉnh yêu cầu, chọn thư mục Drive, xem trước | ⬜ Chưa làm | — | — |
+| 5 | [CON-39](https://linear.app/conducdaudan/issue/CON-39) | MuseBot: hồ sơ bot, đăng nhập/captcha, chat mới, gửi, chụp lỗi | ⬜ Chưa làm | — | — |
+| 6 | [CON-40](https://linear.app/conducdaudan/issue/CON-40) | Chạy lượt + kiểm tra D12, phát hiện sửa nhầm ô, khôi phục | ⬜ Chưa làm | — | — |
+| 7 | [CON-41](https://linear.app/conducdaudan/issue/CON-41) | Tiến độ, lịch sử lô, nhật ký, Cài đặt | ⬜ Chưa làm | — | — |
+| 8 | [CON-42](https://linear.app/conducdaudan/issue/CON-42) | Chạy đủ 12 tiêu chí với sheet thật, bàn giao | ⬜ Chưa làm | — | — |
+
+## Nhật ký cập nhật
+
+- **26/10/2026 · CON-36** (xong, đã duyệt và gộp vào main): trang **Kết nối sheet** (dán link → danh sách tab → tự đoán 4 cột → lưu theo sheet + tab); báo *"Chia sẻ sheet cho (email service account) với quyền chỉnh sửa"* khi thiếu quyền hoặc chỉ có quyền xem; đọc toàn tab và dòng N; ghi đúng 1 ô Trạng thái (`RAW`, Google phải xác nhận đúng ô); bản chụp tab + so sánh. Đã thử với sheet thật: ghi D2 → chỉ D2 đổi → trả lại như cũ.
+
+- **26/10/2026 · CON-35** (xong, đã duyệt và gộp vào main): khung Node + TypeScript, Hono chỉ nghe `127.0.0.1:4310`, SQLite (better-sqlite3) ở `%LOCALAPPDATA%\masys-video\data.db` với 5 bảng §9, nạp khoá service account qua `op run` (thiếu khoá thì báo rõ, không crash), logger pino che key/token/cookie/khoá PEM.
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+  (function () {
+    var src = document.getElementById("source").textContent;
+    var el = document.getElementById("content");
+    if (!window.marked) {
+      document.getElementById("offline").style.display = "block";
+      el.innerHTML = "<pre></pre>";
+      el.firstChild.textContent = src;
+      return;
+    }
+    el.innerHTML = marked.parse(src);
+    el.querySelectorAll("table").forEach(function (t) {
+      var w = document.createElement("div"); w.className = "tbl";
+      t.parentNode.insertBefore(w, t); w.appendChild(t);
+    });
+    el.querySelectorAll("pre > code.language-mermaid").forEach(function (code) {
+      var div = document.createElement("div");
+      div.className = "mermaid";
+      div.textContent = code.textContent;
+      code.parentNode.replaceWith(div);
+    });
+    if (window.mermaid) {
+      mermaid.initialize({ startOnLoad: false, theme: "default", securityLevel: "strict" });
+      mermaid.run({ querySelector: ".mermaid" });
+    }
+  })();
+</script>
+</body>
+</html>

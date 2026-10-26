@@ -1,7 +1,8 @@
 # Tiến độ dự án MASYS Video Generator
 
 > Cập nhật lần cuối: **26/10/2026**, sau CON-36. File này được cập nhật trong PR của mỗi ticket CON.
-> Đặc tả: [`SPEC-app-tao-video-ao.md`](../SPEC-app-tao-video-ao.md) v4.1 · Linear: project **MASYS Video Generator**
+> Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
+> Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v4.1 · Linear: project **MASYS Video Generator**
 
 **Tổng quan:** 2/8 ticket xong · 6 chưa làm
 
