@@ -234,6 +234,13 @@ Sau khi tạo xong:
 - Nhận diện: trang đăng nhập, captcha/kiểm tra bảo mật, thông báo lỗi/hết lượt (theo chữ trên trang — chốt ở GĐ0).
 - Gõ/dán như người: dán qua clipboard hoặc `fill`, chờ ngắn trước khi bấm Gửi.
 - **Không** đọc hay lưu cookie ra ngoài hồ sơ bot; không ghi cookie vào log.
+- **Giao diện thật ghi nhận 26/10/2026** (`https://muse.ai/`, tiếng Anh; chi tiết trong `src/bot/museSelectors.ts`):
+  - Chưa đăng nhập: `muse.ai` chuyển qua `auth.muse.ai` → `facebook.com/aymh` rồi về trang có tiêu đề *"Log in or create an account"* và ô *"Mobile number or email"*.
+  - Đã đăng nhập: một **trò chuyện chính** liền mạch (đường dẫn `/`), ô chat tên *"Message"*, nút *"Send"* chỉ hiện khi ô chat có chữ.
+  - **Cuộc trò chuyện mới = side chat:** nút *"Chats"* (Open chat and side chats) → nút *"New side chat"* → `/thread/new`; sau khi gửi thành `/thread/<id>`. Bot dùng một side chat mới cho mỗi dòng (D7); trò chuyện chính không bị đụng tới.
+  - **Lần gửi thật đầu tiên (26/10/2026, CON-39):** gửi lúc 15:53 UTC, video xong lúc 15:57 (≈4 phút): đúng thư mục Video, đúng tên file, MP4 1080×1920 8 giây, link ghi đúng ô C2. Drive cần vài phút sau khi tải lên mới phát được video (*"Tệp video này vẫn đang được xử lý để phát"*): không phải lỗi.
+  - **Muse xin duyệt (Approvals)** trước một số thao tác (lưu Drive, sửa Sheet). Người dùng chọn *Always allow* trong Muse để lần sau không bị hỏi. Lượt sau mà Muse vẫn chờ duyệt thì ô Video sẽ trống tới hết thời gian chờ → CON-40 cần nhận ra trạng thái "đang chờ duyệt" và báo người dùng (đề xuất: bot không tự bấm duyệt; chốt khi làm CON-40).
+  - Câu báo hết lượt / từ chối / lỗi của Muse: chưa gặp; bot đang dò theo các câu phổ biến, gặp câu thật thì ghi bổ sung vào đây.
 
 ---
 
@@ -304,7 +311,7 @@ File SQLite và ảnh chụp màn hình nằm ngoài repo (cùng thư mục vớ
 1. **Máy chạy bot** là máy nào? Có cần người khác trong đội mở giao diện tool từ máy khác (qua LAN) không?
 2. Khi **Free plan của tuần hết**, Muse **tự chuyển sang dùng 1 tỷ Additional tokens** hay báo hết lượt? Muse báo hết bằng câu chữ nào? (để bot nhận ra và chuyển `paused_quota`)
 3. Sheet thật: tên các cột, đã có cột Trạng thái chưa? (xin 1 link sheet mẫu)
-4. Khách đã biết và chấp nhận **rủi ro điều khoản Meta** (mục 10) chưa?
+4. ~~Khách đã biết và chấp nhận **rủi ro điều khoản Meta** (mục 10) chưa?~~ **Đã chốt 26/10/2026: khách đã biết và chấp nhận.**
 
 ---
 

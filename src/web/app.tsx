@@ -4,7 +4,9 @@ import type { DB } from "../db/index.js";
 import type { DriveClient } from "../google/drive.js";
 import type { SheetsClient } from "../google/sheets.js";
 import type { ThumbnailCache } from "../scan/thumbnails.js";
+import type { MuseBot } from "../bot/museBot.js";
 import { registerBatchRoutes } from "./batch.js";
+import { registerBotRoutes } from "./bot.js";
 import { HomePage } from "./home.js";
 import { registerScanRoutes } from "./scan.js";
 import { registerSettingsRoutes } from "./settings.js";
@@ -14,6 +16,7 @@ export interface AppDeps {
   sheets?: SheetsClient;
   drive?: DriveClient;
   thumbs?: ThumbnailCache;
+  bot?: MuseBot;
 }
 
 export function createApp(config: AppConfig, db: DB, deps: AppDeps = {}) {
@@ -32,6 +35,7 @@ export function createApp(config: AppConfig, db: DB, deps: AppDeps = {}) {
   registerScanRoutes(app, { config, db, ...deps });
   registerBatchRoutes(app, { config, db, ...deps });
   registerSettingsRoutes(app, { config, db, ...deps });
+  registerBotRoutes(app, { config, db, bot: deps.bot, screenshotDir: config.screenshotDir });
 
   app.get("/health", (c) => c.json({ ok: true, serviceAccount: config.serviceAccount.ok }));
 
