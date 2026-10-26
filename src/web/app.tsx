@@ -4,8 +4,10 @@ import type { DB } from "../db/index.js";
 import type { DriveClient } from "../google/drive.js";
 import type { SheetsClient } from "../google/sheets.js";
 import type { ThumbnailCache } from "../scan/thumbnails.js";
+import { registerBatchRoutes } from "./batch.js";
 import { HomePage } from "./home.js";
 import { registerScanRoutes } from "./scan.js";
+import { registerSettingsRoutes } from "./settings.js";
 import { registerSheetRoutes } from "./sheets.js";
 
 export interface AppDeps {
@@ -28,6 +30,8 @@ export function createApp(config: AppConfig, db: DB, deps: AppDeps = {}) {
 
   registerSheetRoutes(app, { config, db, sheets: deps.sheets });
   registerScanRoutes(app, { config, db, ...deps });
+  registerBatchRoutes(app, { config, db, ...deps });
+  registerSettingsRoutes(app, { config, db, ...deps });
 
   app.get("/health", (c) => c.json({ ok: true, serviceAccount: config.serviceAccount.ok }));
 

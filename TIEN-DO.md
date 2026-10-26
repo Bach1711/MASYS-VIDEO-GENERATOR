@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **26/10/2026**, sau CON-37. File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **26/10/2026**, CON-38 đang chờ duyệt. File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v4.1 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 3/8 ticket xong · 5 chưa làm
+**Tổng quan:** 3/8 ticket xong · 1 chờ duyệt (CON-38) · 4 chưa làm
 
 ```
-[■■■□□□□□]  3/8 — xong CON-35, CON-36, CON-37
+[■■■▣□□□□]  3/8 — xong CON-35, CON-36, CON-37 · chờ duyệt CON-38
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -27,7 +27,7 @@ flowchart LR
 
         sheet["SheetsClient + trang Kết nối sheet<br/>đọc tab, ánh xạ cột, bản chụp tab,<br/>ghi 1 ô Trạng thái<br/>CON-36"]
         scan["Quét và chọn dòng<br/>nhãn, ảnh thu nhỏ, giới hạn ngày<br/>CON-37"]
-        editor["Chỉnh yêu cầu<br/>prompt, yêu cầu thêm,<br/>thư mục Drive, xem trước<br/>CON-38"]
+        editor["Chuẩn bị lô + Cài đặt mẫu<br/>prompt, yêu cầu thêm,<br/>thư mục Drive, xem trước, tạo lô<br/>CON-38"]
         bot["MuseBot (Playwright)<br/>hồ sơ bot, đăng nhập/captcha,<br/>chat mới, gửi, chụp lỗi<br/>CON-39"]
         queue["RunQueue + kiểm tra D12<br/>theo dõi ô Video, sửa nhầm ô,<br/>khôi phục<br/>CON-40"]
         drive["DriveClient<br/>kiểm tra ảnh + ảnh thu nhỏ: CON-37<br/>liệt kê thư mục: CON-38<br/>kiểm tra video: CON-40"]
@@ -66,7 +66,8 @@ flowchart LR
 
     class ui,server,secrets,db,sheet,scan done
     class drive doing
-    class editor,bot,queue,progress todo
+    class editor review
+    class bot,queue,progress todo
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -77,7 +78,7 @@ flowchart LR
 | 1 | [CON-35](https://linear.app/conducdaudan/issue/CON-35) | Khung dự án: Node + TS, server cục bộ + giao diện, SQLite, op run | 🟩 Xong | [#1](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/1) | 26/10/2026 |
 | 2 | [CON-36](https://linear.app/conducdaudan/issue/CON-36) | Google: service account, đọc tab, ánh xạ cột, ghi 1 ô Trạng thái | 🟩 Xong | [#2](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/2) | 26/10/2026 |
 | 3 | [CON-37](https://linear.app/conducdaudan/issue/CON-37) | Quét và chọn dòng, nhãn, ảnh thu nhỏ, giới hạn ngày | 🟩 Xong | [#4](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/4) | 26/10/2026 |
-| 4 | [CON-38](https://linear.app/conducdaudan/issue/CON-38) | Chỉnh yêu cầu, chọn thư mục Drive, xem trước | ⬜ Chưa làm | — | — |
+| 4 | [CON-38](https://linear.app/conducdaudan/issue/CON-38) | Chỉnh yêu cầu, chọn thư mục Drive, xem trước | 🟦 Chờ duyệt | PR_LINK | — |
 | 5 | [CON-39](https://linear.app/conducdaudan/issue/CON-39) | MuseBot: hồ sơ bot, đăng nhập/captcha, chat mới, gửi, chụp lỗi | ⬜ Chưa làm | — | — |
 | 6 | [CON-40](https://linear.app/conducdaudan/issue/CON-40) | Chạy lượt + kiểm tra D12, phát hiện sửa nhầm ô, khôi phục | ⬜ Chưa làm | — | — |
 | 7 | [CON-41](https://linear.app/conducdaudan/issue/CON-41) | Tiến độ, lịch sử lô, nhật ký, Cài đặt | ⬜ Chưa làm | — | — |
@@ -85,6 +86,7 @@ flowchart LR
 
 ## Nhật ký cập nhật
 
+- **26/10/2026 · CON-38** (chờ duyệt): nút **Chạy** ở trang quét giờ mở trang **Chuẩn bị lô**. Mỗi dòng có ô Prompt (điền sẵn từ sheet, sửa được) và ô *Yêu cầu thêm riêng*; có ô *Yêu cầu thêm chung cho cả lô*; chọn thư mục Drive lưu video từ các thư mục con của **MASYS Video** (chọn sẵn **Video**) hoặc dán link thư mục khác (tool kiểm tra thư mục có thật, không nằm trong thùng rác). **Xem trước** hiện nguyên văn yêu cầu gửi Muse theo mẫu §8.2 → **Tạo lô** lưu lô và các dòng (trạng thái *Chờ chạy*) vào máy; **chưa gửi Muse** (CON-39/40). Phần sửa không ghi ngược vào sheet (§12.4). Không tạo lô nếu sheet đổi sau khi xem trước, dòng đã nằm trong lô chưa xong, hoặc vượt giới hạn ngày. Thêm trang **Cài đặt** rút gọn: thư mục Drive gốc và **mẫu yêu cầu** (lưu / khôi phục mẫu gốc / báo chỗ trống gõ sai). Đã thử với sheet + Drive thật (DB tạm): ghép đúng link ảnh, thư mục Video, ô C2, link sheet; sheet không đổi ô nào.
 - **26/10/2026 · CON-37** (xong, người phụ trách đã bấm thử, duyệt và gộp vào main): trang **Quét và chọn dòng**. Bảng mọi dòng có ảnh thu nhỏ (qua service account), prompt, trạng thái, nhãn *Sẵn sàng / Đã có video / Đang chạy / Thiếu dữ liệu* kèm lý do; Ghi đè từng dòng; Bỏ khoá có xác nhận; chọn bằng tích, khoảng `2-5, 8`, "Chọn mọi dòng chưa có video"; "Hôm nay: X/5 video" và khoá nút Chạy khi vượt. Nút Chạy hiện mới dẫn tới trang tóm tắt (gửi Muse làm từ CON-38). Sau khi người phụ trách bấm thử: danh sách quét gom theo **tên file → trang tính** thay cho mã file. Đã thử với sheet thật: dòng 2–3 Sẵn sàng, ảnh thu nhỏ hiện đúng.
 
 - **26/10/2026 · CON-36** (xong, đã duyệt và gộp vào main): trang **Kết nối sheet** (dán link → danh sách tab → tự đoán 4 cột → lưu theo sheet + tab); báo *"Chia sẻ sheet cho (email service account) với quyền chỉnh sửa"* khi thiếu quyền hoặc chỉ có quyền xem; đọc toàn tab và dòng N; ghi đúng 1 ô Trạng thái (`RAW`, Google phải xác nhận đúng ô); bản chụp tab + so sánh. Đã thử với sheet thật: ghi D2 → chỉ D2 đổi → trả lại như cũ.

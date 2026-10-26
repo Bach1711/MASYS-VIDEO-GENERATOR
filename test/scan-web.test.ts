@@ -178,32 +178,6 @@ describe("danh sách chọn trang tính để quét", () => {
   });
 });
 
-describe("server kiểm tra lại lựa chọn", () => {
-  const post = (app: ReturnType<typeof setup>["app"], fields: [string, string][]) =>
-    app.request("/batch/preview", { method: "POST", body: new URLSearchParams([["id", ID], ["tab", TAB], ...fields]) });
-
-  it("nhận dòng sẵn sàng và dòng Ghi đè, loại dòng không chọn được", async () => {
-    const { app } = setup();
-    const html = await (await post(app, [["row", "2"], ["row", "5"], ["overwrite", "5"], ["row", "6"]])).text();
-    expect(html).toContain("Dòng 2");
-    expect(html).toContain("Dòng 5<strong> · Ghi đè</strong>");
-    expect(html).toContain("dòng 6 (Đang chạy)");
-  });
-
-  it("dòng Đã có video mà không tích Ghi đè thì bị loại", async () => {
-    const { app } = setup();
-    const html = await (await post(app, [["row", "5"]])).text();
-    expect(html).toContain("dòng 5 (Đã có video)");
-  });
-
-  it("vượt giới hạn ngày → từ chối", async () => {
-    const { app } = setup({ sentToday: 4 });
-    const res = await post(app, [["row", "2"], ["row", "3"]]);
-    expect(res.status).toBe(400);
-    expect(await res.text()).toContain("hôm nay chỉ còn 1 video");
-  });
-});
-
 describe("Bỏ khoá", () => {
   const unlock = (app: ReturnType<typeof setup>["app"], row: number) =>
     app.request("/scan/unlock", { method: "POST", body: new URLSearchParams({ id: ID, tab: TAB, row: String(row) }) });

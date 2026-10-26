@@ -52,6 +52,15 @@ export function Layout(props: { title: string; children: Child }) {
           .b-has_video { background:var(--info-bg); color:var(--info-fg); }
           .b-running { background:var(--warn-bg); color:var(--warn-fg); }
           .b-missing_data { background:var(--bad-bg); color:var(--bad-fg); }
+          textarea { display:block; width:100%; box-sizing:border-box; font:inherit; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:var(--bg); color:var(--fg); resize:vertical; }
+          textarea.mono, pre.request { font-family: ui-monospace, Consolas, monospace; font-size:.88rem; }
+          pre.request { white-space:pre-wrap; word-break:break-word; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:10px 12px; margin:8px 0 0; }
+          label.sub { margin-top:12px; }
+          .small { font-size:.85rem; }
+          .row-head { display:flex; gap:12px; align-items:center; margin-bottom:10px; }
+          .card h2 { margin-top:0; }
+          ul.placeholders { font-size:.9rem; padding-left:18px; }
+          details summary { cursor:pointer; }
           ul.tabs { list-style:none; margin:8px 0 0; padding:0; }
           ul.tabs li { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:8px 0; border-top:1px solid var(--border); }
           .sheet-group .row-between { margin-bottom:0; }
@@ -66,6 +75,7 @@ export function Layout(props: { title: string; children: Child }) {
             <a href="/">Trang chủ</a>
             <a href="/sheets">Kết nối sheet</a>
             <a href="/scan">Quét và chọn dòng</a>
+            <a href="/settings">Cài đặt</a>
           </div>
         </nav>
         <main>{props.children}</main>
