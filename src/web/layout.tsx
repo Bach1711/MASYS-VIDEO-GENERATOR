@@ -34,6 +34,27 @@ export function Layout(props: { title: string; children: Child }) {
           table { width:100%; border-collapse:collapse; background:var(--card); }
           th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); }
           .scroll { overflow-x:auto; }
+          main { max-width: 1100px; }
+          nav div { max-width: 1100px; }
+          button:disabled { opacity:.45; cursor:not-allowed; }
+          button.secondary, a.button.secondary { background:var(--card); color:var(--fg); border-color:var(--border); }
+          a.button { display:inline-block; padding:6px 10px; border-radius:6px; background:var(--accent); color:#fff; text-decoration:none; border:1px solid var(--accent); }
+          input[type=checkbox] { width:18px; height:18px; padding:0; }
+          label.inline { display:inline-flex; align-items:center; gap:6px; font-weight:normal; margin:0; }
+          .row-between { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+          form.row-between { margin-bottom:16px; }
+          .warn-text { color:var(--warn-fg); }
+          table.scan td { vertical-align:top; }
+          td.prompt { max-width:380px; font-size:.92rem; }
+          img.thumb { width:64px; height:64px; object-fit:cover; border-radius:4px; background:var(--border); display:block; }
+          .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:.85rem; white-space:nowrap; }
+          .b-ready { background:var(--ok-bg); color:var(--ok-fg); }
+          .b-has_video { background:var(--info-bg); color:var(--info-fg); }
+          .b-running { background:var(--warn-bg); color:var(--warn-fg); }
+          .b-missing_data { background:var(--bad-bg); color:var(--bad-fg); }
+          ul.problems { margin:4px 0 0; padding-left:18px; font-size:.85rem; color:var(--muted); }
+          :root { --info-bg:#e3edff; --info-fg:#173f86; --bad-bg:#fde7e7; --bad-fg:#8a1c1c; }
+          @media (prefers-color-scheme: dark) { :root { --info-bg:#1b2a47; --info-fg:#a9c6ff; --bad-bg:#3d1b1b; --bad-fg:#ffb3b3; } }
         `}</style>
       </head>
       <body>
@@ -41,6 +62,7 @@ export function Layout(props: { title: string; children: Child }) {
           <div>
             <a href="/">Trang chủ</a>
             <a href="/sheets">Kết nối sheet</a>
+            <a href="/scan">Quét và chọn dòng</a>
           </div>
         </nav>
         <main>{props.children}</main>
