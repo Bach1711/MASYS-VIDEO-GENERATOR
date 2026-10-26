@@ -71,7 +71,7 @@ flowchart LR
 
 | # | Ticket | Nội dung | Trạng thái | PR | Hoàn thành |
 |---|---|---|---|---|---|
-| 1 | [CON-35](https://linear.app/conducdaudan/issue/CON-35) | Khung dự án: Node + TS, server cục bộ + giao diện, SQLite, op run | 🟦 Chờ duyệt | — | — |
+| 1 | [CON-35](https://linear.app/conducdaudan/issue/CON-35) | Khung dự án: Node + TS, server cục bộ + giao diện, SQLite, op run | 🟦 Chờ duyệt | [#1](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/1) | — |
 | 2 | [CON-36](https://linear.app/conducdaudan/issue/CON-36) | Google: service account, đọc tab, ánh xạ cột, ghi 1 ô Trạng thái | ⬜ Chưa làm | — | — |
 | 3 | [CON-37](https://linear.app/conducdaudan/issue/CON-37) | Quét và chọn dòng, nhãn, ảnh thu nhỏ, giới hạn ngày | ⬜ Chưa làm | — | — |
 | 4 | [CON-38](https://linear.app/conducdaudan/issue/CON-38) | Chỉnh yêu cầu, chọn thư mục Drive, xem trước | ⬜ Chưa làm | — | — |
