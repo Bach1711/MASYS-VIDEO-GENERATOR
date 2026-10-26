@@ -17,7 +17,7 @@ token*.json
 *EmergencyKit*
 *emergency-kit*
 
-# ── Node / Electron ─────────────────────────────────────────
+# ── Node ────────────────────────────────────────────────────
 node_modules/
 dist/
 out/
@@ -46,6 +46,6 @@ desktop.ini
 .idea/
 .claude/settings.local.json
 
-# ── Giai đoạn 0: ảnh thử và video kết quả (ảnh người, không đưa lên git)
-gd0/samples/
-gd0/out/
+# ── Hồ sơ trình duyệt bot (chứa phiên đăng nhập Muse) và ảnh chụp lỗi — không bao giờ đưa lên git
+bot-profile/
+screenshots/
