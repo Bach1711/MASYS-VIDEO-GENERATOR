@@ -65,4 +65,8 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX run_events_run ON run_events(runId);
   `,
+  // 2: tên file sheet để hiển thị (không thuộc §9, chỉ phục vụ giao diện).
+  `
+  ALTER TABLE sheet_configs ADD COLUMN spreadsheetTitle TEXT;
+  `,
 ];

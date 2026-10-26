@@ -18,7 +18,14 @@ export function HomePage(props: { serviceAccount: ServiceAccountStatus; dailyVid
         </div>
       )}
       <div class="card">
-        Bước đầu tiên: <a href="/sheets">kết nối sheet và ánh xạ cột</a>.
+        <ol>
+          <li>
+            <a href="/sheets">Kết nối sheet và ánh xạ cột</a> (làm một lần cho mỗi sheet/tab).
+          </li>
+          <li>
+            <a href="/scan">Quét và chọn dòng</a> cần tạo video.
+          </li>
+        </ol>
         <div class="muted">Giới hạn mỗi ngày: {props.dailyVideoLimit} video.</div>
       </div>
     </Layout>
