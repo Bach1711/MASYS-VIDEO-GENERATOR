@@ -3,10 +3,10 @@
 > Cập nhật lần cuối: **26/10/2026**, sau CON-35. File này được cập nhật trong PR của mỗi ticket CON.
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](../SPEC-app-tao-video-ao.md) v4.1 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 0/8 ticket đã merge · 1 chờ duyệt · 7 chưa làm
+**Tổng quan:** 1/8 ticket xong · 7 chưa làm
 
 ```
-[■□□□□□□□]  CON-35 chờ duyệt
+[■□□□□□□□]  1/8 — xong CON-35
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -62,7 +62,7 @@ flowchart LR
     classDef todo fill:#eeeeee,stroke:#9e9e9e,color:#333333
     classDef ext fill:#ead9ff,stroke:#6a3fb5,color:#2a1250
 
-    class ui,server,secrets,db review
+    class ui,server,secrets,db done
     class sheet,scan,editor,bot,queue,drive,progress todo
     class gsheets,gdrive,chrome,muse,op ext
 ```
@@ -71,7 +71,7 @@ flowchart LR
 
 | # | Ticket | Nội dung | Trạng thái | PR | Hoàn thành |
 |---|---|---|---|---|---|
-| 1 | [CON-35](https://linear.app/conducdaudan/issue/CON-35) | Khung dự án: Node + TS, server cục bộ + giao diện, SQLite, op run | 🟦 Chờ duyệt | [#1](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/1) | — |
+| 1 | [CON-35](https://linear.app/conducdaudan/issue/CON-35) | Khung dự án: Node + TS, server cục bộ + giao diện, SQLite, op run | 🟩 Xong | [#1](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/1) | 26/10/2026 |
 | 2 | [CON-36](https://linear.app/conducdaudan/issue/CON-36) | Google: service account, đọc tab, ánh xạ cột, ghi 1 ô Trạng thái | ⬜ Chưa làm | — | — |
 | 3 | [CON-37](https://linear.app/conducdaudan/issue/CON-37) | Quét và chọn dòng, nhãn, ảnh thu nhỏ, giới hạn ngày | ⬜ Chưa làm | — | — |
 | 4 | [CON-38](https://linear.app/conducdaudan/issue/CON-38) | Chỉnh yêu cầu, chọn thư mục Drive, xem trước | ⬜ Chưa làm | — | — |
@@ -82,4 +82,4 @@ flowchart LR
 
 ## Nhật ký cập nhật
 
-- **26/10/2026 · CON-35** (chờ duyệt): khung Node + TypeScript, Hono chỉ nghe `127.0.0.1:4310`, SQLite (better-sqlite3) ở `%LOCALAPPDATA%\masys-video\data.db` với 5 bảng §9, nạp khoá service account qua `op run` (thiếu khoá thì báo rõ, không crash), logger pino che key/token/cookie/khoá PEM.
+- **26/10/2026 · CON-35** (xong, đã duyệt và gộp vào main): khung Node + TypeScript, Hono chỉ nghe `127.0.0.1:4310`, SQLite (better-sqlite3) ở `%LOCALAPPDATA%\masys-video\data.db` với 5 bảng §9, nạp khoá service account qua `op run` (thiếu khoá thì báo rõ, không crash), logger pino che key/token/cookie/khoá PEM.
