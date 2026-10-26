@@ -1,12 +1,12 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **26/10/2026**, sau CON-35. File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **26/10/2026**, sau CON-36. File này được cập nhật trong PR của mỗi ticket CON.
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](../SPEC-app-tao-video-ao.md) v4.1 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 1/8 ticket xong · 7 chưa làm
+**Tổng quan:** 1/8 ticket xong · 1 chờ duyệt · 6 chưa làm
 
 ```
-[■□□□□□□□]  1/8 — xong CON-35
+[■▣□□□□□□]  1/8 xong — CON-36 chờ duyệt
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -24,7 +24,7 @@ flowchart LR
         secrets["Nạp bí mật qua op run<br/>+ logger che bí mật<br/>CON-35"]
         db[("SQLite ngoài repo<br/>5 bảng §9<br/>CON-35")]
 
-        sheet["SheetReader<br/>đọc tab, ánh xạ cột,<br/>ghi 1 ô Trạng thái<br/>CON-36"]
+        sheet["SheetsClient + trang Kết nối sheet<br/>đọc tab, ánh xạ cột, bản chụp tab,<br/>ghi 1 ô Trạng thái<br/>CON-36"]
         scan["Quét và chọn dòng<br/>nhãn, ảnh thu nhỏ, giới hạn ngày<br/>CON-37"]
         editor["Chỉnh yêu cầu<br/>prompt, yêu cầu thêm,<br/>thư mục Drive, xem trước<br/>CON-38"]
         bot["MuseBot (Playwright)<br/>hồ sơ bot, đăng nhập/captcha,<br/>chat mới, gửi, chụp lỗi<br/>CON-39"]
@@ -49,6 +49,7 @@ flowchart LR
     queue --> sheet & drive & bot
     queue --> db
     progress --> db
+    sheet -- "ánh xạ cột" --> db
     sheet -- "service account" --> gsheets
     drive -- "service account" --> gdrive
     bot --> chrome --> muse
@@ -63,7 +64,8 @@ flowchart LR
     classDef ext fill:#ead9ff,stroke:#6a3fb5,color:#2a1250
 
     class ui,server,secrets,db done
-    class sheet,scan,editor,bot,queue,drive,progress todo
+    class sheet review
+    class scan,editor,bot,queue,drive,progress todo
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -72,7 +74,7 @@ flowchart LR
 | # | Ticket | Nội dung | Trạng thái | PR | Hoàn thành |
 |---|---|---|---|---|---|
 | 1 | [CON-35](https://linear.app/conducdaudan/issue/CON-35) | Khung dự án: Node + TS, server cục bộ + giao diện, SQLite, op run | 🟩 Xong | [#1](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/1) | 26/10/2026 |
-| 2 | [CON-36](https://linear.app/conducdaudan/issue/CON-36) | Google: service account, đọc tab, ánh xạ cột, ghi 1 ô Trạng thái | ⬜ Chưa làm | — | — |
+| 2 | [CON-36](https://linear.app/conducdaudan/issue/CON-36) | Google: service account, đọc tab, ánh xạ cột, ghi 1 ô Trạng thái | 🟦 Chờ duyệt | — | — |
 | 3 | [CON-37](https://linear.app/conducdaudan/issue/CON-37) | Quét và chọn dòng, nhãn, ảnh thu nhỏ, giới hạn ngày | ⬜ Chưa làm | — | — |
 | 4 | [CON-38](https://linear.app/conducdaudan/issue/CON-38) | Chỉnh yêu cầu, chọn thư mục Drive, xem trước | ⬜ Chưa làm | — | — |
 | 5 | [CON-39](https://linear.app/conducdaudan/issue/CON-39) | MuseBot: hồ sơ bot, đăng nhập/captcha, chat mới, gửi, chụp lỗi | ⬜ Chưa làm | — | — |
@@ -81,5 +83,7 @@ flowchart LR
 | 8 | [CON-42](https://linear.app/conducdaudan/issue/CON-42) | Chạy đủ 12 tiêu chí với sheet thật, bàn giao | ⬜ Chưa làm | — | — |
 
 ## Nhật ký cập nhật
+
+- **26/10/2026 · CON-36** (chờ duyệt): trang **Kết nối sheet** (dán link → danh sách tab → tự đoán 4 cột → lưu theo sheet + tab); báo *"Chia sẻ sheet cho (email service account) với quyền chỉnh sửa"* khi thiếu quyền hoặc chỉ có quyền xem; đọc toàn tab và dòng N; ghi đúng 1 ô Trạng thái (`RAW`, Google phải xác nhận đúng ô); bản chụp tab + so sánh. Đã thử với sheet thật: ghi D2 → chỉ D2 đổi → trả lại như cũ.
 
 - **26/10/2026 · CON-35** (xong, đã duyệt và gộp vào main): khung Node + TypeScript, Hono chỉ nghe `127.0.0.1:4310`, SQLite (better-sqlite3) ở `%LOCALAPPDATA%\masys-video\data.db` với 5 bảng §9, nạp khoá service account qua `op run` (thiếu khoá thì báo rõ, không crash), logger pino che key/token/cookie/khoá PEM.

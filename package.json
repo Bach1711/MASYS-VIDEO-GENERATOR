@@ -12,11 +12,13 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:google": "vitest run -c vitest.live.config.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.5",
     "better-sqlite3": "^13.0.3",
+    "google-auth-library": "^11.3.1",
     "hono": "^4.13.14",
     "pino": "^10.4.0"
   },
