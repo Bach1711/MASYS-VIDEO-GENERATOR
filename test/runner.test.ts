@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { FAKE_KEY_ENV } from "./fakeKey.js";
 import { BotError, type WatchResult } from "../src/bot/museBot.js";
 import { openDatabase, type DB } from "../src/db/index.js";
 import { saveSheetConfig, type SheetConfig } from "../src/db/sheetConfigs.js";
@@ -458,7 +459,7 @@ describe("trang Lô #N", () => {
     const { loadConfig } = await import("../src/config.js");
     const t = setup();
     const id = createBatch(t.db, t.grid, [2, 3]);
-    const app = createApp(loadConfig({}), t.db, { runner: t.runner });
+    const app = createApp(loadConfig(FAKE_KEY_ENV), t.db, { runner: t.runner });
 
     const first = await (await app.request(`/batch/${id}`)).text();
     expect(first).toContain("Bắt đầu chạy");
@@ -531,7 +532,7 @@ describe("Lịch sử lô, Nhật ký, dải báo (F6)", () => {
     const { createApp } = await import("../src/web/app.js");
     const { loadConfig } = await import("../src/config.js");
     const t = setup();
-    const app = createApp(loadConfig({}), t.db, { runner: t.runner });
+    const app = createApp(loadConfig(FAKE_KEY_ENV), t.db, { runner: t.runner });
 
     const id = createBatch(t.db, t.grid, [2, 3]);
     t.sendErrors.push(undefined, new BotError("rejected", "Muse từ chối yêu cầu", true, "C:/x/screenshots/20261027T020000Z-rejected.png"));

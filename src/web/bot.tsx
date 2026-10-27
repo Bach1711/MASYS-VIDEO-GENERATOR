@@ -19,6 +19,8 @@ export interface BotDeps {
   bot?: MuseBot;
   runner?: BatchRunner;
   screenshotDir: string;
+  /** Kiểm tra máy đã cài Chrome; false thì báo cần cài. */
+  chromeInstalled?: () => boolean | undefined;
 }
 
 const SHOT_NAME = /^[0-9TZ-]+-[a-z_]+\.png$/;
@@ -49,6 +51,15 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
       <>
         <h1>Bot Muse</h1>
         {!bot && <Alert kind="warn">Bot chưa sẵn sàng trong lần chạy này.</Alert>}
+        {deps.chromeInstalled?.() === false && (
+          <Alert kind="warn">
+            <strong>Máy chưa cài Google Chrome.</strong> Bot cần Chrome để điều khiển Muse. Tải và cài Chrome tại{" "}
+            <a href="https://www.google.com/chrome/" target="_blank" rel="noreferrer">
+              google.com/chrome
+            </a>
+            , rồi tắt và mở lại tool.
+          </Alert>
+        )}
         {notice}
         <section class="card">
           <h2>Trình duyệt bot</h2>

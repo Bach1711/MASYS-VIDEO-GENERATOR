@@ -1,5 +1,6 @@
 // Tiêu chí §12.11: repo, log, SQLite không chứa khoá service account hay cookie Meta.
-// Chạy: op run --env-file=.env -- npm run check-secrets [-- file-log-khác ...]
+// Chạy: op run --env-file=.env -- npm run check-secrets [-- file-log-khác ... | file.zip ...]
+// File .zip (bản phát hành, D15) được giải nén ra thư mục tạm rồi quét từng file, kèm kiểm tra tên file cấm.
 // Có khoá thật trong biến môi trường thì so cả nguyên văn khoá. Không bao giờ in giá trị tìm thấy, chỉ in tên file và dòng.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -66,35 +67,78 @@ function dataFiles(dir) {
   return out;
 }
 
-export function run({ root, env = process.env, extra = [], repo = true }) {
+/** File không bao giờ được nằm trong zip phát hành (D15). Đường dẫn dùng dấu /. */
+export const FORBIDDEN_IN_ZIP = [
+  { name: "file .env", re: /(^|\/)\.env(\.|$)/ },
+  { name: "cơ sở dữ liệu SQLite", re: /\.(db|sqlite3?)(-wal|-shm|-journal)?$/ },
+  { name: "khoá Google đã lưu", re: /google-key\.dpapi/ },
+  { name: "file khoá", re: /\.(pem|p12|pfx|key)$|(^|\/)(credentials|client_secret|token)[^/]*\.json$/ },
+  { name: "hồ sơ bot / ảnh chụp", re: /(^|\/)(bot-profile|screenshots)\// },
+  { name: "mã nguồn TypeScript", re: /^(?!.*\/node_modules\/).*(?<!\.d)\.tsx?$/ },
+  { name: "thư mục test", re: /^[^/]+\/app\/test\// },
+];
+
+function walk(dir) {
+  const out = [];
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) out.push(...walk(p));
+    else out.push(p);
+  }
+  return out;
+}
+
+/** Giải nén zip bằng tar có sẵn của Windows (bsdtar đọc được zip). */
+function extractZip(zip) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "masys-zip-"));
+  const tar = process.platform === "win32" ? path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
+  execFileSync(tar, ["-xf", path.resolve(zip), "-C", dir]);
+  return dir;
+}
+
+export function run({ root, env = process.env, extra = [], repo = true, data = true }) {
   const literals = secretsFromEnv(env);
   const files = [];
+  const findings = [];
+  const tmpDirs = [];
+  for (const zip of extra.filter((f) => f.toLowerCase().endsWith(".zip"))) {
+    const dir = extractZip(zip);
+    tmpDirs.push(dir);
+    for (const f of walk(dir)) {
+      const rel = path.relative(dir, f).split(path.sep).join("/");
+      for (const bad of FORBIDDEN_IN_ZIP) {
+        if (bad.re.test(rel)) findings.push({ group: "zip", file: `${path.basename(zip)}!${rel}`, line: 0, pattern: bad.name });
+      }
+      files.push({ group: "zip", file: f, label: `${path.basename(zip)}!${rel}` });
+    }
+  }
+  extra = extra.filter((f) => !f.toLowerCase().endsWith(".zip"));
   if (repo) {
     const list = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: root, encoding: "utf8" });
     for (const f of list.split("\0").filter(Boolean)) files.push({ group: "repo", file: path.join(root, f) });
   }
-  for (const f of dataFiles(dataDir(env))) files.push({ group: "dữ liệu", file: f });
+  if (data) for (const f of dataFiles(dataDir(env))) files.push({ group: "dữ liệu", file: f });
   for (const f of extra) files.push({ group: "log", file: path.resolve(f) });
 
-  const findings = [];
-  for (const { group, file } of files) {
+  for (const { group, file, label } of files) {
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) continue;
     // latin1 giữ nguyên từng byte: đọc được cả file SQLite nhị phân.
     const text = fs.readFileSync(file).toString("latin1");
-    for (const h of findSecrets(text, literals)) findings.push({ group, file, ...h });
+    for (const h of findSecrets(text, literals)) findings.push({ group, file: label ?? file, ...h });
   }
+  for (const d of tmpDirs) fs.rmSync(d, { recursive: true, force: true });
   return { scanned: files.length, findings, comparedRealKey: literals.length > 0 };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const r = run({ root, extra: process.argv.slice(2) });
-  console.log(`Đã quét ${r.scanned} file (repo, thư mục dữ liệu ${dataDir()}${process.argv.length > 2 ? ", log" : ""}).`);
+  console.log(`Đã quét ${r.scanned} file (repo, thư mục dữ liệu ${dataDir()}${process.argv.length > 2 ? ", log/zip" : ""}).`);
   console.log(r.comparedRealKey ? "Có so nguyên văn với khoá thật (chạy qua op run)." : "Không có khoá thật trong biến môi trường: chỉ dò theo mẫu.");
   if (r.findings.length === 0) {
     console.log("✅ Không thấy khoá service account hay cookie Meta.");
   } else {
-    for (const f of r.findings) console.log(`❌ [${f.group}] ${path.relative(root, f.file) || f.file}:${f.line} — ${f.pattern}`);
+    for (const f of r.findings) console.log(`❌ [${f.group}] ${f.group === "zip" ? f.file : path.relative(root, f.file) || f.file}${f.line ? `:${f.line}` : ""} — ${f.pattern}`);
     process.exitCode = 1;
   }
 }

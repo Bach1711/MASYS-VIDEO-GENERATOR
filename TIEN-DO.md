@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **27/10/2026**, sau CON-42 — **hoàn thành GĐ1**. File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **27/10/2026**, CON-43 chờ duyệt — GĐ1 xong, **GĐ2 (phát hành cho đội) đang làm**. File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
-> Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v4.1 · Linear: project **MASYS Video Generator**
+> Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v4.2 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 8/8 ticket xong 🎉
+**Tổng quan:** 8/10 ticket xong · GĐ1 8/8 🎉 · GĐ2 0/2 (CON-43 chờ duyệt)
 
 ```
-[■■■■■■■■]  8/8 — xong CON-35, CON-36, CON-37, CON-38, CON-39, CON-40, CON-41, CON-42
+[■■■■■■■■□□]  8/10 — xong CON-35…CON-42 · chờ duyệt CON-43 · chưa làm CON-44
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -32,6 +32,8 @@ flowchart LR
         queue["Hàng đợi chạy lô + kiểm tra D12<br/>theo dõi ô Video, sửa nhầm ô,<br/>tạm dừng / tiếp tục, khôi phục<br/>CON-40"]
         drive["DriveClient<br/>kiểm tra ảnh + ảnh thu nhỏ: CON-37<br/>liệt kê thư mục: CON-38<br/>kiểm tra video: CON-40"]
         progress["Tiến độ, lịch sử,<br/>nhật ký, Cài đặt<br/>CON-41"]
+        pack["Bản zip + Mo-MASYS.bat<br/>cài khoá Google lần đầu (DPAPI),<br/>số phiên bản<br/>CON-43"]
+        update["Kiểm tra và cập nhật<br/>phiên bản trong tool<br/>CON-44"]
     end
 
     subgraph EXT["Bên ngoài"]
@@ -57,6 +59,8 @@ flowchart LR
     muse -- "MCP: lưu video" --> gdrive
     muse -- "MCP: ghi link ô Video" --> gsheets
     op -. "op run" .-> secrets --> server
+    pack -- "khoá đã mã hoá" --> secrets
+    update --> pack
 
     classDef done fill:#c8f0c8,stroke:#2e7d32,color:#10300f
     classDef review fill:#cfe3ff,stroke:#1f5fbf,color:#0c2550
@@ -69,6 +73,8 @@ flowchart LR
     class bot done
     class queue done
     class progress done
+    class pack review
+    class update todo
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -85,7 +91,16 @@ flowchart LR
 | 7 | [CON-41](https://linear.app/conducdaudan/issue/CON-41) | Tiến độ, lịch sử lô, nhật ký, Cài đặt | 🟩 Xong | [#8](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/8) | 27/10/2026 |
 | 8 | [CON-42](https://linear.app/conducdaudan/issue/CON-42) | Chạy đủ 12 tiêu chí với sheet thật, bàn giao | 🟩 Xong | [#9](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/9) | 27/10/2026 |
 
+## Bảng ticket (Giai đoạn 2 — phát hành cho đội, spec §15)
+
+| # | Ticket | Nội dung | Trạng thái | PR | Hoàn thành |
+|---|---|---|---|---|---|
+| 9 | [CON-43](https://linear.app/conducdaudan/issue/CON-43) | Đóng gói zip chạy ngay, cài khoá Google lần đầu, số phiên bản | 🟦 Chờ duyệt | PR_CON43 | |
+| 10 | [CON-44](https://linear.app/conducdaudan/issue/CON-44) | Kiểm tra và cập nhật phiên bản ngay trong tool | ⬜ Chưa làm | | |
+
 ## Nhật ký cập nhật
+
+- **27/10/2026 · CON-43** (chờ duyệt): **bản zip cho người trong đội** (spec D15). Lệnh `npm run package` tạo `MASYS-Video-v1.0.0-win64.zip` (50 MB): Node chạy liền + tool đã dựng + `Mo-MASYS.bat` + `HUONG-DAN.txt`. Bấm đúp `Mo-MASYS.bat` thì tool bật và tự mở trình duyệt; bấm lần nữa khi đang chạy thì chỉ mở trang; cổng bị chiếm thì báo rõ. **Lần đầu mở**, mọi trang dẫn về **Cài khoá Google**: chọn file khoá `.json` → tool kiểm tra với Google → mã hoá DPAPI theo tài khoản Windows, lưu ở `%LOCALAPPDATA%masys-video` → tự khởi động lại. Cài đặt có **Đổi file khoá** (khoá khi lô đang chạy) và số phiên bản; số phiên bản hiện ở cuối mọi trang. Trang Bot Muse báo khi máy chưa cài Chrome. `check-secrets` quét được cả trong zip và báo file cấm. Đã chạy thử bản zip trên máy này với PATH không có Node: cài khoá thật, khởi động lại, đọc sheet thật, mở Chrome bot — đều được. Còn thử trên máy thứ hai.
 
 - **27/10/2026 · CON-42** (xong, đã duyệt và gộp vào main): **nghiệm thu với sheet, Drive và Muse thật: đạt cả 12 tiêu chí §12** (bảng kết quả ở spec §12.1). Sheet thử 20 dòng; lô #3 (dòng 4, 6, 9, 10, 11) thử cùng lúc §12.2/3/4/5/8/9, lô #4 thử quá thời gian §12.7; §12.6 và §12.10 đã đạt sáng nay ở CON-40; §12.11 `check-secrets` sạch; §12.12 giới hạn ngày chặn đúng. Hôm nay 7 video thật, mỗi dòng gửi Muse đúng một lần; cài đặt đã trả về 20 phút / 5 video. **README viết lại thành tài liệu bàn giao** (cài máy mới, service account, đăng nhập bot, xử lý tạm dừng, sửa selector). Phát hiện: sửa tay sheet trong lúc lô chạy bị coi là "Muse sửa ô khác" — đã ghi hướng dẫn, chờ người phụ trách quyết có nới quy tắc không.
 - **27/10/2026 · CON-41** (xong, đã duyệt và gộp vào main): **theo dõi và cài đặt**. Trang lô có thêm nút **Huỷ lô** (dòng đang chờ Muse vẫn được theo dõi cho xong, các dòng chưa gửi thành *Đã huỷ*). Câu báo tạm dừng đúng chữ spec (*Cần đăng nhập lại Muse*, *Giao diện Muse thay đổi*, *Muse hết lượt*, *Đã đủ video trong ngày*, *Muse sửa nhầm ô*) và **dải báo trên đầu mọi trang** khi có lô đang chạy / tạm dừng. Trang mới **Lịch sử lô** (thời gian, sheet, số dòng, đếm Xong / Lỗi / Cần xem / Bỏ qua / Đã huỷ) và **Nhật ký** (mặc định chỉ lỗi, có link ảnh chụp màn hình, lọc theo lô). Trang **Cài đặt** đủ mục F7: thời gian chờ, khoảng nghỉ, giới hạn video/ngày (nhắc rủi ro khi > 5), địa chỉ trang Muse, nút Mở trình duyệt bot. Lệnh mới `npm run check-secrets` (§12.11): quét repo, SQLite và log, đã chạy trên máy thật, sạch.

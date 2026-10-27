@@ -1,7 +1,9 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { FAKE_KEY_ENV } from "./fakeKey.js";
 import { loadConfig } from "../src/config.js";
 import { openDatabase } from "../src/db/index.js";
 import { getSettings, parseRunSettings } from "../src/db/settings.js";
@@ -27,7 +29,7 @@ describe("Cài đặt chạy lô (F7)", () => {
 
   it("trang Cài đặt lưu được, báo lỗi khi sai, nhắc rủi ro khi giới hạn > 5, có nút Mở trình duyệt bot", async () => {
     const db = openDatabase(":memory:");
-    const app = createApp(loadConfig({}), db);
+    const app = createApp(loadConfig(FAKE_KEY_ENV), db);
     const page = await (await app.request("/settings")).text();
     for (const s of ["Thời gian chờ mỗi dòng", "Nghỉ giữa hai dòng", "Giới hạn video mỗi ngày", "Địa chỉ trang Muse", "Thư mục Drive gốc", "Mẫu yêu cầu gửi Muse", 'action="/bot/open"']) {
       expect(page).toContain(s);
@@ -80,6 +82,30 @@ describe("check-secrets (§12.11)", () => {
       fs.writeFileSync(path.join(dir, "app.log"), `{"msg":"x","key":"${body.slice(60, 140)}"}`);
       const dirty = run({ root: dir, env: { ...env, MASYS_DATA_DIR: dir }, repo: false });
       expect(dirty.findings).toMatchObject([{ group: "dữ liệu", pattern: "khoá service account thật" }]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform !== "win32")("quét được bên trong file zip: báo bí mật và file cấm", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "masys-zip-test-"));
+    const tar = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe");
+    try {
+      const pkg = path.join(dir, "MASYS-Video");
+      fs.mkdirSync(path.join(pkg, "app", "dist"), { recursive: true });
+      fs.writeFileSync(path.join(pkg, "app", "dist", "server.js"), "console.log(1)");
+      fs.writeFileSync(path.join(dir, "ok.txt"), "x");
+      execFileSync(tar, ["-a", "-c", "-f", path.join(dir, "sach.zip"), "-C", dir, "MASYS-Video"]);
+      expect(run({ root: dir, extra: [path.join(dir, "sach.zip")], repo: false, data: false }).findings).toEqual([]);
+
+      fs.writeFileSync(path.join(pkg, ".env"), "X=op://a/b/c");
+      fs.writeFileSync(path.join(pkg, "app", "data.db"), "SQLite");
+      fs.writeFileSync(path.join(pkg, "app", "dist", "log.txt"), `{"private_key": "${pem}"}`);
+      execFileSync(tar, ["-a", "-c", "-f", path.join(dir, "ban.zip"), "-C", dir, "MASYS-Video"]);
+      const dirty = run({ root: dir, extra: [path.join(dir, "ban.zip")], repo: false, data: false });
+      expect(dirty.findings.map((x: { pattern: string }) => x.pattern).sort()).toEqual(
+        ["cơ sở dữ liệu SQLite", "file .env", "khoá riêng PEM (service account)"].sort(),
+      );
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

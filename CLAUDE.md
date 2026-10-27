@@ -1,12 +1,13 @@
 # MASYS Video Generator
 
-Đặc tả đầy đủ: `SPEC-app-tao-video-ao.md` (v4.0) — đọc trước khi làm bất cứ việc gì. Không mở lại các quyết định ở mục 3 (D1–D14) nếu chưa hỏi người phụ trách.
+Đặc tả đầy đủ: `SPEC-app-tao-video-ao.md` (v4.2) — đọc trước khi làm bất cứ việc gì. Không mở lại các quyết định ở mục 3 (D1–D15) nếu chưa hỏi người phụ trách.
 
-## Kiến trúc (spec v4.0)
+## Kiến trúc (spec v4.2)
 - **Tool chạy trên một máy Windows:** một tiến trình Node (TypeScript) + giao diện ở `localhost` + **Playwright** điều khiển Chrome + SQLite cục bộ.
 - **Meta Muse AI là nơi duy nhất tạo video**, điều khiển qua giao diện web bằng bot. Muse tự lưu video lên Drive và tự ghi link vào sheet qua MCP; tool chỉ điều phối, theo dõi ô Video và kiểm tra lại.
 - Google Sheets/Drive truy cập bằng **service account** (D5). Ảnh gửi Muse bằng link Drive (D14). Giới hạn mặc định 5 video/ngày (D13).
 - Không có server, không Supabase, không gọi API video nào (Gemini, Max-Studio, Flow đã bỏ).
+- **Phát hành cho đội bằng zip** (D15): `npm run package` → `release/MASYS-Video-vX.Y.Z-win64.zip` (Node đi kèm + `Mo-MASYS.bat`). Máy người dùng chọn file khoá lần đầu, khoá lưu mã hoá DPAPI ở `%LOCALAPPDATA%\masys-video`; biến `GOOGLE_SERVICE_ACCOUNT_JSON` (op run) luôn được ưu tiên. Số phiên bản là `version` trong `package.json`.
 
 ## Cổng làm việc
 - **Chỉ viết code khi người phụ trách đã duyệt**, làm **từng ticket một**, xong một ticket thì dừng chờ duyệt.
