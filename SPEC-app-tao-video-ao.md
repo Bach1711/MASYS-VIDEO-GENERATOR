@@ -171,6 +171,7 @@ Nguyên tắc:
 **F7. Cài đặt**
 - Thời gian chờ tối đa mỗi lượt (mặc định 20 phút; GĐ0 mất vài phút/video), khoảng nghỉ giữa lượt, **giới hạn video/ngày** (mặc định 5, D13), thư mục Drive gốc, mẫu yêu cầu gửi Muse (sửa được, mục 8.2), URL trang Muse.
 - Nút **Mở trình duyệt bot** (để đăng nhập hoặc xem).
+- Giới hạn hợp lệ (CON-41): thời gian chờ 1–120 phút; nghỉ 0–600 giây (nhiều nhất ≥ ít nhất); giới hạn 1–50 video/ngày, trên 5 thì nhắc rủi ro D13; URL Muse phải là `https://` thuộc muse.ai, để trống là mặc định. Đổi lúc lô đang chạy thì áp dụng từ dòng kế tiếp.
 
 ---
 
@@ -291,7 +292,7 @@ File SQLite và ảnh chụp màn hình nằm ngoài repo (cùng thư mục vớ
 8. **Link sai thư mục:** chuyển file video sang thư mục khác trước khi kiểm tra → `Cần xem: link không hợp lệ`.
 9. **Sửa nhầm ô:** sửa tay một ô khác trong lúc chờ → `Cần xem`, lô tạm dừng.
 10. **Tắt tool giữa lượt** rồi mở lại → không gửi lại yêu cầu; lượt được theo dõi tiếp hoặc `Cần xem`.
-11. **Không lộ bí mật:** repo, log, SQLite không chứa khoá service account hay cookie Meta.
+11. **Không lộ bí mật:** repo, log, SQLite không chứa khoá service account hay cookie Meta. Kiểm tra bằng `op run --env-file=.env -- npm run check-secrets -- <file log>` (CON-41): quét file trong repo, thư mục dữ liệu (trừ hồ sơ bot và ảnh chụp) và các file log được chỉ ra; chạy qua `op run` thì so cả nguyên văn khoá thật.
 12. **Giới hạn ngày:** đã chạy 4 video trong ngày, chọn 3 dòng → không bấm Chạy được; chọn 1 dòng → chạy được, sau đó hiện "Hôm nay: 5/5".
 
 ---

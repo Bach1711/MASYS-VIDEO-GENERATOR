@@ -118,6 +118,9 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
         {events.length > 0 && (
           <section class="card">
             <h2>Nhật ký bot gần đây</h2>
+            <p class="muted small">
+              Xem đầy đủ ở <a href="/logs?all=1">Nhật ký</a>.
+            </p>
             <table>
               <tbody>
                 {events.map((e) => (
