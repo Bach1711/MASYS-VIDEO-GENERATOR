@@ -2,6 +2,12 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v1.0.1
+
+Bản thử cơ chế cập nhật trong tool. Không thay đổi tính năng.
+
+- Dùng để kiểm tra nút **Cập nhật** và **Quay về** trong **Cài đặt → Phiên bản**.
+
 ## v1.0.0
 
 Bản đầu tiên cho người trong đội.
