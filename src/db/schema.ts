@@ -69,4 +69,9 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE sheet_configs ADD COLUMN spreadsheetTitle TEXT;
   `,
+  // 3: hàng đợi (CON-40). Lý do lô tạm dừng; bản chụp tab trước lượt để vẫn kiểm tra được sau khi tool mở lại.
+  `
+  ALTER TABLE batches ADD COLUMN pauseReason TEXT;
+  ALTER TABLE runs ADD COLUMN tabSnapshot TEXT;
+  `,
 ];

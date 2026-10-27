@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Context, Hono } from "hono";
 import type { Child } from "hono/jsx";
-import { activeRows, getBatch, insertBatch, planRuns, type PlannedRun, type RowEdit } from "../batch/create.js";
+import { activeRows, insertBatch, planRuns, type PlannedRun, type RowEdit } from "../batch/create.js";
 import { checkSelection } from "../batch/selection.js";
 import { DEFAULT_TEMPLATE, fileStamp, folderLink, isFileStamp, validateTemplate } from "../batch/template.js";
 import { getDailyQuota } from "../db/quota.js";
@@ -16,23 +16,6 @@ import { scanTab } from "../scan/scan.js";
 import { Alert, Hidden, QuotaBox, scanUrl, truncate } from "./components.js";
 import { Layout } from "./layout.js";
 import type { ScanDeps } from "./scan.js";
-
-const RUN_STATE_TEXT: Record<string, string> = {
-  queued: "Chờ chạy",
-  checking_row: "Đang kiểm tra dòng",
-  sending: "Đang gửi Muse",
-  waiting: "Chờ Muse",
-  verifying: "Đang kiểm tra",
-  done: "Xong",
-  failed: "Lỗi",
-  needs_review: "Cần xem",
-  skipped_has_video: "Bỏ qua (đã có video)",
-  paused_login: "Tạm dừng: cần đăng nhập Muse",
-  paused_ui: "Tạm dừng: giao diện Muse đổi",
-  paused_quota: "Tạm dừng: Muse hết lượt",
-  paused_limit: "Tạm dừng: đủ giới hạn ngày",
-  canceled: "Đã huỷ",
-};
 
 /** Dữ liệu form đi qua các bước chỉnh → xem trước → tạo lô. */
 interface FormState {
@@ -279,71 +262,6 @@ export function registerBatchRoutes(app: Hono, deps: ScanDeps) {
     logger.info({ batchId, spreadsheetId: f.id, tab: f.tab, rows: plan.runs.map((r) => r.row) }, "Đã tạo lô");
     return c.redirect(`/batch/${batchId}?created=1`, 303);
   }
-
-  app.get("/batch/:id", (c) => {
-    const id = Number(c.req.param("id"));
-    const b = Number.isInteger(id) ? getBatch(db, id) : undefined;
-    if (!b) return c.notFound();
-    const cfg = getSheetConfig(db, b.spreadsheetId, b.tab);
-    const name = cfg ? sheetName(cfg) : b.spreadsheetId;
-    return c.html(
-      page(
-        `Lô #${b.id}`,
-        <>
-          <h1>
-            Lô #{b.id} · {name} → {b.tab}
-          </h1>
-          {c.req.query("created") && (
-            <Alert kind="ok">
-              Đã tạo lô {b.runs.length} dòng và lưu vào máy. <strong>Chưa gửi gì cho Muse</strong>: phần bot gửi yêu cầu sẽ có ở ticket CON-39 và
-              CON-40.
-            </Alert>
-          )}
-          <div class="card">
-            <div>
-              Tạo lúc: {new Date(b.createdAt).toLocaleString("vi-VN")} · Trạng thái lô: <strong>{RUN_STATE_TEXT[b.status] ?? b.status}</strong>
-            </div>
-            <div>
-              Thư mục lưu video:{" "}
-              <a href={folderLink(b.driveFolderId)} target="_blank" rel="noreferrer">
-                mở thư mục ↗
-              </a>
-            </div>
-            {b.extraRequest && <div>Yêu cầu thêm chung: {b.extraRequest}</div>}
-          </div>
-          <div class="scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Dòng</th>
-                  <th>Trạng thái</th>
-                  <th>Yêu cầu gửi Muse</th>
-                </tr>
-              </thead>
-              <tbody>
-                {b.runs.map((r) => (
-                  <tr>
-                    <td>
-                      {r.rowNumber}
-                      {r.overwrite ? <div class="muted">ghi đè</div> : ""}
-                    </td>
-                    <td>{RUN_STATE_TEXT[r.state] ?? r.state}</td>
-                    <td>
-                      <details>
-                        <summary>{truncate(r.promptSent, 90)}</summary>
-                        <pre class="request">{r.requestText}</pre>
-                      </details>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p>{cfg && <a href={scanUrl(cfg.spreadsheetId, cfg.tab)}>← Quay lại bảng quét</a>}</p>
-        </>,
-      ),
-    );
-  });
 }
 
 function EditForm(props: {
@@ -472,7 +390,7 @@ function PreviewPage(props: {
           ← Quay lại chỉnh
         </button>
         <div>
-          <div class="muted small">Tạo lô chỉ lưu vào máy, chưa gửi cho Muse (bot làm ở CON-39/40).</div>
+          <div class="muted small">Tạo lô xong, bấm Bắt đầu chạy ở trang lô để bot gửi Muse.</div>
           <button type="submit" name="step" value="create">
             Tạo lô ({runs.length} dòng)
           </button>

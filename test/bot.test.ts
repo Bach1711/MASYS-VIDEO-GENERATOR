@@ -9,7 +9,7 @@ import { BotError, MuseBot } from "../src/bot/museBot.js";
 import { openDatabase } from "../src/db/index.js";
 
 // Trang Muse giả lập theo tên thật đã ghi nhận (museSelectors.ts). Chrome chạy ẩn chỉ trong test.
-type Mode = "ready" | "login" | "challenge" | "broken" | "quota" | "nosend" | "nonew";
+type Mode = "ready" | "login" | "challenge" | "broken" | "quota" | "nosend" | "nonew" | "approval";
 let mode: Mode = "ready";
 let received: string[] = [];
 
@@ -30,6 +30,14 @@ function send() {
   fetch('/received', { method: 'POST', body: t.value });
   const p = document.createElement('p'); p.textContent = t.value; document.getElementById('log').append(p);
   t.value = ''; document.getElementById('send').hidden = true;
+  ${
+    m === "approval"
+      ? `const a = document.createElement('div');
+  a.innerHTML = '<span>Needs approval</span><p>Allow Như to create or upload files that may be shared in Google Drive?</p><button>Create</button><button>Always allow</button><button>Don&#39;t create</button>';
+  a.querySelectorAll('button').forEach((b) => (b.onclick = () => fetch('/received', { method: 'POST', body: 'CLICKED ' + b.textContent })));
+  document.body.append(a);`
+      : ""
+  }
   ${m === "quota" ? `const q = document.createElement('div'); q.textContent = "You've reached your weekly limit."; document.body.append(q);` : `setTimeout(() => history.pushState({}, '', '/thread/abc123XYZ'), 1200);`}
 }
 </script></body></html>`;
@@ -149,6 +157,19 @@ describe.skipIf(!hasChrome)("MuseBot với trang Muse giả lập", () => {
     mode = "quota";
     await b.open();
     await expect(b.send(REQUEST)).rejects.toMatchObject({ code: "quota", sent: true });
+    expect(received).toEqual([REQUEST]);
+  }, 30_000);
+
+  it("watch: thấy Muse chờ duyệt (câu chữ thật 27/10/2026) nhưng không bấm nút nào", async () => {
+    const b = newBot();
+    mode = "approval";
+    await b.open();
+    expect((await b.watch()).approval).toBe(false);
+    await b.send(REQUEST);
+    const w = await b.watch();
+    expect(w).toMatchObject({ closed: false, login: false, approval: true });
+    expect(w.notice).toBeUndefined();
+    await new Promise((r) => setTimeout(r, 300));
     expect(received).toEqual([REQUEST]);
   }, 30_000);
 

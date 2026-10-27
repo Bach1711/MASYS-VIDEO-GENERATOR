@@ -1,5 +1,6 @@
 import type { DB } from "../db/index.js";
 import { getDailyQuota } from "../db/quota.js";
+import { moveRun } from "../db/runs.js";
 import { logger } from "../logger.js";
 import { BotError, stripQuery, type MuseBot } from "./museBot.js";
 
@@ -23,20 +24,6 @@ export function listQueuedRuns(db: DB): QueuedRun[] {
        FROM runs r JOIN batches b ON b.id = r.batchId WHERE r.state = 'queued' ORDER BY r.batchId, r.rowNumber`,
     )
     .all() as QueuedRun[];
-}
-
-function moveRun(db: DB, runId: number, from: string, to: string, message: string, extra: Record<string, unknown> = {}, screenshot?: string) {
-  const sets = ["state = @to", ...Object.keys(extra).map((k) => `${k} = @${k}`)].join(", ");
-  db.transaction(() => {
-    db.prepare(`UPDATE runs SET ${sets} WHERE id = @id`).run({ id: runId, to, ...extra });
-    db.prepare("INSERT INTO run_events (runId, fromState, toState, message, screenshotPath) VALUES (?, ?, ?, ?, ?)").run(
-      runId,
-      from,
-      to,
-      message,
-      screenshot ?? null,
-    );
-  })();
 }
 
 export type ManualSendResult =
