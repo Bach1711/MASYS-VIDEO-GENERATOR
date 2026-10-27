@@ -74,4 +74,9 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE batches ADD COLUMN pauseReason TEXT;
   ALTER TABLE runs ADD COLUMN tabSnapshot TEXT;
   `,
+  // 4: cập nhật trong tool (CON-44). Phiên bản lần chạy trước, để báo "Đã cập nhật / Đã quay về".
+  // Từ D16: migration chỉ được THÊM bảng/cột, để bản cũ vẫn mở được dữ liệu khi bấm Quay về.
+  `
+  ALTER TABLE settings ADD COLUMN lastRunVersion TEXT;
+  `,
 ];

@@ -77,3 +77,16 @@ export function listLogs(db: DB, o: { all?: boolean; batchId?: number; limit?: n
     )
     .all(...args) as LogEntry[];
 }
+
+/** Lý do chưa được cập nhật / quay về phiên bản (D16, D9); undefined = được. */
+export function updateBlocker(db: DB, runningBatchId?: number): string | undefined {
+  const running =
+    runningBatchId ??
+    (db.prepare("SELECT id FROM batches WHERE status = 'running' ORDER BY id DESC LIMIT 1").get() as { id: number } | undefined)?.id;
+  if (running !== undefined) return `Chờ lô #${running} xong hoặc bấm Tạm dừng.`;
+  const inFlight = db
+    .prepare("SELECT batchId FROM runs WHERE state IN ('checking_row', 'sending', 'waiting', 'verifying') LIMIT 1")
+    .get() as { batchId: number } | undefined;
+  if (inFlight) return `Lô #${inFlight.batchId} còn dòng đang gửi hoặc đang chờ Muse; chờ dòng đó xong.`;
+  return undefined;
+}

@@ -7,6 +7,12 @@ export function setStatusBanner(fn: (() => Child) | undefined) {
   statusBanner = fn;
 }
 
+/** Dải báo phiên bản (CON-44): vừa cập nhật / quay về, hoặc có bản mới. */
+let updateBanner: (() => Child) | undefined;
+export function setUpdateBanner(fn: (() => Child) | undefined) {
+  updateBanner = fn;
+}
+
 export function Layout(props: { title: string; children: Child }) {
   return (
     <html lang="vi">
@@ -78,6 +84,10 @@ export function Layout(props: { title: string; children: Child }) {
           .tally span { margin-right:10px; white-space:nowrap; }
           h2.sub-h { margin-top:20px; }
           input[type=number] { width:90px; }
+          pre.notes { max-height:260px; overflow:auto; }
+          .update-box { border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:8px 0 4px; margin-bottom:12px; }
+          .banner.ok { background:var(--ok-bg); color:var(--ok-fg); border-color:transparent; }
+          .banner.warn { background:var(--warn-bg); color:var(--warn-fg); border-color:transparent; }
           footer { max-width:1100px; margin:0 auto; padding:8px 16px 24px; color:var(--muted); font-size:.85rem; }
           @media (prefers-color-scheme: dark) { :root { --info-bg:#1b2a47; --info-fg:#a9c6ff; --bad-bg:#3d1b1b; --bad-fg:#ffb3b3; } }
         `}</style>
@@ -95,6 +105,7 @@ export function Layout(props: { title: string; children: Child }) {
           </div>
         </nav>
         <main>
+          {updateBanner?.()}
           {statusBanner?.()}
           {props.children}
         </main>

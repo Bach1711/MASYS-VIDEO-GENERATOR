@@ -16,7 +16,8 @@
     "test:google": "vitest run -c vitest.live.config.ts",
     "tien-do": "node scripts/tien-do.mjs",
     "check-secrets": "node scripts/check-secrets.mjs",
-    "package": "node scripts/package.mjs"
+    "package": "node scripts/package.mjs",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.5",
