@@ -27,14 +27,27 @@ export type PauseReason = "user" | "login" | "ui" | "quota" | "limit" | "row_shi
 
 export const PAUSE_TEXT: Record<PauseReason, string> = {
   user: "Bạn đã bấm Tạm dừng.",
-  login: "Cần đăng nhập lại Muse (hoặc Muse đang hỏi kiểm tra bảo mật). Xử lý trong cửa sổ bot rồi bấm Tiếp tục.",
-  ui: "Bot không tìm thấy ô chat hoặc nút Gửi của Muse (giao diện Muse đổi, hoặc trình duyệt bot bị tắt). Xem ảnh chụp trong nhật ký.",
-  quota: "Muse báo hết lượt. Khi Muse có lượt trở lại, bấm Tiếp tục.",
-  limit: "Đã đủ giới hạn video hôm nay (D13). Ngày mai bấm Tiếp tục.",
+  login: "Cần đăng nhập lại Muse. Đăng nhập (hoặc vượt bước kiểm tra bảo mật) trong cửa sổ bot rồi bấm Tiếp tục.",
+  ui: "Giao diện Muse thay đổi: bot không tìm thấy ô chat hoặc nút Gửi (hoặc trình duyệt bot bị tắt). Xem ảnh chụp trong Nhật ký.",
+  quota: "Muse hết lượt / hết token. Khi Muse có lượt trở lại, bấm Tiếp tục.",
+  limit: "Đã đủ video trong ngày (giới hạn ở Cài đặt, D13). Ngày mai bấm Tiếp tục.",
   row_shift: "Một dòng trong sheet đã bị đổi so với lúc tạo lô (lệch dòng). Kiểm tra sheet rồi bấm Tiếp tục.",
-  other_cells: "Có ô khác trong sheet bị sửa trong lúc chạy. Kiểm tra sheet rồi bấm Tiếp tục.",
+  other_cells: "Muse sửa nhầm ô: có ô khác trong sheet bị đổi trong lúc chạy. Kiểm tra sheet rồi bấm Tiếp tục.",
   google: "Không đọc hoặc ghi được Google Sheet. Kiểm tra mạng / quyền chia sẻ rồi bấm Tiếp tục.",
   restart: "Tool vừa mở lại sau khi bị tắt giữa chừng. Bấm Tiếp tục để chạy các dòng còn lại.",
+};
+
+/** Câu ngắn cho dải báo trên đầu trang và trang Lịch sử lô. */
+export const PAUSE_SHORT: Record<PauseReason, string> = {
+  user: "Bạn đã bấm Tạm dừng",
+  login: "Cần đăng nhập lại Muse",
+  ui: "Giao diện Muse thay đổi",
+  quota: "Muse hết lượt / hết token",
+  limit: "Đã đủ video trong ngày",
+  row_shift: "Lệch dòng trong sheet",
+  other_cells: "Muse sửa nhầm ô",
+  google: "Lỗi Google Sheet",
+  restart: "Tool vừa mở lại",
 };
 
 /** Ghi vào ô Trạng thái (D11). */
@@ -91,7 +104,7 @@ interface Outcome {
 }
 
 export class BatchRunner {
-  private active?: { batchId: number; pauseRequested: boolean; wake?: () => void; promise: Promise<void> };
+  private active?: { batchId: number; pauseRequested: boolean; cancelRequested: boolean; wake?: () => void; promise: Promise<void> };
   /** Thông báo đang diễn ra của lô (ví dụ Muse đang chờ duyệt), hiện trên trang lô. */
   readonly notices = new Map<number, string>();
 
@@ -140,6 +153,34 @@ export class BatchRunner {
   }
 
   /**
+   * Huỷ lô (F6): dừng trước dòng kế tiếp; dòng đang chờ Muse vẫn được theo dõi cho xong (không can thiệp Muse).
+   * Các dòng chưa gửi chuyển Đã huỷ.
+   */
+  cancel(batchId: number): { ok: true; immediate: boolean } | { ok: false; message: string } {
+    if (this.active?.batchId === batchId) {
+      this.active.cancelRequested = true;
+      this.active.wake?.();
+      return { ok: true, immediate: false };
+    }
+    const b = this.batch(batchId);
+    if (!b || (b.status !== "queued" && b.status !== "paused")) return { ok: false, message: "Lô này không ở trạng thái huỷ được." };
+    this.finishCancel(batchId);
+    return { ok: true, immediate: true };
+  }
+
+  private finishCancel(batchId: number): void {
+    this.db.transaction(() => {
+      for (const r of this.runs(batchId, ["queued", "paused_login", "paused_ui", "paused_limit"])) {
+        moveRun(this.db, r.id, r.state, "canceled", "Huỷ lô: dòng này chưa gửi Muse", { sentAt: null, doneAt: now() });
+      }
+      for (const r of this.runs(batchId, ["paused_quota"])) {
+        moveRun(this.db, r.id, r.state, "failed", "Huỷ lô: đã gửi Muse nhưng Muse báo hết lượt", { doneAt: now() });
+      }
+      this.setBatch(batchId, "canceled", null);
+    })();
+  }
+
+  /**
    * Khi tool mở lại: lô đang chạy chuyển Tạm dừng; lượt đã gửi được theo dõi tiếp thêm một chu kỳ chờ,
    * không gửi lại (§7, §12.10). Các dòng sau chờ người dùng bấm Tiếp tục.
    */
@@ -157,7 +198,7 @@ export class BatchRunner {
   }
 
   private launch(batchId: number, mode: "full" | "watch") {
-    const active = { batchId, pauseRequested: false, wake: undefined as (() => void) | undefined, promise: Promise.resolve() };
+    const active = { batchId, pauseRequested: false, cancelRequested: false, wake: undefined as (() => void) | undefined, promise: Promise.resolve() };
     this.active = active;
     active.promise = this.loop(batchId, mode)
       .catch((e) => {
@@ -165,9 +206,15 @@ export class BatchRunner {
         this.setBatch(batchId, "paused", "google");
       })
       .finally(() => {
+        if (active.cancelRequested) this.finishCancel(batchId);
         this.active = undefined;
         this.notices.delete(batchId);
       });
+  }
+
+  /** Tạm dừng hoặc Huỷ đã được bấm (huỷ được hoàn tất khi vòng lặp dừng). */
+  private stopRequested(): boolean {
+    return !!(this.active?.pauseRequested || this.active?.cancelRequested);
   }
 
   private async loop(batchId: number, mode: "full" | "watch"): Promise<void> {
@@ -187,13 +234,13 @@ export class BatchRunner {
     if (!this.bot.isOpen) await this.bot.open();
     let previousSent = false;
     for (;;) {
-      if (this.active?.pauseRequested) return this.setBatch(batchId, "paused", "user");
+      if (this.stopRequested()) return this.setBatch(batchId, "paused", "user");
       const next = this.runs(batchId, ["queued"])[0];
       if (!next) return this.setBatch(batchId, "done", null);
       if (previousSent) {
         // Nghỉ ngẫu nhiên giữa hai lượt (D7).
         await this.sleep(this.pauseMs());
-        if (this.active?.pauseRequested) return this.setBatch(batchId, "paused", "user");
+        if (this.stopRequested()) return this.setBatch(batchId, "paused", "user");
       }
       const out = await this.processRun(next, cfg, batch);
       if (out.pause) return this.setBatch(batchId, "paused", out.pause);

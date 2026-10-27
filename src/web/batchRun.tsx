@@ -25,21 +25,22 @@ export const RUN_STATE_TEXT: Record<string, string> = {
   canceled: "Đã huỷ",
 };
 
-const BATCH_STATUS_TEXT: Record<string, string> = {
+export const BATCH_STATUS_TEXT: Record<string, string> = {
   queued: "Chưa chạy",
   running: "Đang chạy",
   paused: "Tạm dừng",
   done: "Đã chạy xong",
+  canceled: "Đã huỷ",
 };
 
-const RUN_BADGE: Record<string, string> = {
+export const RUN_BADGE: Record<string, string> = {
   done: "b-ready",
   failed: "b-missing_data",
   needs_review: "b-running",
   skipped_has_video: "b-has_video",
 };
 
-// Trang một lô: bắt đầu / tạm dừng / tiếp tục và trạng thái từng dòng (CON-40). Lịch sử đầy đủ ở CON-41.
+// Trang tiến độ một lô (F6): bắt đầu / tạm dừng / tiếp tục / huỷ và trạng thái từng dòng.
 export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: BatchRunner }) {
   const { db, runner } = deps;
 
@@ -110,8 +111,20 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
                     </button>
                   </form>
                 )}
+                {(b.status === "queued" || b.status === "paused" || b.status === "running") && (
+                  <form
+                    method="post"
+                    action={`/batch/${b.id}/cancel`}
+                    onsubmit="return confirm('Huỷ lô này? Các dòng chưa gửi Muse sẽ không được gửi nữa.')"
+                  >
+                    <button type="submit" class="secondary">
+                      Huỷ lô
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
+            {b.status === "canceled" && <Alert kind="warn">Lô đã huỷ. Các dòng chưa gửi Muse không được gửi.</Alert>}
             {(b.status === "queued" || b.status === "paused") && <QuotaBox quota={getDailyQuota(db)} />}
             <div class="scroll">
               <table class="scan">
@@ -165,7 +178,11 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
                 </tbody>
               </table>
             </div>
-            <p>{cfg && <a href={scanUrl(cfg.spreadsheetId, cfg.tab)}>← Quay lại bảng quét</a>}</p>
+            <p class="row">
+              {cfg && <a href={scanUrl(cfg.spreadsheetId, cfg.tab)}>← Quay lại bảng quét</a>}
+              <a href={`/logs?all=1&batch=${b.id}`}>Nhật ký của lô này</a>
+              <a href="/batches">Lịch sử lô</a>
+            </p>
           </Layout>
         ),
     );
@@ -184,6 +201,18 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
     const msg = ok
       ? "Đã nhận Tạm dừng: dòng đang chờ Muse vẫn được theo dõi cho xong, lô dừng trước dòng tiếp theo."
       : "Lô này không đang chạy.";
+    return c.redirect(`/batch/${id}?msg=${encodeURIComponent(msg)}`, 303);
+  });
+
+  app.post("/batch/:id/cancel", (c) => {
+    const id = Number(c.req.param("id"));
+    if (!runner) return c.redirect(`/batch/${id}?msg=${encodeURIComponent("Chưa nạp được khoá service account.")}`, 303);
+    const r = runner.cancel(id);
+    const msg = !r.ok
+      ? r.message
+      : r.immediate
+        ? "Đã huỷ lô."
+        : "Đã nhận Huỷ lô: dòng đang chờ Muse vẫn được theo dõi cho xong, các dòng còn lại sẽ không gửi.";
     return c.redirect(`/batch/${id}?msg=${encodeURIComponent(msg)}`, 303);
   });
 }

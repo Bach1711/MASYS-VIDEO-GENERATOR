@@ -488,3 +488,85 @@ describe("trang Lô #N", () => {
     expect(paused).toContain(">Tiếp tục</button>");
   });
 });
+
+describe("Huỷ lô (F6)", () => {
+  it("lô đang chạy: dòng đang chờ Muse được theo dõi cho xong, các dòng sau thành Đã huỷ, không gửi Muse", async () => {
+    const t = setup({ muse: (row) => void setTimeout(() => t.set(`C${row}`, vid(row)), 30) });
+    const id = createBatch(t.db, t.grid, [2, 3, 4]);
+    t.runner.start(id);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(t.runner.cancel(id)).toEqual({ ok: true, immediate: false });
+    await t.runner.idle();
+    expect(statesOf(t.db, id)).toEqual([
+      [2, "done"],
+      [3, "canceled"],
+      [4, "canceled"],
+    ]);
+    expect(batchOf(t.db, id)).toEqual({ status: "canceled", pauseReason: null });
+    expect(t.sent.map((s) => s.row)).toEqual([2]);
+    expect(t.writes).toEqual(["D2=Đang chạy", "D2=Xong"]);
+    expect(t.runner.start(id)).toMatchObject({ ok: false });
+  });
+
+  it("lô đang tạm dừng: huỷ ngay, dòng chưa gửi thành Đã huỷ", async () => {
+    const t = setup();
+    const id = createBatch(t.db, t.grid, [2, 3]);
+    t.sendErrors.push(new BotError("login", "Cần đăng nhập Muse", false));
+    t.runner.start(id);
+    await t.runner.idle();
+    expect(batchOf(t.db, id)).toEqual({ status: "paused", pauseReason: "login" });
+    expect(t.runner.cancel(id)).toEqual({ ok: true, immediate: true });
+    expect(statesOf(t.db, id)).toEqual([
+      [2, "canceled"],
+      [3, "canceled"],
+    ]);
+    expect(batchOf(t.db, id).status).toBe("canceled");
+    expect(t.sent).toEqual([]);
+    expect(t.runner.cancel(id)).toMatchObject({ ok: false });
+  });
+});
+
+describe("Lịch sử lô, Nhật ký, dải báo (F6)", () => {
+  it("lịch sử đếm kết quả; nhật ký lọc lỗi, có link ảnh chụp; dải báo hiện trên mọi trang khi lô tạm dừng; nút Huỷ lô", async () => {
+    const { createApp } = await import("../src/web/app.js");
+    const { loadConfig } = await import("../src/config.js");
+    const t = setup();
+    const app = createApp(loadConfig({}), t.db, { runner: t.runner });
+
+    const id = createBatch(t.db, t.grid, [2, 3]);
+    t.sendErrors.push(undefined, new BotError("rejected", "Muse từ chối yêu cầu", true, "C:/x/screenshots/20261027T020000Z-rejected.png"));
+    t.runner.start(id);
+    await t.runner.idle();
+    const id2 = createBatch(t.db, t.grid, [4]);
+    t.sendErrors.push(new BotError("ui_changed", "Không thấy ô chat", false, "C:/x/screenshots/20261027T020100Z-ui_changed.png"));
+    t.runner.start(id2);
+    await t.runner.idle();
+
+    const hist = await (await app.request("/batches")).text();
+    expect(hist).toContain(`href="/batch/${id}"`);
+    expect(hist).toContain("✅ 1 xong");
+    expect(hist).toContain("❌ 1 lỗi");
+    expect(hist).toContain("Giao diện Muse thay đổi");
+
+    const logs = await (await app.request("/logs")).text();
+    expect(logs).toContain("Muse từ chối yêu cầu");
+    expect(logs).toContain('href="/bot/screenshot/20261027T020000Z-rejected.png"');
+    expect(logs).not.toContain("Đọc lại dòng trong sheet");
+    const all = await (await app.request(`/logs?all=1&batch=${id}`)).text();
+    expect(all).toContain("Đọc lại dòng trong sheet");
+    expect(all).not.toContain("Không thấy ô chat");
+
+    for (const p of ["/", "/batches", "/settings"]) {
+      const html = await (await app.request(p)).text();
+      expect(html).toContain(`Lô #${id2} đang tạm dừng: Giao diện Muse thay đổi`);
+    }
+
+    const page = await (await app.request(`/batch/${id2}`)).text();
+    expect(page).toContain("Huỷ lô");
+    const res = await app.request(`/batch/${id2}/cancel`, { method: "POST" });
+    expect(res.status).toBe(303);
+    expect(batchOf(t.db, id2).status).toBe("canceled");
+    expect(await (await app.request("/")).text()).not.toContain("đang tạm dừng");
+    expect(await (await app.request(`/batch/${id2}`)).text()).toContain("Lô đã huỷ.");
+  });
+});

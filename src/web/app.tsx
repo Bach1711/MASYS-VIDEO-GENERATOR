@@ -9,7 +9,9 @@ import type { BatchRunner } from "../queue/runner.js";
 import { registerBatchRoutes } from "./batch.js";
 import { registerBatchRunRoutes } from "./batchRun.js";
 import { registerBotRoutes } from "./bot.js";
+import { registerHistoryRoutes, StatusBanner } from "./history.js";
 import { HomePage } from "./home.js";
+import { setStatusBanner } from "./layout.js";
 import { registerScanRoutes } from "./scan.js";
 import { registerSettingsRoutes } from "./settings.js";
 import { registerSheetRoutes } from "./sheets.js";
@@ -24,6 +26,7 @@ export interface AppDeps {
 
 export function createApp(config: AppConfig, db: DB, deps: AppDeps = {}) {
   const app = new Hono();
+  setStatusBanner(() => <StatusBanner db={db} runner={deps.runner} />);
 
   app.get("/", (c) => {
     const { dailyVideoLimit } = db.prepare("SELECT dailyVideoLimit FROM settings WHERE id = 1").get() as {
@@ -40,6 +43,7 @@ export function createApp(config: AppConfig, db: DB, deps: AppDeps = {}) {
   registerSettingsRoutes(app, { config, db, ...deps });
   registerBotRoutes(app, { config, db, bot: deps.bot, runner: deps.runner, screenshotDir: config.screenshotDir });
   registerBatchRunRoutes(app, { db, runner: deps.runner });
+  registerHistoryRoutes(app, { db });
 
   app.get("/health", (c) => c.json({ ok: true, serviceAccount: config.serviceAccount.ok }));
 

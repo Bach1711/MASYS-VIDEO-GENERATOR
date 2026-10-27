@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:google": "vitest run -c vitest.live.config.ts",
-    "tien-do": "node scripts/tien-do.mjs"
+    "tien-do": "node scripts/tien-do.mjs",
+    "check-secrets": "node scripts/check-secrets.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.5",

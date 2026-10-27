@@ -5,7 +5,7 @@ import { createGoogleHttp, GoogleApiError, type FetchLike } from "../src/google/
 import { SheetsClient } from "../src/google/sheets.js";
 import { createLogger } from "../src/logger.js";
 
-const TOKEN = "ya29.FAKE-ACCESS-TOKEN-should-never-leak";
+const TOKEN = "fake-access-token-for-tests-0123456789";
 const ID = "1n8HgHWnmVQocIxycDJpXxldIEt4gnvvmiZ631LnOhSg";
 const CFG: SheetConfig = {
   spreadsheetId: ID,

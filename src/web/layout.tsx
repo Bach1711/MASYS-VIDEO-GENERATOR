@@ -1,5 +1,11 @@
 import type { Child } from "hono/jsx";
 
+/** Dải báo lô đang chạy / tạm dừng trên đầu mọi trang (CON-41); createApp gắn vào. */
+let statusBanner: (() => Child) | undefined;
+export function setStatusBanner(fn: (() => Child) | undefined) {
+  statusBanner = fn;
+}
+
 export function Layout(props: { title: string; children: Child }) {
   return (
     <html lang="vi">
@@ -66,6 +72,11 @@ export function Layout(props: { title: string; children: Child }) {
           .sheet-group .row-between { margin-bottom:0; }
           ul.problems { margin:4px 0 0; padding-left:18px; font-size:.85rem; color:var(--muted); }
           :root { --info-bg:#e3edff; --info-fg:#173f86; --bad-bg:#fde7e7; --bad-fg:#8a1c1c; }
+          .banner { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:10px 14px; margin-bottom:16px; }
+          .banner.running { background:var(--info-bg); color:var(--info-fg); border-color:transparent; }
+          .tally span { margin-right:10px; white-space:nowrap; }
+          h2.sub-h { margin-top:20px; }
+          input[type=number] { width:90px; }
           @media (prefers-color-scheme: dark) { :root { --info-bg:#1b2a47; --info-fg:#a9c6ff; --bad-bg:#3d1b1b; --bad-fg:#ffb3b3; } }
         `}</style>
       </head>
@@ -75,11 +86,16 @@ export function Layout(props: { title: string; children: Child }) {
             <a href="/">Trang chủ</a>
             <a href="/sheets">Kết nối sheet</a>
             <a href="/scan">Quét và chọn dòng</a>
+            <a href="/batches">Lịch sử lô</a>
+            <a href="/logs">Nhật ký</a>
             <a href="/bot">Bot Muse</a>
             <a href="/settings">Cài đặt</a>
           </div>
         </nav>
-        <main>{props.children}</main>
+        <main>
+          {statusBanner?.()}
+          {props.children}
+        </main>
       </body>
     </html>
   );
