@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **27/10/2026**, CON-44 chờ duyệt — GĐ1 xong, **GĐ2 (phát hành cho đội) 1/2**. File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **27/10/2026**, sau CON-44 — **hoàn thành GĐ1 và GĐ2**. File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v4.3 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 9/10 ticket xong · GĐ1 8/8 🎉 · GĐ2 1/2 (CON-44 chờ duyệt)
+**Tổng quan:** 10/10 ticket xong · GĐ1 8/8 🎉 · GĐ2 2/2 🎉
 
 ```
-[■■■■■■■■■□]  9/10 — xong CON-35…CON-43 · chờ duyệt CON-44
+[■■■■■■■■■■]  10/10 — xong CON-35…CON-44
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -74,7 +74,7 @@ flowchart LR
     class queue done
     class progress done
     class pack done
-    class update review
+    class update done
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -96,11 +96,11 @@ flowchart LR
 | # | Ticket | Nội dung | Trạng thái | PR | Hoàn thành |
 |---|---|---|---|---|---|
 | 9 | [CON-43](https://linear.app/conducdaudan/issue/CON-43) | Đóng gói zip chạy ngay, cài khoá Google lần đầu, số phiên bản | 🟩 Xong | [#10](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/10) | 27/10/2026 |
-| 10 | [CON-44](https://linear.app/conducdaudan/issue/CON-44) | Kiểm tra và cập nhật phiên bản ngay trong tool | 🟦 Chờ duyệt | [#11](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/11) | |
+| 10 | [CON-44](https://linear.app/conducdaudan/issue/CON-44) | Kiểm tra và cập nhật phiên bản ngay trong tool | 🟩 Xong | [#11](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/11) | 27/10/2026 |
 
 ## Nhật ký cập nhật
 
-- **27/10/2026 · CON-44** (chờ duyệt): **cập nhật ngay trong tool** (spec D16). Trang **Cài đặt** có khung **Phiên bản**: bản đang dùng, nút *Kiểm tra phiên bản*, bản mới kèm ghi chú thay đổi, nút **Cập nhật lên vX.Y.Z** và **Quay về vX.Y.Z**. Mỗi lần mở tool tự hỏi GitHub một lần; có bản mới thì hiện dải báo trên đầu trang, không tự cập nhật. Cập nhật: tải → so SHA-256 → giải nén vào `phien-banX.Y.Z` cạnh bản cũ → sao lưu `data.db` (giữ 3) → khởi động lại → báo *Đã cập nhật*. Nút bị khoá khi lô đang chạy hoặc có dòng đang gửi / chờ Muse. Bản mới không lên trong 60 giây (hoặc hỏng ngay khi chạy) thì tự quay về bản cũ và báo. Chỉ tải từ GitHub Releases của repo này. Lệnh `npm run release` + `CHANGELOG.md` để phát hành. Đã chạy thử trên máy với GitHub giả: v1.0.0 → cập nhật v1.0.1 (5 giây, cài đặt còn nguyên) → Quay về v1.0.0 → cập nhật lên bản hỏng v1.0.2 → tự quay về v1.0.0; cả trường hợp launcher bản mới hỏng. Thử thật với GitHub sau khi gộp và công khai repo.
+- **27/10/2026 · CON-44** (xong, đã duyệt và gộp vào main): **cập nhật ngay trong tool** (spec D16). Trang **Cài đặt** có khung **Phiên bản**: bản đang dùng, nút *Kiểm tra phiên bản*, bản mới kèm ghi chú thay đổi, nút **Cập nhật lên vX.Y.Z** và **Quay về vX.Y.Z**. Mỗi lần mở tool tự hỏi GitHub một lần; có bản mới thì hiện dải báo trên đầu trang, không tự cập nhật. Cập nhật: tải → so SHA-256 → giải nén vào `phien-banX.Y.Z` cạnh bản cũ → sao lưu `data.db` (giữ 3) → khởi động lại → báo *Đã cập nhật*. Nút bị khoá khi lô đang chạy hoặc có dòng đang gửi / chờ Muse. Bản mới không lên trong 60 giây (hoặc hỏng ngay khi chạy) thì tự quay về bản cũ và báo. Chỉ tải từ GitHub Releases của repo này. Lệnh `npm run release` + `CHANGELOG.md` để phát hành. Đã chạy thử trên máy với GitHub giả: v1.0.0 → cập nhật v1.0.1 (5 giây, cài đặt còn nguyên) → Quay về v1.0.0 → cập nhật lên bản hỏng v1.0.2 → tự quay về v1.0.0; cả trường hợp launcher bản mới hỏng. Thử thật với GitHub sau khi gộp và công khai repo.
 
 - **27/10/2026 · CON-43** (xong, đã duyệt và gộp vào main): **bản zip cho người trong đội** (spec D15). Lệnh `npm run package` tạo `MASYS-Video-v1.0.0-win64.zip` (50 MB): Node chạy liền + tool đã dựng + `Mo-MASYS.bat` + `HUONG-DAN.txt`. Bấm đúp `Mo-MASYS.bat` thì tool bật và tự mở trình duyệt; bấm lần nữa khi đang chạy thì chỉ mở trang; cổng bị chiếm thì báo rõ. **Lần đầu mở**, mọi trang dẫn về **Cài khoá Google**: chọn file khoá `.json` → tool kiểm tra với Google → mã hoá DPAPI theo tài khoản Windows, lưu ở `%LOCALAPPDATA%masys-video` → tự khởi động lại. Cài đặt có **Đổi file khoá** (khoá khi lô đang chạy) và số phiên bản; số phiên bản hiện ở cuối mọi trang. Trang Bot Muse báo khi máy chưa cài Chrome. `check-secrets` quét được cả trong zip và báo file cấm. Đã chạy thử bản zip trên máy này với PATH không có Node: cài khoá thật, khởi động lại, đọc sheet thật, mở Chrome bot — đều được. Người phụ trách đã thử trên máy thứ hai: giải nén, bấm đúp, cài khoá, tool chạy được. Ghi nhận: ô chọn file khoá chỉ hiện file .json (file .txt phải chọn "All Files" hoặc đổi đuôi).
 
