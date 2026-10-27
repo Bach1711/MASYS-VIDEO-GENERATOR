@@ -1,6 +1,6 @@
 import type { Hono } from "hono";
 import type { Child } from "hono/jsx";
-import { checkServiceAccount, type AppConfig, type ServiceAccountCredentials } from "../config.js";
+import { checkServiceAccount, NO_KEY_PROBLEM, type AppConfig, type ServiceAccountCredentials } from "../config.js";
 import type { DB } from "../db/index.js";
 import { activeBatch } from "../db/history.js";
 import { minimalKeyJson, type KeyStore } from "../keyStore.js";
@@ -60,7 +60,8 @@ export function registerSetupRoutes(app: Hono, deps: SetupDeps) {
               Đang dùng khoá: <code>{sa.clientEmail}</code>{" "}
               <span class="muted">({envKey ? "từ biến môi trường, chạy qua op run" : "đã lưu trong máy"})</span>
             </p>
-          ) : (
+          ) : sa.problem === NO_KEY_PROBLEM ? null : (
+            // Lỗi cụ thể (file khoá hỏng, chép từ máy khác…); "chưa cài" thì trang này đã tự nói.
             <Alert kind="warn">{sa.problem}</Alert>
           )}
         </section>
