@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **27/10/2026**, sau CON-41. File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **27/10/2026**, CON-42 đang chờ duyệt. File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v4.1 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 7/8 ticket xong · 1 chưa làm
+**Tổng quan:** 7/8 ticket xong · 1 chờ duyệt (CON-42)
 
 ```
-[■■■■■■■□]  7/8 — xong CON-35, CON-36, CON-37, CON-38, CON-39, CON-40, CON-41
+[■■■■■■■▣]  7/8 — xong CON-35, CON-36, CON-37, CON-38, CON-39, CON-40, CON-41 · chờ duyệt CON-42
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -83,10 +83,11 @@ flowchart LR
 | 5 | [CON-39](https://linear.app/conducdaudan/issue/CON-39) | MuseBot: hồ sơ bot, đăng nhập/captcha, chat mới, gửi, chụp lỗi | 🟩 Xong | [#6](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/6) | 26/10/2026 |
 | 6 | [CON-40](https://linear.app/conducdaudan/issue/CON-40) | Chạy lượt + kiểm tra D12, phát hiện sửa nhầm ô, khôi phục | 🟩 Xong | [#7](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/7) | 27/10/2026 |
 | 7 | [CON-41](https://linear.app/conducdaudan/issue/CON-41) | Tiến độ, lịch sử lô, nhật ký, Cài đặt | 🟩 Xong | [#8](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/8) | 27/10/2026 |
-| 8 | [CON-42](https://linear.app/conducdaudan/issue/CON-42) | Chạy đủ 12 tiêu chí với sheet thật, bàn giao | ⬜ Chưa làm | — | — |
+| 8 | [CON-42](https://linear.app/conducdaudan/issue/CON-42) | Chạy đủ 12 tiêu chí với sheet thật, bàn giao | 🟦 Chờ duyệt | PR_LINK | — |
 
 ## Nhật ký cập nhật
 
+- **27/10/2026 · CON-42** (chờ duyệt): **nghiệm thu với sheet, Drive và Muse thật: đạt cả 12 tiêu chí §12** (bảng kết quả ở spec §12.1). Sheet thử 20 dòng; lô #3 (dòng 4, 6, 9, 10, 11) thử cùng lúc §12.2/3/4/5/8/9, lô #4 thử quá thời gian §12.7; §12.6 và §12.10 đã đạt sáng nay ở CON-40; §12.11 `check-secrets` sạch; §12.12 giới hạn ngày chặn đúng. Hôm nay 7 video thật, mỗi dòng gửi Muse đúng một lần; cài đặt đã trả về 20 phút / 5 video. **README viết lại thành tài liệu bàn giao** (cài máy mới, service account, đăng nhập bot, xử lý tạm dừng, sửa selector). Phát hiện: sửa tay sheet trong lúc lô chạy bị coi là "Muse sửa ô khác" — đã ghi hướng dẫn, chờ người phụ trách quyết có nới quy tắc không.
 - **27/10/2026 · CON-41** (xong, đã duyệt và gộp vào main): **theo dõi và cài đặt**. Trang lô có thêm nút **Huỷ lô** (dòng đang chờ Muse vẫn được theo dõi cho xong, các dòng chưa gửi thành *Đã huỷ*). Câu báo tạm dừng đúng chữ spec (*Cần đăng nhập lại Muse*, *Giao diện Muse thay đổi*, *Muse hết lượt*, *Đã đủ video trong ngày*, *Muse sửa nhầm ô*) và **dải báo trên đầu mọi trang** khi có lô đang chạy / tạm dừng. Trang mới **Lịch sử lô** (thời gian, sheet, số dòng, đếm Xong / Lỗi / Cần xem / Bỏ qua / Đã huỷ) và **Nhật ký** (mặc định chỉ lỗi, có link ảnh chụp màn hình, lọc theo lô). Trang **Cài đặt** đủ mục F7: thời gian chờ, khoảng nghỉ, giới hạn video/ngày (nhắc rủi ro khi > 5), địa chỉ trang Muse, nút Mở trình duyệt bot. Lệnh mới `npm run check-secrets` (§12.11): quét repo, SQLite và log, đã chạy trên máy thật, sạch.
 - **27/10/2026 · CON-40** (xong, đã duyệt và gộp vào main): **chạy cả lô tự động**. Trang **Lô #N** có nút *Bắt đầu chạy* / *Tạm dừng* / *Tiếp tục*, bảng trạng thái từng dòng tự cập nhật (gửi lúc, xong lúc, link video, link cuộc trò chuyện Muse). Mỗi dòng đi đủ 8 bước F5: đọc lại dòng (đã có link → bỏ qua; lệch dòng → Cần xem + tạm dừng), chụp toàn tab, ghi *Đang chạy*, gửi Muse trong side chat mới, theo dõi ô Video mỗi 20 giây (tối đa 20 phút → *Cần xem: quá thời gian*, không gửi lại), kiểm tra link (file Drive, là video, đúng thư mục) và so tab (Muse sửa ô khác → *Cần xem* + tạm dừng), ghi *Xong*; nghỉ 20–60 giây giữa hai dòng. Tự tạm dừng khi cần đăng nhập lại Muse, giao diện Muse đổi, Muse hết lượt, đủ 5 video/ngày; Muse chờ duyệt → báo trên trang lô, bot không tự bấm. Tool tắt giữa chừng → mở lại không gửi lại, theo dõi nốt dòng dở. **Đã chạy thật với Muse** (lô #2): tắt tool giữa lượt (§12.10) và đăng xuất Muse giữa lô (§12.6) đều đúng; 2 video, mỗi dòng gửi đúng một lần.
 
