@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { MuseBot } from "./bot/museBot.js";
 import { DEFAULT_MUSE_URL } from "./bot/museSelectors.js";
 import { getSettings } from "./db/settings.js";
+import { BatchRunner } from "./queue/runner.js";
 import { HOST, loadConfig } from "./config.js";
 import { openDatabase } from "./db/index.js";
 import { serviceAccountTokenProvider } from "./google/auth.js";
@@ -37,7 +38,11 @@ const bot = new MuseBot({
   museUrl: () => getSettings(db).museUrl ?? DEFAULT_MUSE_URL,
 });
 
-const app = createApp(config, db, { sheets, drive, thumbs, bot });
+// Hàng đợi chạy lô (CON-40). Lô đang chạy dở khi tool tắt: theo dõi nốt dòng đã gửi, không gửi lại.
+const runner = sheets && drive && new BatchRunner(db, sheets, drive, bot);
+runner?.recover();
+
+const app = createApp(config, db, { sheets, drive, thumbs, bot, runner });
 const server = serve({ fetch: app.fetch, hostname: HOST, port: config.port }, (info) => {
   logger.info(`Tool đang chạy tại http://localhost:${info.port}`);
 });

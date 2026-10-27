@@ -9,6 +9,7 @@ import type { DB } from "../db/index.js";
 import { getDailyQuota } from "../db/quota.js";
 import { listSheetConfigs, sheetName } from "../db/sheetConfigs.js";
 import { logger } from "../logger.js";
+import type { BatchRunner } from "../queue/runner.js";
 import { Alert, QuotaBox, truncate } from "./components.js";
 import { Layout } from "./layout.js";
 
@@ -16,13 +17,14 @@ export interface BotDeps {
   config: AppConfig;
   db: DB;
   bot?: MuseBot;
+  runner?: BatchRunner;
   screenshotDir: string;
 }
 
 const SHOT_NAME = /^[0-9TZ-]+-[a-z_]+\.png$/;
 
 export function registerBotRoutes(app: Hono, deps: BotDeps) {
-  const { db, bot, screenshotDir } = deps;
+  const { db, bot, runner, screenshotDir } = deps;
   let lastCheck: (CheckResult & { at: Date }) | undefined;
   const page = (body: Child) => "<!doctype html>" + <Layout title="Bot Muse">{body}</Layout>;
 
@@ -89,7 +91,7 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
           <h2>Gửi thử một dòng</h2>
           <p class="muted">
             Gửi thật cho Muse yêu cầu của <strong>một</strong> dòng đang Chờ chạy (tốn 1 video, tính vào giới hạn ngày). Gửi xong, dòng chuyển sang
-            "Cần xem": tool chưa tự theo dõi ô Video và chưa ghi ô Trạng thái (làm ở CON-40). Lỗi xảy ra sau khi đã bấm Gửi thì không tự gửi lại.
+            "Cần xem" và tool không theo dõi ô Video (muốn tool tự theo dõi và ghi ô Trạng thái thì chạy cả lô ở trang Lô). Lỗi xảy ra sau khi đã bấm Gửi thì không tự gửi lại.
           </p>
           <QuotaBox quota={quota} />
           {runs.length === 0 ? (
@@ -165,6 +167,9 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
     if (!bot) return c.html(render(), 503);
     const runId = Number((await c.req.parseBody()).runId);
     if (!Number.isInteger(runId)) return c.html(render(<Alert kind="warn">Chưa chọn dòng.</Alert>), 400);
+    if (runner?.runningBatchId !== undefined) {
+      return c.html(render(<Alert kind="warn">Lô #{runner.runningBatchId} đang chạy; không gửi thử để giữ đúng thứ tự từng dòng (D7).</Alert>), 409);
+    }
     const r = await manualSend(db, bot, runId);
     lastCheck = undefined;
     if (r.ok) {

@@ -37,6 +37,18 @@ export const chat = {
   threadUrl: /\/thread\/(?!new\b)[A-Za-z0-9_-]{4,}/,
 };
 
+/**
+ * Muse xin duyệt trước một thao tác (lưu Drive, sửa Sheet). Bot không bao giờ tự bấm, chỉ báo người dùng.
+ * Ghi nhận 27/10/2026: thẻ "Allow Như to create or upload files … in Google Drive?" với các nút
+ * "Create" / "Always allow" / "Don't create", kèm nhãn "Needs approval" ở đầu cuộc trò chuyện và dưới tên trợ lý.
+ * Khớp đúng tên nút để không nhầm với nút "Approvals" ở thanh bên.
+ */
+export const approval = {
+  button: (p: Page): Locator =>
+    p.getByRole("button", { name: /^(always allow|don'?t create|don'?t allow|allow once|approve|deny|luôn cho phép|không tạo)$/i }),
+  text: /\bneeds approval\b|cần (bạn )?duyệt/i,
+};
+
 /** Thông báo của Muse trên trang: hết lượt, từ chối, lỗi (theo chữ hiển thị; câu thật ghi thêm khi gặp). */
 export const notices = {
   quota: /out of (free )?(credits|tokens|messages)|usage limit|reached (your|the) (weekly |daily )?limit|limit reached|upgrade to continue|hết lượt|hết (token|hạn mức)/i,

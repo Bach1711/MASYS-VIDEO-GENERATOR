@@ -61,6 +61,8 @@ export class MuseBot {
   private ctx?: BrowserContext;
   private opening?: Promise<BrowserContext>;
   private busy = false;
+  /** Yêu cầu vừa gửi và các thông báo đã có trên trang trước khi gửi (để `watch` không báo nhầm). */
+  private lastSent?: { text: string; noticesBefore: NoticeKind[] };
 
   constructor(private readonly o: MuseBotOptions) {}
 
@@ -104,6 +106,27 @@ export class MuseBot {
     const page = await this.page();
     if (page.url() === "about:blank") await page.goto(this.o.museUrl(), { waitUntil: "domcontentloaded" });
     await page.bringToFront();
+  }
+
+  async bringToFront(): Promise<void> {
+    if (this.ctx) await (await this.page()).bringToFront().catch(() => {});
+  }
+
+  /**
+   * Nhìn trang Muse trong lúc chờ video, không tải lại, không bấm gì (F5 bước 5).
+   * Trình duyệt tắt thì trả `closed`; tool vẫn theo dõi ô Video bình thường.
+   */
+  async watch(): Promise<WatchResult> {
+    if (!this.ctx || this.busy) return { closed: !this.ctx, login: false, approval: false };
+    const page = await this.page();
+    const body = normalize(await bodyText(page));
+    const own = this.lastSent ? normalize(this.lastSent.text) : "";
+    const before = this.lastSent?.noticesBefore ?? [];
+    const notice = noticeKinds(own ? body.replace(own, " ") : body).find((k) => !before.includes(k));
+    const login =
+      sel.login.url.test(page.url()) || (await visible(sel.login.heading(page))) || sel.challenge.text.test(body) || (await sel.challenge.frame(page).count()) > 0;
+    const approval = sel.approval.text.test(body) || (await visible(sel.approval.button(page).first()));
+    return { closed: false, login, approval, notice };
   }
 
   async close(): Promise<void> {
@@ -209,6 +232,7 @@ export class MuseBot {
       }
       await send.click();
       logger.info({ url: stripQuery(startUrl) }, "Đã bấm Gửi trên Muse");
+      this.lastSent = { text, noticesBefore };
 
       // Từ đây yêu cầu có thể đã tới Muse: mọi lỗi đều sent=true.
       const deadline = Date.now() + (this.o.confirmTimeoutMs ?? 30_000);
@@ -261,6 +285,17 @@ function normalize(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
-function noticeKinds(body: string): ("quota" | "rejected" | "error")[] {
+export type NoticeKind = "quota" | "rejected" | "error";
+
+export interface WatchResult {
+  closed: boolean;
+  /** Trang đăng nhập hoặc kiểm tra bảo mật. */
+  login: boolean;
+  /** Muse đang chờ người dùng duyệt một thao tác. */
+  approval: boolean;
+  notice?: NoticeKind;
+}
+
+function noticeKinds(body: string): NoticeKind[] {
   return (["quota", "rejected", "error"] as const).filter((k) => sel.notices[k].test(body));
 }

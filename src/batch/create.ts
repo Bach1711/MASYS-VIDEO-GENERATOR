@@ -125,14 +125,30 @@ export interface BatchView {
   extraRequest: string | null;
   status: string;
   createdAt: string;
-  runs: { id: number; rowNumber: number; state: string; overwrite: number; promptSent: string; requestText: string }[];
+  pauseReason: string | null;
+  runs: {
+    id: number;
+    rowNumber: number;
+    state: string;
+    overwrite: number;
+    promptSent: string;
+    requestText: string;
+    error: string | null;
+    sentAt: string | null;
+    doneAt: string | null;
+    videoLink: string | null;
+    museChatUrl: string | null;
+  }[];
 }
 
 export function getBatch(db: DB, id: number): BatchView | undefined {
   const b = db.prepare("SELECT * FROM batches WHERE id = ?").get(id) as Omit<BatchView, "runs"> | undefined;
   if (!b) return undefined;
   const runs = db
-    .prepare("SELECT id, rowNumber, state, overwrite, promptSent, requestText FROM runs WHERE batchId = ? ORDER BY rowNumber")
+    .prepare(
+      `SELECT id, rowNumber, state, overwrite, promptSent, requestText, error, sentAt, doneAt, videoLink, museChatUrl
+       FROM runs WHERE batchId = ? ORDER BY rowNumber`,
+    )
     .all(id) as BatchView["runs"];
   return { ...b, runs };
 }

@@ -27,6 +27,7 @@ export interface DriveFile {
   mimeType: string;
   trashed: boolean;
   thumbnailLink?: string;
+  parents?: string[];
 }
 
 // Ảnh thu nhỏ của Drive thường vài chục KB; ảnh gốc (dự phòng) giới hạn 10 MB.
@@ -37,7 +38,7 @@ export class DriveClient {
   constructor(private readonly http: GoogleHttp) {}
 
   getFile(fileId: string): Promise<DriveFile> {
-    const fields = "id,name,mimeType,trashed,thumbnailLink";
+    const fields = "id,name,mimeType,trashed,thumbnailLink,parents";
     return this.http<DriveFile>("GET", `${DRIVE}/${enc(fileId)}?fields=${enc(fields)}&supportsAllDrives=true`);
   }
 
