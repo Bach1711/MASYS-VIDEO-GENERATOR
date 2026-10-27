@@ -26,15 +26,37 @@ Không cần cài Node, git hay 1Password. Máy chỉ cần **Windows 10/11** v�
    - Đổi khoá sau này: vào **Cài đặt → Đổi file khoá**. Nút bị khoá khi đang có lô chạy.
 5. Làm tiếp [mục 3](#3-đăng-nhập-muse-trong-cửa-sổ-bot-làm-một-lần) để đăng nhập Muse trong cửa sổ bot. Trang Bot Muse báo nếu máy chưa cài Chrome.
 
-**Thay bản mới:** giải nén bản mới ra thư mục khác (hoặc đè lên), rồi bấm đúp `Mo-MASYS.bat` của bản mới. Dữ liệu vẫn còn nguyên vì nằm ở `%LOCALAPPDATA%\masys-video`, ngoài thư mục zip: lịch sử lô, cài đặt, phiên đăng nhập Muse và khoá đã mã hoá. Số phiên bản hiện ở cuối mọi trang và trong Cài đặt.
+Dữ liệu nằm ở `%LOCALAPPDATA%\masys-video`, ngoài thư mục zip: lịch sử lô, cài đặt, phiên đăng nhập Muse, khoá đã mã hoá và bản sao lưu. Số phiên bản hiện ở cuối mọi trang và trong **Cài đặt → Phiên bản**.
 
-**Người phụ trách tạo zip:** chạy `npm run package` trên máy phát triển. Lệnh làm các việc sau:
-- dựng code;
-- tải Node đúng bản đang dùng từ nodejs.org và kiểm tra SHA-256;
-- nén thành `release/MASYS-Video-vX.Y.Z-win64.zip`, kèm file `.sha256`;
-- quét lại zip: không có khoá, `.env`, SQLite, hồ sơ bot, test hay mã nguồn TypeScript. Thấy thứ gì thì xoá zip.
+### Cập nhật tool (D16)
 
-Số phiên bản lấy từ `version` trong `package.json`.
+Không cần tải zip lại. Mỗi lần mở tool, tool tự hỏi GitHub **một lần**. Có bản mới thì trên đầu trang hiện *"Có bản mới vX.Y.Z → Xem và cập nhật"*. Tool **không bao giờ tự cập nhật**.
+
+1. Vào **Cài đặt → Phiên bản**. Khung này hiện bản đang dùng, bản mới và ghi chú thay đổi. Bấm **Kiểm tra phiên bản** để hỏi lại GitHub.
+2. Bấm **Cập nhật lên vX.Y.Z**. Tool tự làm:
+   - tải bản mới;
+   - kiểm tra file không hỏng (mã SHA-256);
+   - sao lưu `data.db` vào `%LOCALAPPDATA%\masys-video\sao-luu`, giữ 3 bản mới nhất;
+   - giải nén vào `phien-ban\X.Y.Z` cạnh bản cũ;
+   - khởi động lại.
+   
+   Trang tự tải lại và báo *"Đã cập nhật lên vX.Y.Z"*.
+3. **Đang có lô chạy, hoặc có dòng đang gửi hay đang chờ Muse,** thì nút bị mờ, kèm lý do *"Chờ lô #N xong hoặc bấm Tạm dừng"*. Như vậy không bao giờ cắt ngang một lượt Muse (D9).
+4. **Bản mới không khởi động được** trong 60 giây thì tool tự quay về bản cũ, và báo *"Bản vX.Y.Z không khởi động được nên tool đã tự quay về…"*.
+5. **Bản mới chạy có vấn đề:** bấm **Quay về vX.Y.Z** trong Cài đặt. Tool giữ đúng một bản trước, và dữ liệu giữ nguyên.
+
+Cấu trúc thư mục sau khi giải nén: `MASYS-Video\Mo-MASYS.bat` và `MASYS-Video\phien-ban\`. Trong `phien-ban` có `hien-tai.txt` ghi bản đang dùng, cùng mỗi bản một thư mục. Đừng sửa tay các file trong `phien-ban`.
+
+### Người phụ trách: tạo zip và phát hành
+
+- `npm run package` dựng zip trên máy:
+  - tải Node đúng bản đang dùng từ nodejs.org và kiểm tra SHA-256;
+  - nén thành `release/MASYS-Video-vX.Y.Z-win64.zip`, kèm file `.sha256`;
+  - quét lại zip: không có khoá, `.env`, SQLite, hồ sơ bot, test hay mã nguồn TypeScript. Thấy thứ gì thì xoá zip.
+- **Phát hành bản mới** để các máy bấm Cập nhật được:
+  1. Trong PR của ticket, nâng `version` trong `package.json`: sửa lỗi thì `x.y.Z`, tính năng mới thì `x.Y.0`. Viết mục `## vX.Y.Z` trong [`CHANGELOG.md`](CHANGELOG.md) bằng tiếng Việt cho người dùng đọc.
+  2. Sau khi gộp PR: `git checkout main && git pull`, rồi `npm run release`. Lệnh kiểm tra main sạch và trùng GitHub, repo công khai, chưa có bản trùng số. Sau đó lệnh đóng gói và đăng zip + `.sha256` + ghi chú lên GitHub Releases.
+- Migration SQLite **chỉ được thêm** bảng hoặc cột (D16), để bản cũ vẫn mở được dữ liệu khi người dùng bấm Quay về.
 
 ## 1. Cài trên một máy Windows mới (máy phát triển)
 
@@ -171,5 +193,6 @@ Cách sửa:
 | `op run --env-file=.env -- npm run test:google` | Test với Google Sheet thật: ghi tạm ô Trạng thái dòng 2 (`MASYS_TEST_ROW`), kiểm tra chỉ ô đó đổi, rồi trả lại giá trị cũ. |
 | `npm run tien-do` | Tạo lại `TIEN-DO.html` từ `TIEN-DO.md`. |
 | `npm run package` | Tạo bản zip cho người trong đội (mục 0); không cần `op run`. |
+| `npm run release` | Sau khi gộp PR: đăng bản `version` hiện tại lên GitHub Releases (mục 0, Cập nhật tool). |
 
 Biến môi trường tuỳ chọn: `PORT` (mặc định 4310), `MASYS_DATA_DIR` (thư mục dữ liệu).

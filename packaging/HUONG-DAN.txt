@@ -13,6 +13,9 @@ Cần có: máy Windows 10/11 đã cài Google Chrome, và file khoá Google (.j
 5. Dùng tool như hướng dẫn sử dụng: Kết nối sheet → Quét và chọn dòng → Tạo lô → Bắt đầu chạy.
 
 Dữ liệu (lịch sử lô, cài đặt, phiên đăng nhập Muse, khoá đã mã hoá) nằm ở %LOCALAPPDATA%\masys-video,
-không nằm trong thư mục này. Thay bản mới chỉ cần giải nén bản mới và chạy, dữ liệu vẫn còn.
+không nằm trong thư mục này.
+
+Cập nhật: khi có bản mới, trên đầu trang tool hiện "Có bản mới". Vào Cài đặt → Phiên bản, bấm "Cập nhật".
+Tool tự tải, sao lưu dữ liệu rồi khởi động lại, không cần tải zip lại. Đừng sửa tay thư mục phien-ban.
 
 Gặp lỗi: chụp màn hình cửa sổ đen và trang tool, gửi người phụ trách.

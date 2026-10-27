@@ -75,7 +75,7 @@ export const FORBIDDEN_IN_ZIP = [
   { name: "file khoá", re: /\.(pem|p12|pfx|key)$|(^|\/)(credentials|client_secret|token)[^/]*\.json$/ },
   { name: "hồ sơ bot / ảnh chụp", re: /(^|\/)(bot-profile|screenshots)\// },
   { name: "mã nguồn TypeScript", re: /^(?!.*\/node_modules\/).*(?<!\.d)\.tsx?$/ },
-  { name: "thư mục test", re: /^[^/]+\/app\/test\// },
+  { name: "thư mục test", re: /(^|\/)app\/test\// },
 ];
 
 function walk(dir) {

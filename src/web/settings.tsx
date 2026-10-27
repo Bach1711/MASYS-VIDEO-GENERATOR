@@ -16,11 +16,12 @@ import { logger } from "../logger.js";
 import { Alert } from "./components.js";
 import { Layout } from "./layout.js";
 import type { ScanDeps } from "./scan.js";
-import { APP_NAME, APP_VERSION } from "../version.js";
+import type { Updater } from "../update/updater.js";
+import { VersionCard } from "./update.js";
 
 // Trang Cài đặt (F7): chạy lô, trang Muse, thư mục Drive gốc, mẫu yêu cầu gửi Muse.
 // Đổi trong lúc lô đang chạy thì áp dụng từ dòng kế tiếp (hàng đợi đọc lại cài đặt mỗi lượt).
-export function registerSettingsRoutes(app: Hono, deps: ScanDeps) {
+export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: Updater }) {
   const { config, db, drive } = deps;
   const clientEmail = config.serviceAccount.ok ? config.serviceAccount.clientEmail : "";
   const page = (body: Child) => "<!doctype html>" + <Layout title="Cài đặt">{body}</Layout>;
@@ -51,11 +52,9 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps) {
         <h1>Cài đặt</h1>
         {opts.notice}
         <RunSettingsCard s={opts.runDraft ?? { ...s }} errors={opts.runErrors} />
+        <VersionCard updater={deps.updater} />
         <section class="card">
-          <h2>Khoá Google và phiên bản</h2>
-          <p>
-            Phiên bản: <strong>{APP_NAME} v{APP_VERSION}</strong>
-          </p>
+          <h2>Khoá Google</h2>
           <p>
             Khoá service account:{" "}
             {config.serviceAccount.ok ? <code>{config.serviceAccount.clientEmail}</code> : <span class="warn-text">chưa có</span>}{" "}

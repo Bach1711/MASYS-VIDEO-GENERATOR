@@ -14,10 +14,12 @@ import { registerBatchRunRoutes } from "./batchRun.js";
 import { registerBotRoutes } from "./bot.js";
 import { registerHistoryRoutes, StatusBanner } from "./history.js";
 import { HomePage } from "./home.js";
-import { setStatusBanner } from "./layout.js";
+import { setStatusBanner, setUpdateBanner } from "./layout.js";
 import { registerScanRoutes } from "./scan.js";
 import { registerSettingsRoutes } from "./settings.js";
 import { needsKeySetup, registerSetupRoutes } from "./setup.js";
+import { registerUpdateRoutes, UpdateBanner } from "./update.js";
+import type { Updater } from "../update/updater.js";
 import { registerSheetRoutes } from "./sheets.js";
 
 export interface AppDeps {
@@ -30,11 +32,13 @@ export interface AppDeps {
   verifyKey?: (credentials: ServiceAccountCredentials) => Promise<void>;
   restart?: () => void;
   chromeInstalled?: () => boolean | undefined;
+  updater?: Updater;
 }
 
 export function createApp(config: AppConfig, db: DB, deps: AppDeps = {}) {
   const app = new Hono();
   setStatusBanner(() => <StatusBanner db={db} runner={deps.runner} />);
+  setUpdateBanner(() => <UpdateBanner updater={deps.updater} />);
 
   // Bản zip chưa có khoá Google: mọi trang dẫn về Cài khoá (D15).
   app.use("*", async (c, next) => {
@@ -67,6 +71,7 @@ export function createApp(config: AppConfig, db: DB, deps: AppDeps = {}) {
   });
   registerBatchRunRoutes(app, { db, runner: deps.runner });
   registerHistoryRoutes(app, { db });
+  registerUpdateRoutes(app, { updater: deps.updater });
   registerSetupRoutes(app, { config, db, keyStore: deps.keyStore, runner: deps.runner, verifyKey: deps.verifyKey, restart: deps.restart });
 
   app.get("/health", (c) => c.json({ ok: true, app: "masys-video", version: APP_VERSION, serviceAccount: config.serviceAccount.ok }));

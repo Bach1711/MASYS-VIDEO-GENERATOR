@@ -15,7 +15,11 @@ import { createApp } from "./web/app.js";
 import { applyStoredKey, KeyStore } from "./keyStore.js";
 import { APP_VERSION } from "./version.js";
 import { isChromeInstalled } from "./bot/chrome.js";
-import { RESTART_EXIT_CODE } from "./restart.js";
+import { RESTART_EXIT_CODE, SWITCH_EXIT_CODE } from "./restart.js";
+import { updateBlocker } from "./db/history.js";
+import { InstallLayout } from "./update/layout.js";
+import { ReleaseSource, sourceFromEnv } from "./update/releases.js";
+import { Updater } from "./update/updater.js";
 
 const config = loadConfig();
 const keyStore = new KeyStore(config.dataDir);
@@ -49,7 +53,24 @@ const bot = new MuseBot({
 const runner = sheets && drive && new BatchRunner(db, sheets, drive, bot);
 runner?.recover();
 
+// Cập nhật trong tool (D16): chỉ bản zip (Mo-MASYS.bat đặt MASYS_HOME, có thư mục phien-ban) mới cập nhật được.
+const home = process.env.MASYS_LAUNCHER === "1" && process.env.MASYS_HOME ? new InstallLayout(process.env.MASYS_HOME) : undefined;
+const layout = home?.isValid() ? home : undefined;
+const updater = new Updater({
+  layout,
+  source: new ReleaseSource(sourceFromEnv()),
+  db,
+  dataDir: config.dataDir,
+  currentVersion: APP_VERSION,
+  blocker: () => updateBlocker(db, runner?.runningBatchId),
+  switchVersion: () => setTimeout(() => void shutdown(SWITCH_EXIT_CODE), 300),
+});
+updater.startup();
+// Mỗi lần mở tool hỏi bản mới một lần; chỉ báo, không tự cập nhật.
+if (layout) void updater.check();
+
 const app = createApp(config, db, {
+  updater,
   sheets,
   drive,
   thumbs,
