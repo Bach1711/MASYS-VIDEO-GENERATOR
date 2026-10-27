@@ -243,7 +243,7 @@ Sau khi tạo xong:
   - **Muse xin duyệt (Approvals)** trước một số thao tác (lưu Drive, sửa Sheet). Người dùng chọn *Always allow* trong Muse để lần sau không bị hỏi. Lượt sau mà Muse vẫn chờ duyệt thì ô Video sẽ trống tới hết thời gian chờ → CON-40 cần nhận ra trạng thái "đang chờ duyệt" và báo người dùng (đề xuất: bot không tự bấm duyệt; chốt khi làm CON-40).
   - **Đã chốt 27/10/2026 (CON-40): bot không bao giờ tự bấm duyệt.** Màn hình duyệt thật: thẻ *"Allow Như to create or upload files that may be shared in Google Drive?"* với nút *"Create"* / *"Always allow"* / *"Don't create"*, nhãn *"Needs approval"* ở đầu cuộc trò chuyện. Tool thấy thì đưa cửa sổ bot lên trước và hiện "Muse đang chờ bạn duyệt" trên trang lô; thời gian chờ vẫn tính.
   - **Chạy thật CON-40 (27/10/2026, lô #2 dòng 2 Ghi đè + dòng 3):** tắt tool đột ngột khi dòng 2 đang chờ → mở lại, lô Tạm dừng, dòng 2 không gửi lại, tool theo dõi tiếp và ghi Xong (§12.10). Đăng xuất Muse rồi Tiếp tục → lô tạm dừng "Cần đăng nhập lại Muse", dòng 3 chưa gửi, ô Trạng thái trả về trống; đăng nhập lại + Tiếp tục → dòng 3 Xong sau ≈2,5 phút (§12.6). Mỗi dòng được gửi Muse đúng một lần. "Always allow" chọn hôm trước không áp dụng cho lần này: Muse hỏi duyệt lại một lần khi tải lên Drive.
-  - Câu báo hết lượt / từ chối / lỗi của Muse: chưa gặp; bot đang dò theo các câu phổ biến, gặp câu thật thì ghi bổ sung vào đây.
+  - Câu báo hết lượt / từ chối / lỗi của Muse: chưa gặp (đến 27/10/2026, xem §14.2); bot đang dò theo các câu phổ biến, gặp câu thật thì ghi bổ sung vào đây.
 
 ---
 
@@ -295,6 +295,26 @@ File SQLite và ảnh chụp màn hình nằm ngoài repo (cùng thư mục vớ
 11. **Không lộ bí mật:** repo, log, SQLite không chứa khoá service account hay cookie Meta. Kiểm tra bằng `op run --env-file=.env -- npm run check-secrets -- <file log>` (CON-41): quét file trong repo, thư mục dữ liệu (trừ hồ sơ bot và ảnh chụp) và các file log được chỉ ra; chạy qua `op run` thì so cả nguyên văn khoá thật.
 12. **Giới hạn ngày:** đã chạy 4 video trong ngày, chọn 3 dòng → không bấm Chạy được; chọn 1 dòng → chạy được, sau đó hiện "Hôm nay: 5/5".
 
+### 12.1. Kết quả nghiệm thu GĐ1 (27/10/2026, CON-42)
+Sheet thật "MASYS Video – Danh sách" → Trang tính1 (20 dòng), Drive thật, tài khoản Muse thật, máy Windows chạy bot. Hôm nay 7 video thật (giới hạn tạm nâng lên 7 cho buổi nghiệm thu rồi hạ lại 5). Mỗi dòng được gửi Muse **đúng một lần**.
+
+| # | Kết quả | Cách thử |
+|---|---|---|
+| 1 | ✅ | Quét 20 dòng, 5 dòng có link (2, 3, 13, 14, 15) → đúng 5 dòng "Đã có video", không tick được; 15 dòng "Sẵn sàng". |
+| 2 | ✅ | Dòng 6 (lô #3): file `Trang tính1_row6_20261027-0953.mp4` (video/mp4) trong đúng thư mục Video, link ở C6, D6 = `Xong`, tool so toàn tab không thấy ô nào khác đổi. |
+| 3 | ✅ | Lô #3 dòng 4, 6, 9, 10, 11 (không liên tiếp): chạy tuần tự, mỗi dòng một side chat Muse riêng; 4 video vào đúng ô của từng dòng. Một lô 5 dòng "cả 5 đều Xong" không chạy riêng vì các dòng được dùng để thử 12.4/5/8/9 cùng lúc. |
+| 4 | ✅ | Dòng 6: prompt sửa thêm "Slow camera push-in." và yêu cầu thêm chung "Ánh sáng ấm, tông màu tự nhiên." có đúng trong yêu cầu gửi Muse; ô B6 trong sheet không đổi. |
+| 5 | ✅ | Dán tay link vào C10 sau khi bấm Chạy → dòng 10 `skipped_has_video`, không gửi Muse. Xem ghi chú bên dưới. |
+| 6 | ✅ | CON-40 (27/10/2026, lô #2): đăng xuất Muse giữa lô → tạm dừng "Cần đăng nhập lại Muse", dòng 3 chưa gửi; đăng nhập lại + Tiếp tục → dòng 3 Xong, dòng 2 không gửi lại. |
+| 7 | ✅ | Lô #4 dòng 12 + 16, thời gian chờ 1 phút → dòng 12 `Cần xem: quá thời gian`, không gửi lại; lô chạy tiếp dòng 16 (đã có link → bỏ qua) rồi xong. |
+| 8 | ✅ | Chuyển video cũ ra thư mục gốc, dán link đó vào C11 khi dòng 11 đang chờ → `Cần xem: link không hợp lệ` (file không nằm trong thư mục đã chọn). |
+| 9 | ✅ | Sửa tay ô E9 khi dòng 9 đang chờ → `Cần xem: Muse sửa ô khác (E9)`, lô tạm dừng; xoá lại E9 + Tiếp tục → chạy tiếp. |
+| 10 | ✅ | CON-40 (lô #2): tắt hẳn tool khi dòng 2 đang chờ → mở lại không gửi lại, theo dõi tiếp, dòng 2 Xong. |
+| 11 | ✅ | `op run --env-file=.env -- npm run check-secrets -- <các log chạy thử>`: repo, `data.db`, log sạch (có so nguyên văn khoá thật). |
+| 12 | ✅ (tương đương) | Đã dùng 6/7 video trong ngày: chọn 2 dòng → *"Đã chọn 2 dòng nhưng hôm nay chỉ còn 1 video (giới hạn 7/ngày)"*, không tạo được lô; chọn 1 dòng → được. Thử với giới hạn 7 thay vì 5 (cùng cơ chế) để không tốn thêm video. |
+
+**Ghi chú phát hiện khi nghiệm thu (12.5 × 12.9):** dán tay link vào C10 đúng lúc dòng 4 đang chờ Muse → tool so toàn tab thấy C10 đổi nên dòng 4 thành `Cần xem: Muse sửa ô khác (C10)` và lô tạm dừng, dù video dòng 4 vẫn đúng ở C4. Tool không phân biệt được người hay Muse sửa ô, nên đây là hành vi an toàn theo E7. Đã ghi vào README: *đang chạy lô thì đừng sửa sheet; muốn sửa thì Tạm dừng trước*. Có nên nới quy tắc (ví dụ bỏ qua ô Video của các dòng còn chờ trong cùng lô) là quyết định của người phụ trách, chưa đổi.
+
 ---
 
 ## 13. Chi phí
@@ -313,6 +333,7 @@ File SQLite và ảnh chụp màn hình nằm ngoài repo (cùng thư mục vớ
 
 1. **Máy chạy bot** là máy nào? Có cần người khác trong đội mở giao diện tool từ máy khác (qua LAN) không?
 2. Khi **Free plan của tuần hết**, Muse **tự chuyển sang dùng 1 tỷ Additional tokens** hay báo hết lượt? Muse báo hết bằng câu chữ nào? (để bot nhận ra và chuyển `paused_quota`)
+   - **Đến 27/10/2026 (CON-42): chưa gặp.** Sau 8 video thật qua tool trong 2 ngày, Muse chưa báo hết lượt lần nào, nên chưa có câu chữ thật và chưa biết Muse có tự dùng Additional tokens không. Bot dò theo các câu phổ biến (`notices.quota` trong `src/bot/museSelectors.ts`: *limit reached*, *out of tokens*, *hết lượt*…). Gặp câu khác thì lượt đó dừng ở *quá thời gian* hoặc lô dừng ở *Giao diện Muse thay đổi*, kèm ảnh chụp trong Nhật ký, không gửi lại; khi đó chép câu thật vào `notices.quota` và vào đây.
 3. Sheet thật: tên các cột, đã có cột Trạng thái chưa? (xin 1 link sheet mẫu)
 4. ~~Khách đã biết và chấp nhận **rủi ro điều khoản Meta** (mục 10) chưa?~~ **Đã chốt 26/10/2026: khách đã biết và chấp nhận.**
 
