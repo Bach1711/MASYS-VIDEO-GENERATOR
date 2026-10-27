@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { FAKE_KEY_ENV } from "./fakeKey.js";
 import { MANUAL_NOTE, listQueuedRuns, manualSend } from "../src/bot/manualSend.js";
 import { BotError, MuseBot } from "../src/bot/museBot.js";
 import { openDatabase } from "../src/db/index.js";
@@ -262,7 +263,7 @@ describe("trang Bot Muse", () => {
     const { createApp } = await import("../src/web/app.js");
     const { loadConfig } = await import("../src/config.js");
     const db = dbWithRun();
-    const config = loadConfig({ MASYS_DATA_DIR: tmp });
+    const config = loadConfig({ ...FAKE_KEY_ENV, MASYS_DATA_DIR: tmp });
     const fake = { isOpen, send, check: async () => ({ state: "ready" }), open: async () => {}, close: async () => {} } as unknown as MuseBot;
     return { db, app: createApp(config, db, { bot: fake }) };
   }

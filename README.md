@@ -7,7 +7,36 @@ Tool chạy trên một máy Windows: đọc danh sách ảnh + prompt trong Goo
 
 ---
 
-## 1. Cài trên một máy Windows mới
+## 0. Người trong đội: tải zip, giải nén, bấm đúp (D15)
+
+Không cần cài Node, git hay 1Password. Máy chỉ cần **Windows 10/11** và **Google Chrome**.
+
+1. Nhận từ người phụ trách: file **`MASYS-Video-vX.Y.Z-win64.zip`** (≈50 MB) và **file khoá Google `.json`**. File khoá được gửi riêng, không gửi qua nhóm chat chung.
+2. **Giải nén toàn bộ** zip ra một thư mục bất kỳ, ví dụ `Documents\MASYS-Video`. Đừng chạy thẳng trong file zip.
+3. Bấm đúp **`Mo-MASYS.bat`**.
+   - Một cửa sổ đen hiện ra và trình duyệt tự mở trang tool ở **http://localhost:4310**.
+   - **Đừng đóng cửa sổ đen khi đang dùng tool.** Muốn tắt tool thì đóng cửa sổ đó.
+   - Windows hỏi *"Windows protected your PC"* thì bấm **More info → Run anyway**.
+   - Bấm đúp lần nữa khi tool đang chạy thì tool chỉ mở lại trang, không bật thêm bản thứ hai.
+   - Cửa sổ báo *"Cổng 4310 đang bị một chương trình khác dùng"* thì tắt chương trình đó hoặc khởi động lại máy, rồi bấm đúp lại.
+4. **Lần đầu**, tool mở trang **Cài khoá Google**.
+   - Chọn file khoá `.json` rồi bấm **Lưu khoá**.
+   - Tool kiểm tra khoá với Google, mã hoá khoá (Windows DPAPI) và cất ở `%LOCALAPPDATA%\masys-video\google-key.dpapi`. Chỉ đúng tài khoản Windows đó mở được file này.
+   - Tool tự khởi động lại sau vài giây. Sau bước này có thể xoá file `.json` gốc.
+   - Đổi khoá sau này: vào **Cài đặt → Đổi file khoá**. Nút bị khoá khi đang có lô chạy.
+5. Làm tiếp [mục 3](#3-đăng-nhập-muse-trong-cửa-sổ-bot-làm-một-lần) để đăng nhập Muse trong cửa sổ bot. Trang Bot Muse báo nếu máy chưa cài Chrome.
+
+**Thay bản mới:** giải nén bản mới ra thư mục khác (hoặc đè lên), rồi bấm đúp `Mo-MASYS.bat` của bản mới. Dữ liệu vẫn còn nguyên vì nằm ở `%LOCALAPPDATA%\masys-video`, ngoài thư mục zip: lịch sử lô, cài đặt, phiên đăng nhập Muse và khoá đã mã hoá. Số phiên bản hiện ở cuối mọi trang và trong Cài đặt.
+
+**Người phụ trách tạo zip:** chạy `npm run package` trên máy phát triển. Lệnh làm các việc sau:
+- dựng code;
+- tải Node đúng bản đang dùng từ nodejs.org và kiểm tra SHA-256;
+- nén thành `release/MASYS-Video-vX.Y.Z-win64.zip`, kèm file `.sha256`;
+- quét lại zip: không có khoá, `.env`, SQLite, hồ sơ bot, test hay mã nguồn TypeScript. Thấy thứ gì thì xoá zip.
+
+Số phiên bản lấy từ `version` trong `package.json`.
+
+## 1. Cài trên một máy Windows mới (máy phát triển)
 
 Cần cài sẵn:
 
@@ -127,7 +156,8 @@ Cách sửa:
   op run --env-file=.env -- npm run check-secrets -- <đường dẫn file log nếu có>
   ```
 
-  Chạy qua `op run` thì lệnh so cả nguyên văn khoá thật. Lệnh không bao giờ in giá trị tìm thấy, chỉ in tên file và số dòng.
+  Chạy qua `op run` thì lệnh so cả nguyên văn khoá thật. Lệnh không bao giờ in giá trị tìm thấy, chỉ in tên file và số dòng. Truyền thêm đường dẫn file `.zip` thì lệnh giải nén ra thư mục tạm, quét từng file trong đó và báo cả các file không được phép có trong zip.
+- Máy dùng bản zip: khoá chỉ nằm trong `google-key.dpapi` đã mã hoá theo tài khoản Windows. Không gửi file này cho ai; chép sang máy khác thì nó cũng không mở được.
 - Hồ sơ bot (`%LOCALAPPDATA%\masys-video\bot-profile`) chứa phiên Muse: không chép, không gửi cho ai. Muốn "đăng xuất" hẳn bot: tắt tool rồi xoá thư mục này.
 
 ## 9. Lệnh cho người phát triển
@@ -140,5 +170,6 @@ Cách sửa:
 | `npm run build` / `op run --env-file=.env -- npm start` | Build rồi chạy bản build. |
 | `op run --env-file=.env -- npm run test:google` | Test với Google Sheet thật: ghi tạm ô Trạng thái dòng 2 (`MASYS_TEST_ROW`), kiểm tra chỉ ô đó đổi, rồi trả lại giá trị cũ. |
 | `npm run tien-do` | Tạo lại `TIEN-DO.html` từ `TIEN-DO.md`. |
+| `npm run package` | Tạo bản zip cho người trong đội (mục 0); không cần `op run`. |
 
 Biến môi trường tuỳ chọn: `PORT` (mặc định 4310), `MASYS_DATA_DIR` (thư mục dữ liệu).

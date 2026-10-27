@@ -1,4 +1,5 @@
 import type { Child } from "hono/jsx";
+import { APP_NAME, APP_VERSION } from "../version.js";
 
 /** Dải báo lô đang chạy / tạm dừng trên đầu mọi trang (CON-41); createApp gắn vào. */
 let statusBanner: (() => Child) | undefined;
@@ -77,6 +78,7 @@ export function Layout(props: { title: string; children: Child }) {
           .tally span { margin-right:10px; white-space:nowrap; }
           h2.sub-h { margin-top:20px; }
           input[type=number] { width:90px; }
+          footer { max-width:1100px; margin:0 auto; padding:8px 16px 24px; color:var(--muted); font-size:.85rem; }
           @media (prefers-color-scheme: dark) { :root { --info-bg:#1b2a47; --info-fg:#a9c6ff; --bad-bg:#3d1b1b; --bad-fg:#ffb3b3; } }
         `}</style>
       </head>
@@ -96,6 +98,9 @@ export function Layout(props: { title: string; children: Child }) {
           {statusBanner?.()}
           {props.children}
         </main>
+        <footer>
+          {APP_NAME} v{APP_VERSION}
+        </footer>
       </body>
     </html>
   );

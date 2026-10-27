@@ -1,6 +1,6 @@
 # MASYS Video Generator — Đặc tả sản phẩm (MVP)
 
-> Phiên bản 4.1 · 26/10/2026 · Trạng thái: **viết lại từ đầu; chưa có code**. 4.1: chốt D5 (service account), ảnh gửi Muse bằng link Drive, giới hạn 5 video/ngày (D13), số liệu GĐ0.
+> Phiên bản 4.2 · 27/10/2026 · Trạng thái: **GĐ1 xong (CON-35…42); GĐ2 đóng gói và cập nhật đang làm**. 4.2: thêm D15 (đóng gói zip cho người trong đội, khoá Google chọn từ file lần đầu và mã hoá trong máy). 4.1: chốt D5 (service account), ảnh gửi Muse bằng link Drive, giới hạn 5 video/ngày (D13), số liệu GĐ0.
 > **Thay đổi so với 3.0: bỏ toàn bộ hướng gọi API video (Gemini, Max-Studio, Flow) và web app có server.** App mới là **tool chạy trên một máy**: đọc Google Sheet, cho chọn dòng và chỉnh prompt, rồi **điều khiển trình duyệt** để gửi yêu cầu cho **Meta Muse AI** (tài khoản có 1 tỷ token). Muse tự tạo video, tự lưu lên Drive và tự ghi link vào sheet qua **MCP Google Sheets/Drive đã nối sẵn trong Muse**. App chỉ **điều phối, theo dõi và kiểm tra lại**.
 > Lịch sử v2.x–3.0 xem trong git.
 > Tài liệu này viết để một người hoặc agent mới đọc **một lần là nắm được toàn bộ dự án**.
@@ -74,6 +74,7 @@ Mẫu: TikTok [@scarletthayes40](https://www.tiktok.com/@scarletthayes40), [@chl
 | D12 | **Kiểm tra lại sau khi Muse báo xong:** link phải là file Drive, tồn tại, là video, nằm trong đúng thư mục đã chọn; ảnh và prompt dòng N không bị đổi trong lúc chạy | Muse là agent, có thể làm nhầm ô hoặc nhầm thư mục | Tin hoàn toàn vào Muse |
 | D13 | **Giới hạn mặc định 5 video/ngày** (đếm các lượt đã gửi Muse trong ngày theo giờ máy, kể cả lượt lỗi), sửa được trong Cài đặt. Chọn quá số còn lại thì không cho bấm Chạy; chạm giới hạn giữa lô thì các dòng còn lại chuyển `paused_limit` | Đúng nhu cầu thực tế (~5 video/ngày); giảm nguy cơ tài khoản bị coi là bot; giữ token | Không giới hạn |
 | D14 | **Ảnh gửi Muse bằng link Drive** ghi trong yêu cầu; Muse tự đọc qua MCP Drive. Bot không tải ảnh lên khung chat | Đúng cách đã kiểm chứng ở GĐ0; bot đơn giản | Bot tải file ảnh lên Muse |
+| D15 | **Phát hành cho người trong đội bằng một file zip** (`MASYS-Video-vX.Y.Z-win64.zip`, gồm Node chạy liền + tool đã dựng + `Mo-MASYS.bat`); giải nén, bấm đúp là dùng, máy chỉ cần Google Chrome. **Khoá Google trên máy người dùng:** lần đầu mở tool, người dùng chọn file khoá `.json` do người phụ trách gửi riêng; tool kiểm tra, mã hoá bằng Windows DPAPI (gắn với tài khoản Windows đó) rồi lưu ở `%LOCALAPPDATA%\masys-video\google-key.dpapi`. Biến `GOOGLE_SERVICE_ACCOUNT_JSON` (máy phát triển chạy `op run`) luôn được ưu tiên | Người dùng là người trong đội, không rành kỹ thuật, không có 1Password; không cần cài gì thêm | Bộ cài .exe; bắt người dùng cài Node/1Password; nhúng khoá vào zip |
 
 ---
 
@@ -96,7 +97,7 @@ Mẫu: TikTok [@scarletthayes40](https://www.tiktok.com/@scarletthayes40), [@chl
 Nguyên tắc:
 - **Sheet là nguồn sự thật** về việc dòng nào đã có video. SQLite cục bộ chỉ lưu cấu hình, lịch sử lô và nhật ký.
 - Tool **không cầm mật khẩu Meta**. Chỉ hồ sơ bot giữ phiên đăng nhập.
-- Bí mật duy nhất của tool là **khoá service account**, nạp qua `op run`.
+- Bí mật duy nhất của tool là **khoá service account**, nạp qua `op run` (máy phát triển) hoặc từ file khoá đã mã hoá DPAPI (bản zip, D15).
 
 ---
 
@@ -263,7 +264,7 @@ File SQLite và ảnh chụp màn hình nằm ngoài repo (cùng thư mục vớ
 
 ## 10. Bảo mật và rủi ro
 
-- **Bí mật:** chỉ có khoá service account. `.env` chứa `op://…`; chạy `op run --env-file=.env -- <lệnh>`. Không commit, không log.
+- **Bí mật:** chỉ có khoá service account. `.env` chứa `op://…`; chạy `op run --env-file=.env -- <lệnh>`. Không commit, không log. Bản zip (D15): khoá chỉ nằm trong `google-key.dpapi` đã mã hoá theo tài khoản Windows; không bao giờ nằm trong thư mục zip, SQLite hay log. File zip được `check-secrets` quét trước khi phát hành.
 - **Mật khẩu Meta không bao giờ vào tool** (D6). Hồ sơ bot chứa phiên đăng nhập → coi như bí mật: không đồng bộ, không chia sẻ, không đưa lên git.
 - Giao diện tool chỉ nghe `127.0.0.1` (không mở ra mạng LAN) trừ khi người phụ trách quyết định khác.
 - **Rủi ro điều khoản Meta:** tự động hoá giao diện web có thể vi phạm điều khoản, dẫn tới hạn chế hoặc khoá tài khoản Muse. Giảm thiểu: chạy tuần tự, có cửa sổ, nghỉ giữa lượt (D7, D8), giới hạn 5 video/ngày (D13). Khách cần biết và chấp nhận rủi ro này.
@@ -354,3 +355,7 @@ Sheet thật "MASYS Video – Danh sách" → Trang tính1 (20 dòng), Drive th�
 6. **Chạy lượt + kiểm tra** (F5, mục 7): theo dõi ô Video, kiểm tra D12, phát hiện sửa nhầm ô, khôi phục khi tool tắt giữa chừng.
 7. **Tiến độ, lịch sử, nhật ký, cài đặt** (F6–F7).
 8. **Chạy đủ 12 tiêu chí** mục 12 với sheet thật, bàn giao kèm hướng dẫn đăng nhập hồ sơ bot.
+
+### Giai đoạn 2 — Phát hành cho đội
+9. **Đóng gói zip** (D15, CON-43): `npm run package`, `Mo-MASYS.bat`, cài khoá Google lần đầu, số phiên bản hiện trên tool.
+10. **Kiểm tra và cập nhật phiên bản ngay trong tool** (CON-44).

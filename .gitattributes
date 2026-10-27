@@ -1,0 +1,2 @@
+# Mo-MASYS.bat phải giữ CRLF để cmd.exe đọc đúng.
+*.bat text eol=crlf

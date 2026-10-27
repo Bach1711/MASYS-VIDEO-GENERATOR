@@ -16,6 +16,7 @@ import { logger } from "../logger.js";
 import { Alert } from "./components.js";
 import { Layout } from "./layout.js";
 import type { ScanDeps } from "./scan.js";
+import { APP_NAME, APP_VERSION } from "../version.js";
 
 // Trang Cài đặt (F7): chạy lô, trang Muse, thư mục Drive gốc, mẫu yêu cầu gửi Muse.
 // Đổi trong lúc lô đang chạy thì áp dụng từ dòng kế tiếp (hàng đợi đọc lại cài đặt mỗi lượt).
@@ -50,6 +51,22 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps) {
         <h1>Cài đặt</h1>
         {opts.notice}
         <RunSettingsCard s={opts.runDraft ?? { ...s }} errors={opts.runErrors} />
+        <section class="card">
+          <h2>Khoá Google và phiên bản</h2>
+          <p>
+            Phiên bản: <strong>{APP_NAME} v{APP_VERSION}</strong>
+          </p>
+          <p>
+            Khoá service account:{" "}
+            {config.serviceAccount.ok ? <code>{config.serviceAccount.clientEmail}</code> : <span class="warn-text">chưa có</span>}{" "}
+            <span class="muted">
+              ({config.keySource === "env" ? "từ biến môi trường, chạy qua op run" : config.keySource === "file" ? "đã lưu trong máy, mã hoá theo tài khoản Windows" : "chưa cài"})
+            </span>
+          </p>
+          <a class="button secondary" href="/setup">
+            Đổi file khoá
+          </a>
+        </section>
         <section class="card">
           <h2>Thư mục Drive gốc</h2>
           <p class="muted">Khi chuẩn bị lô, tool liệt kê các thư mục con của thư mục này để chọn nơi Muse lưu video.</p>

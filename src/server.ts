@@ -12,8 +12,15 @@ import { SheetsClient } from "./google/sheets.js";
 import { logger } from "./logger.js";
 import { ThumbnailCache } from "./scan/thumbnails.js";
 import { createApp } from "./web/app.js";
+import { applyStoredKey, KeyStore } from "./keyStore.js";
+import { APP_VERSION } from "./version.js";
+import { isChromeInstalled } from "./bot/chrome.js";
+import { RESTART_EXIT_CODE } from "./restart.js";
 
 const config = loadConfig();
+const keyStore = new KeyStore(config.dataDir);
+await applyStoredKey(config, keyStore);
+logger.info({ version: APP_VERSION, keySource: config.keySource }, "Khởi động MASYS Video");
 
 if (config.serviceAccount.ok) {
   logger.info({ clientEmail: config.serviceAccount.clientEmail }, "Đã nạp khoá service account");
@@ -42,16 +49,29 @@ const bot = new MuseBot({
 const runner = sheets && drive && new BatchRunner(db, sheets, drive, bot);
 runner?.recover();
 
-const app = createApp(config, db, { sheets, drive, thumbs, bot, runner });
+const app = createApp(config, db, {
+  sheets,
+  drive,
+  thumbs,
+  bot,
+  runner,
+  keyStore,
+  chromeInstalled: () => isChromeInstalled(),
+  verifyKey: async (credentials) => {
+    await serviceAccountTokenProvider(credentials)();
+  },
+  // Chỉ tự bật lại được khi chạy qua launcher (bản zip); chạy npm run dev thì người dùng tự chạy lại.
+  restart: process.env.MASYS_LAUNCHER === "1" ? () => setTimeout(() => void shutdown(RESTART_EXIT_CODE), 500) : undefined,
+});
 const server = serve({ fetch: app.fetch, hostname: HOST, port: config.port }, (info) => {
   logger.info(`Tool đang chạy tại http://localhost:${info.port}`);
 });
 
-async function shutdown() {
+async function shutdown(code = 0) {
   server.close();
   await bot.close().catch(() => {});
   db.close();
-  process.exit(0);
+  process.exit(code);
 }
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+process.on("SIGINT", () => void shutdown());
+process.on("SIGTERM", () => void shutdown());
