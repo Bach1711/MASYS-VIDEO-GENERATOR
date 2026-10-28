@@ -114,7 +114,7 @@ flowchart LR
 | # | Ticket | Nội dung | Trạng thái | PR | Hoàn thành |
 |---|---|---|---|---|---|
 | 12 | [CON-46](https://linear.app/conducdaudan/issue/CON-46) | Ghép ảnh áo vào ảnh người mẫu rồi tạo video (cột Ảnh áo, v1.1.0) | 🟩 Xong | [#14](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/14) | 28/10/2026 |
-| 13 | [CON-47](https://linear.app/conducdaudan/issue/CON-47) | Sửa lỗi: cập nhật báo EPERM khi diệt virus giữ file (v1.1.1) | 🟦 Chờ duyệt | PR_LINK | |
+| 13 | [CON-47](https://linear.app/conducdaudan/issue/CON-47) | Sửa lỗi: cập nhật báo EPERM khi diệt virus giữ file (v1.1.1) | 🟦 Chờ duyệt | [#15](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/15) | |
 
 ## Nhật ký cập nhật
 
