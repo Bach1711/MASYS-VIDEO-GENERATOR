@@ -34,14 +34,14 @@
 </main>
 <script type="text/plain" id="source"># Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **28/10/2026**, sau CON-48 — GĐ1, GĐ2 xong; GĐ3: ghép ảnh áo, sửa lỗi cập nhật EPERM, logo MASYS xong. File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **28/10/2026**, CON-49 (màn hình Bảng + một nút Tạo video) chờ duyệt — GĐ1–GĐ3 xong; GĐ4 "một màn hình" (spec v5.0) bắt đầu. File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
-> Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v4.4 · Linear: project **MASYS Video Generator**
+> Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v5.0 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 14/14 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉
+**Tổng quan:** 14/18 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 0/4 (CON-49 chờ duyệt)
 
 ```
-[■■■■■■■■■■]  14/14 — xong CON-35…CON-48
+[■■■■■■■■□□]  14/18 — xong CON-35…CON-48 · CON-49 chờ duyệt · CON-50…52 chưa làm
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -70,6 +70,10 @@ flowchart LR
         update["Kiểm tra / cập nhật / quay về<br/>phiên bản (GitHub Releases)<br/>CON-44"]
         download["Tải bản mới song song,<br/>tự thử lại, tải tiếp<br/>CON-45"]
         placing["Chuyển bản mới vào chỗ<br/>chịu được diệt virus giữ file<br/>CON-47"]
+        bang["Màn hình Bảng +<br/>một nút Tạo video<br/>CON-49"]
+        edit["Sửa ngay trên Bảng,<br/>dải prompt, thêm dòng<br/>CON-50"]
+        quick["Bắt đầu nhanh,<br/>hướng dẫn gọn<br/>CON-51"]
+        twoside["Áo hai mặt<br/>CON-52"]
         logo["Logo MASYS: tab Chrome,<br/>thanh trên cùng, Trang chủ<br/>CON-48"]
         shirt["Ghép ảnh áo: cột Ảnh áo,<br/>ảnh thu nhỏ, đoạn ghép áo<br/>trong yêu cầu gửi Muse<br/>CON-46"]
     end
@@ -102,6 +106,10 @@ flowchart LR
     update --> download
     update --> placing
     placing --> logo
+    logo --> bang
+    bang --> edit
+    bang --> quick
+    edit --> twoside
     scan --> shirt
     editor --> shirt
 
@@ -122,6 +130,8 @@ flowchart LR
     class shirt done
     class placing done
     class logo done
+    class bang review
+    class edit,quick,twoside todo
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -154,7 +164,18 @@ flowchart LR
 | 13 | [CON-47](https://linear.app/conducdaudan/issue/CON-47) | Sửa lỗi: cập nhật báo EPERM khi diệt virus giữ file (v1.1.1) | 🟩 Xong | [#15](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/15) | 28/10/2026 |
 | 14 | [CON-48](https://linear.app/conducdaudan/issue/CON-48) | Thêm logo MASYS (tab Chrome, thanh trên cùng, Trang chủ), thử cập nhật từ v1.1.1 (v1.1.2) | 🟩 Xong | [#16](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/16) | 28/10/2026 |
 
+## Bảng ticket (Giai đoạn 4 — một màn hình, spec v5.0 mục 16)
+
+| # | Ticket | Nội dung | Trạng thái | PR | Hoàn thành |
+|---|---|---|---|---|---|
+| 15 | [CON-49](https://linear.app/conducdaudan/issue/CON-49) | Màn hình Bảng + một nút Tạo video (v1.2.0) | 🟦 Chờ duyệt | [#17](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/17) | |
+| 16 | [CON-50](https://linear.app/conducdaudan/issue/CON-50) | Sửa ngay trên Bảng: prompt, link ảnh, dải prompt, thêm dòng (v1.3.0) | ⬜ Chưa làm | | |
+| 17 | [CON-51](https://linear.app/conducdaudan/issue/CON-51) | Bắt đầu nhanh và hướng dẫn gọn (v1.4.0) | ⬜ Chưa làm | | |
+| 18 | [CON-52](https://linear.app/conducdaudan/issue/CON-52) | Áo hai mặt (chờ thử tay trên Muse) | ⬜ Chưa làm | | |
+
 ## Nhật ký cập nhật
+
+- **28/10/2026 · CON-49** (chờ duyệt): **màn hình Bảng** theo góp ý của đội ("giao diện nhiều nút, hướng dẫn dài"), spec **v5.0** (mục 16, D17–D20). Trang chủ là bảng đọc từ tab sheet (nhớ tab dùng lần trước): ảnh người mẫu + ảnh áo (bấm xem lớn), prompt, video ▶, nhãn trạng thái. Tích chọn / **Chọn mọi dòng chưa có video** (không vượt số còn lại hôm nay) → **Tạo video** tạo lô với mặc định (thư mục con "Video" trong thư mục gốc, mẫu trong Cài đặt, prompt trong sheet) và chạy luôn; mọi kiểm tra cũ giữ nguyên (quét lại, Ghi đè D10, giới hạn ngày D13, không chạy chồng lô). Trạng thái từng lượt hiện trên bảng; bảng tự làm mới (5 giây khi chạy, 30 giây khi rảnh; sheet đổi mà đang chọn dòng thì chỉ báo). Tạm dừng / Tiếp tục / Huỷ và báo "đăng nhập Muse rồi bấm Tiếp tục" ngay trên bảng. Xem yêu cầu gửi Muse từng dòng (tải khi bấm). Trang cũ vào **⚙ Nâng cao**. Sửa thêm: ảnh thu nhỏ tải trùng khi nhiều dòng chung một ảnh (đôi khi ô xám). Đã thử **chỉ đọc** với sheet thật (20 dòng, có ảnh áo dòng 5), chụp màn hình sáng/tối.
 
 - **28/10/2026 · CON-48** (xong, đã duyệt và gộp vào main): **logo MASYS** từ file người phụ trách gửi (PNG 1600×1600 nền trong suốt). Tab Chrome và thanh trên cùng dùng phần vòng tròn có nút play cắt từ logo (chữ quá nhỏ sẽ nhoè); Trang chủ có logo đầy đủ trên khung nền tối cố định (dòng "VIDEO GENERATOR" màu xanh đậm vẫn rõ ở chế độ tối). Ảnh thu nhỏ bằng `scripts/logo.mjs`, nằm sẵn trong code (`src/web/logoData.ts`, ~145 KB) nên bản zip không thêm file; đường dẫn ảnh kèm số phiên bản để Chrome lấy ảnh mới sau khi cập nhật. Bản này cũng dùng để thử cập nhật trong tool từ v1.1.1 (sau bản sửa EPERM).
 
