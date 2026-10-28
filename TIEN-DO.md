@@ -138,7 +138,7 @@ flowchart LR
 |---|---|---|---|---|---|
 | 15 | [CON-49](https://linear.app/conducdaudan/issue/CON-49) | Màn hình Bảng + một nút Tạo video (v1.2.0) | 🟩 Xong | [#17](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/17) | 28/10/2026 |
 | 16 | [CON-50](https://linear.app/conducdaudan/issue/CON-50) | Sửa ngay trên Bảng: prompt, link ảnh, dải prompt, thêm dòng (v1.3.0) | 🟩 Xong | [#18](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/18) | 28/10/2026 |
-| 17 | [CON-51](https://linear.app/conducdaudan/issue/CON-51) | Bắt đầu nhanh và hướng dẫn gọn (v1.4.0) | 🟦 Chờ duyệt | PR_LINK | |
+| 17 | [CON-51](https://linear.app/conducdaudan/issue/CON-51) | Bắt đầu nhanh và hướng dẫn gọn (v1.4.0) | 🟦 Chờ duyệt | [#19](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/19) | |
 | 18 | [CON-52](https://linear.app/conducdaudan/issue/CON-52) | Áo hai mặt (chờ thử tay trên Muse) | ⬜ Chưa làm | | |
 
 ## Nhật ký cập nhật
