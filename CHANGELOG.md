@@ -2,6 +2,14 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v1.1.1
+
+Sửa lỗi cập nhật trong tool báo *"EPERM: operation not permitted"* ở bước cuối.
+
+- Lỗi này xảy ra khi phần mềm diệt virus (như Windows Defender) đang quét bản mới vừa tải về. Giờ tool chờ quét xong rồi mới chuyển bản mới vào chỗ. Nếu chờ lâu, tool chép bản mới sang thay vì chuyển.
+- Trang cập nhật báo *"Phần mềm diệt virus đang quét file mới nên phải chờ một chút"* trong lúc chờ.
+- Nếu vẫn không được, tool báo lỗi bằng tiếng Việt, bản đang dùng giữ nguyên.
+
 ## v1.1.0
 
 **Mới: ghép ảnh áo vào ảnh người mẫu rồi tạo video.**

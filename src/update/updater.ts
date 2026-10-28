@@ -5,6 +5,7 @@ import path from "node:path";
 import type { DB } from "../db/index.js";
 import { logger } from "../logger.js";
 import { compareVersions, type InstallLayout, isCompleteVersion } from "./layout.js";
+import { type DirOps, moveDir, realDirOps, removeDirQuietly } from "./moveDir.js";
 import type { ReleaseInfo, ReleaseSource } from "./releases.js";
 
 // Kiểm tra / cập nhật / quay về phiên bản (D16). Chỉ chạy khi người dùng bấm; không bao giờ tự cập nhật.
@@ -12,7 +13,7 @@ import type { ReleaseInfo, ReleaseSource } from "./releases.js";
 export const BACKUP_DIR = "sao-luu";
 export const KEEP_BACKUPS = 3;
 
-export type UpdateStep = "downloading" | "verifying" | "extracting" | "backing_up" | "switching" | "failed";
+export type UpdateStep = "downloading" | "verifying" | "extracting" | "placing" | "backing_up" | "switching" | "failed";
 
 export interface UpdateJob {
   target: string;
@@ -23,6 +24,8 @@ export interface UpdateJob {
   speed?: number;
   /** Đang thử lại sau khi mạng đứng / ngắt. */
   retry?: { attempt: number; max: number };
+  /** Chuyển bản mới vào chỗ đang phải chờ / sao chép vì file bị giữ. */
+  slow?: boolean;
   error?: string;
 }
 
@@ -53,6 +56,10 @@ export interface UpdaterOptions {
   /** Tắt tool để Mo-MASYS.bat chạy bản trong hien-tai.txt. */
   switchVersion: () => void;
   extract?: (zipFile: string, destDir: string) => void;
+  /** Thao tác thư mục (thay được khi test giả lập phần mềm diệt virus giữ file). */
+  dirOps?: DirOps;
+  /** Chờ đổi tên thư mục bao lâu trước khi chuyển sang sao chép (mặc định 20 giây). */
+  renameWaitMs?: number;
 }
 
 const sha256File = (file: string) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
@@ -143,14 +150,16 @@ export class Updater {
     const zipFile = path.join(tmp, `v${release.version}.zip`);
     // Phần zip tải dở của đúng bản này (lần bấm trước bị ngắt: `.part` và các đoạn `.part.N`) được giữ để tải tiếp; còn lại dọn đi.
     const part = `${zipFile}.part`;
-    const cleanTmp = (keepPart: boolean) => {
+    const ops = this.o.dirOps ?? realDirOps;
+    // File trong thư mục tạm có thể còn bị phần mềm diệt virus giữ: dọn không được thì để lần sau.
+    const cleanTmp = async (keepPart: boolean) => {
       if (!fs.existsSync(tmp)) return;
       for (const f of fs.readdirSync(tmp)) {
-        if (!keepPart || !f.startsWith(path.basename(part))) fs.rmSync(path.join(tmp, f), { recursive: true, force: true });
+        if (!keepPart || !f.startsWith(path.basename(part))) await removeDirQuietly(path.join(tmp, f), ops);
       }
-      if (!keepPart) fs.rmSync(tmp, { recursive: true, force: true });
+      if (!keepPart) await removeDirQuietly(tmp, ops);
     };
-    cleanTmp(true);
+    await cleanTmp(true);
     fs.mkdirSync(tmp, { recursive: true });
     let placed = false;
     try {
@@ -182,10 +191,10 @@ export class Updater {
       if (!isCompleteVersion(src)) throw new Error("File zip bản mới thiếu thành phần; đã huỷ.");
       const pkg = JSON.parse(fs.readFileSync(path.join(src, "app", "package.json"), "utf8")) as { version?: string };
       if (pkg.version !== release.version) throw new Error("Số phiên bản trong zip không khớp; đã huỷ.");
-      fs.rmSync(dest, { recursive: true, force: true });
-      fs.renameSync(src, dest);
+      job.step = "placing";
+      await moveDir(src, dest, { ops, renameWaitMs: this.o.renameWaitMs, onSlow: () => (job.slow = true) });
       placed = true;
-      fs.rmSync(tmp, { recursive: true, force: true });
+      await removeDirQuietly(tmp, ops);
 
       job.step = "backing_up";
       try {
@@ -211,9 +220,9 @@ export class Updater {
       job.step = "failed";
       job.retry = undefined;
       job.error = (e as Error).message;
-      cleanTmp(keepPart);
+      await cleanTmp(keepPart);
       // Bản mới đã giải nén nhưng chưa chuyển thì giữ lại cũng vô hại; chỉ xoá khi lỗi trước bước đó.
-      if (!placed) fs.rmSync(dest, { recursive: true, force: true });
+      if (!placed) await removeDirQuietly(dest, ops);
       logger.warn({ target: release.version, problem: job.error }, "Cập nhật không thành công");
     }
   }

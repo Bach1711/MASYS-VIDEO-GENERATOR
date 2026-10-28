@@ -10,6 +10,7 @@ const STEP_TEXT: Record<UpdateJob["step"], string> = {
   downloading: "Đang tải bản mới",
   verifying: "Đang kiểm tra file tải về (SHA-256)",
   extracting: "Đang giải nén",
+  placing: "Đang chép bản mới vào chỗ",
   backing_up: "Đang sao lưu dữ liệu",
   switching: "Đang khởi động lại bằng bản mới",
   failed: "Cập nhật không thành công",
@@ -160,6 +161,9 @@ export function registerUpdateRoutes(app: Hono, deps: { updater?: Updater }) {
               <strong>{STEP_TEXT[job.step]}</strong>
               {progress}…
             </p>
+            {job.step === "placing" && job.slow && (
+              <p class="muted">Phần mềm diệt virus đang quét file mới nên phải chờ một chút (tối đa khoảng 1 phút).</p>
+            )}
             {job.retry && (
               <p class="warn-text">
                 Mạng chập chờn, đang thử lại (lần {job.retry.attempt}/{job.retry.max})… Phần đã tải được giữ lại, không tải lại từ đầu.

@@ -99,7 +99,11 @@ export class InstallLayout {
     for (const n of fs.existsSync(this.versionsDir) ? fs.readdirSync(this.versionsDir) : []) {
       const full = this.versionDir(n);
       if (!fs.statSync(full).isDirectory() || keep.includes(n)) continue;
-      fs.rmSync(full, { recursive: true, force: true });
+      try {
+        fs.rmSync(full, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      } catch {
+        // Bị phần mềm diệt virus giữ file: để lần cập nhật sau dọn, không làm hỏng việc chuyển bản.
+      }
     }
   }
 }

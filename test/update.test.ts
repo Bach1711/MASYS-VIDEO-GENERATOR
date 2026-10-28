@@ -8,6 +8,7 @@ import { openDatabase, type DB } from "../src/db/index.js";
 import { updateBlocker } from "../src/db/history.js";
 import { compareVersions, InstallLayout } from "../src/update/layout.js";
 import { ReleaseSource, sourceFromEnv, zipAssetName } from "../src/update/releases.js";
+import { type DirOps, realDirOps } from "../src/update/moveDir.js";
 import { KEEP_BACKUPS, Updater } from "../src/update/updater.js";
 import { createApp } from "../src/web/app.js";
 import { FAKE_KEY_ENV } from "./fakeKey.js";
@@ -61,7 +62,7 @@ function fakeGithub(o: { version: string; zip?: Buffer; sha?: string; status?: n
   return { source: new ReleaseSource({ fetch: fetchFn as unknown as typeof fetch }), fetchFn };
 }
 
-function setup(o: { versions?: string[]; current?: string; remote?: string; github?: Parameters<typeof fakeGithub>[0]; db?: DB; noLayout?: boolean } = {}) {
+function setup(o: { versions?: string[]; current?: string; remote?: string; github?: Parameters<typeof fakeGithub>[0]; db?: DB; noLayout?: boolean; dirOps?: DirOps } = {}) {
   const current = o.current ?? "1.0.0";
   const layout = makeHome(o.versions ?? [current], current);
   const db = o.db ?? openDatabase(":memory:");
@@ -81,6 +82,8 @@ function setup(o: { versions?: string[]; current?: string; remote?: string; gith
     blocker: () => updateBlocker(db),
     switchVersion,
     extract,
+    dirOps: o.dirOps,
+    renameWaitMs: 100,
   });
   return { layout, db, updater, switchVersion, extract, dataDir, fetchFn: gh.fetchFn };
 }
@@ -160,6 +163,42 @@ describe("cập nhật", () => {
     expect(fs.existsSync(path.join(layout.versionsDir, "_tai-ve"))).toBe(false);
     expect(fs.readdirSync(path.join(dataDir, "sao-luu"))).toHaveLength(1);
     expect(switchVersion).toHaveBeenCalledOnce();
+  });
+
+  it("phần mềm diệt virus giữ file mới (EPERM khi đổi tên): chờ, rồi sao chép; vẫn cập nhật được (CON-47)", async () => {
+    const eperm = () => Object.assign(new Error("EPERM: operation not permitted, rename"), { code: "EPERM" });
+    const dirOps: DirOps = { ...realDirOps, rename: () => { throw eperm(); }, sleep: async () => {} };
+    const { updater, layout, switchVersion } = setup({ dirOps });
+    await updater.check();
+    await updater.install();
+    expect(updater.job?.error).toBeUndefined();
+    expect(updater.job?.slow).toBe(true);
+    expect(layout.current()).toBe("1.0.1");
+    expect(layout.installed()).toEqual(["1.0.1", "1.0.0"]);
+    expect(fs.existsSync(path.join(layout.versionsDir, "_tai-ve"))).toBe(false);
+    expect(switchVersion).toHaveBeenCalledOnce();
+  });
+
+  it("đổi tên lẫn sao chép đều bị chặn: báo tiếng Việt, dọn phần chép dở, bản đang dùng giữ nguyên", async () => {
+    const eperm = () => Object.assign(new Error("EPERM"), { code: "EPERM" });
+    const dirOps: DirOps = {
+      ...realDirOps,
+      rename: () => { throw eperm(); },
+      copy: (src, dest) => {
+        fs.mkdirSync(dest, { recursive: true });
+        fs.writeFileSync(path.join(dest, "chep-do.txt"), "x");
+        throw eperm();
+      },
+      sleep: async () => {},
+    };
+    const { updater, layout, switchVersion } = setup({ dirOps });
+    await updater.check();
+    await updater.install();
+    expect(updater.job).toMatchObject({ step: "failed", error: expect.stringContaining("phần mềm diệt virus") });
+    expect(updater.job?.error).not.toContain("EPERM");
+    expect(layout.current()).toBe("1.0.0");
+    expect(fs.existsSync(layout.versionDir("1.0.1"))).toBe(false);
+    expect(switchVersion).not.toHaveBeenCalled();
   });
 
   it("SHA-256 sai thì huỷ, bản đang dùng giữ nguyên, không chuyển", async () => {
