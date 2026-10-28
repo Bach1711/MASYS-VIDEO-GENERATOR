@@ -113,8 +113,8 @@ Tool đọc sheet, ghi ô Trạng thái và kiểm tra file video bằng một *
 ## 4. Dùng hằng ngày
 
 **Từ v1.2.0: chỉ cần màn hình Bảng** (trang đầu khi mở tool).
-1. Bảng hiện đúng nội dung trang tính đã kết nối: ảnh người mẫu, ảnh áo, prompt, video (bấm **▶ Xem**), trạng thái. Đổi sheet/trang tính ở ô chọn trên cùng; bảng tự làm mới khi sheet đổi.
-2. Tích các dòng cần làm (hoặc **☑ Chọn mọi dòng chưa có video**), bấm **▶ Tạo video**. Tool tự tạo lô và chạy luôn: dùng thư mục Drive gốc trong Cài đặt (thư mục con "Video" nếu có), mẫu yêu cầu trong Cài đặt, prompt đúng như trong sheet.
+1. Bảng hiện đúng nội dung trang tính đã kết nối: ảnh người mẫu, ảnh áo, prompt, video (bấm **▶ Xem**), trạng thái. Đổi sheet/trang tính ở ô chọn trên cùng, thêm sheet mới bằng **+ Thêm sheet**; bảng tự làm mới khi sheet đổi.
+2. Tích các dòng cần làm (hoặc **☑ Chọn mọi dòng chưa có video**), bấm **▶ Tạo video**. Tool tự tạo lô và chạy luôn: lưu video vào thư mục chọn ở ô **Lưu video vào** (mặc định thư mục con "Video" trong thư mục gốc ở Cài đặt; chọn thư mục con khác hoặc dán link thư mục khác; tool nhớ lần trước), mẫu yêu cầu trong Cài đặt, prompt đúng như trong sheet.
 3. Trạng thái từng dòng và video hiện ngay trên bảng. Cần đăng nhập Muse thì bảng báo và có nút **Tiếp tục**; có nút **Tạm dừng** / **Huỷ**.
 4. Muốn xem trước câu gửi Muse của một dòng: bấm **Xem yêu cầu gửi Muse** ở dòng đó.
 

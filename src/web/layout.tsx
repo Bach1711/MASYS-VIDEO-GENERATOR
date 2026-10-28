@@ -29,7 +29,7 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
           @media (prefers-color-scheme: dark) {
             :root { --bg:#141417; --fg:#ececf0; --muted:#a0a1aa; --card:#1d1d22; --border:#33343b; --warn-bg:#3a2a12; --warn-fg:#ffd59a; --ok-bg:#16301a; --ok-fg:#a6e3a6; --link:#8ab4ff; --accent:#3b73d1; }
           }
-          body { margin:0; font-family: system-ui, "Segoe UI", sans-serif; background:var(--bg); color:var(--fg); }
+          body { margin:0; font-family: system-ui, Segoe UI, sans-serif; background:var(--bg); color:var(--fg); }
           main { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
           h1 { font-size: 1.4rem; margin: 0 0 16px; }
           .card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:16px; }
@@ -115,6 +115,10 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
           .running-box { background:var(--info-bg); color:var(--info-fg); border-color:transparent; }
           .actionbar { position:sticky; bottom:0; z-index:5; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin:16px 0 0; box-shadow:0 -4px 16px rgba(0,0,0,.08); }
           .actionbar .run-right { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+          .folder-pick { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+          .folder-pick select { min-width:200px; }
+          .folder-pick input { min-width:280px; }
+          .inline-label { display:inline; margin:0; font-weight:600; }
           #runBtn { font-size:1.05rem; padding:8px 18px; font-weight:600; }
           footer { max-width:1100px; margin:0 auto; padding:8px 16px 24px; color:var(--muted); font-size:.85rem; }
           @media (prefers-color-scheme: dark) { :root { --info-bg:#1b2a47; --info-fg:#a9c6ff; --bad-bg:#3d1b1b; --bad-fg:#ffb3b3; } }

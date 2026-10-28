@@ -38,11 +38,13 @@ export async function planForRows(
   deps: QuickDeps,
   cfg: SheetConfig,
   rows: ScannedRow[],
+  /** Thư mục người dùng chọn trên Bảng; không có thì dùng mặc định. */
+  folderChoice?: string,
 ): Promise<{ ok: true; runs: PlannedRun[]; folderId: string } | { ok: false; message: string }> {
   const { db, sheets, drive, clientEmail } = deps;
   const settings = getSettings(db);
-  if (!settings.driveRootFolderId) {
-    return { ok: false, message: "Chưa đặt thư mục Drive lưu video. Vào ⚙ Nâng cao → Cài đặt → Thư mục Drive gốc." };
+  if (!settings.driveRootFolderId && !folderChoice) {
+    return { ok: false, message: "Chưa chọn thư mục Drive lưu video. Dán link thư mục ở ô \"Lưu video vào\", hoặc đặt Thư mục Drive gốc trong ⚙ Nâng cao → Cài đặt." };
   }
   const template = settings.requestTemplate ?? DEFAULT_TEMPLATE;
   const templateProblems = validateTemplate(template);
@@ -55,10 +57,12 @@ export async function planForRows(
   let folderId: string;
   let sheetId: number | undefined;
   try {
-    folderId = await defaultFolderId(drive, settings.driveRootFolderId);
+    // Thư mục chọn trên Bảng phải đúng là thư mục, đọc được bằng service account.
+    folderId = folderChoice ? (await drive.getFolder(folderChoice)).id : await defaultFolderId(drive, settings.driveRootFolderId!);
     sheetId = (await sheets.getSpreadsheet(cfg.spreadsheetId)).tabs.find((t) => t.title === cfg.tab)?.sheetId;
   } catch (e) {
-    return { ok: false, message: describeGoogleError(e, clientEmail) };
+    // getFolder báo lỗi thư mục bằng Error thường (không phải lỗi chia sẻ sheet).
+    return { ok: false, message: e instanceof Error && !(e as { status?: number }).status ? e.message : describeGoogleError(e, clientEmail) };
   }
   if (sheetId === undefined) return { ok: false, message: `Không còn trang tính "${cfg.tab}" trong file.` };
   const plan = planRuns({ cfg, sheetId, folderId, batchExtra: "", stamp: fileStamp(new Date()), template, shirtTemplate, rows, edits: new Map() });
@@ -67,7 +71,13 @@ export async function planForRows(
 }
 
 /** Quét lại, kiểm tra lựa chọn, giới hạn ngày, rồi tạo lô (chưa chạy). */
-export async function quickCreateBatch(deps: QuickDeps, cfg: SheetConfig, selected: number[], overwrite: Set<number>): Promise<QuickResult> {
+export async function quickCreateBatch(
+  deps: QuickDeps,
+  cfg: SheetConfig,
+  selected: number[],
+  overwrite: Set<number>,
+  folderChoice?: string,
+): Promise<QuickResult> {
   const { db, sheets, drive, clientEmail } = deps;
   if (selected.length === 0) return { ok: false, message: "Chưa chọn dòng nào." };
   const quota = getDailyQuota(db);
@@ -91,7 +101,7 @@ export async function quickCreateBatch(deps: QuickDeps, cfg: SheetConfig, select
   if (rows.length === 0) {
     return { ok: false, message: `Không còn dòng nào chạy được: ${rejected.map((r) => `dòng ${r.row} (${r.why})`).join("; ")}.` };
   }
-  const plan = await planForRows(deps, cfg, rows);
+  const plan = await planForRows(deps, cfg, rows, folderChoice);
   if (!plan.ok) return plan;
   const batchId = insertBatch(db, { cfg, folderId: plan.folderId, batchExtra: "", runs: plan.runs });
   return { ok: true, batchId, runs: plan.runs, rejected, scanned };

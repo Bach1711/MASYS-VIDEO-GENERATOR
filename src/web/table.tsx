@@ -8,8 +8,10 @@ import type { AppConfig } from "../config.js";
 import type { DB } from "../db/index.js";
 import { activeBatch } from "../db/history.js";
 import { getDailyQuota } from "../db/quota.js";
+import { getSettings } from "../db/settings.js";
+import { normalizeHeader } from "../google/mapping.js";
 import { fillMissingTitles, getSheetConfig, listSheetConfigs, sheetName, type SheetConfig } from "../db/sheetConfigs.js";
-import type { DriveClient } from "../google/drive.js";
+import { parseDriveLink, type DriveClient, type DriveFolder } from "../google/drive.js";
 import { describeGoogleError } from "../google/errors.js";
 import type { SheetsClient } from "../google/sheets.js";
 import { logger } from "../logger.js";
@@ -34,8 +36,11 @@ export interface TableDeps {
   runner?: BatchRunner;
 }
 
-/** Cookie nhớ sheet/tab dùng lần trước. */
+/** Cookie nhớ sheet/tab và thư mục lưu video dùng lần trước. */
 const COOKIE = "masys_bang";
+const FOLDER_COOKIE = "masys_folder";
+const YEAR = 60 * 60 * 24 * 365;
+const DRIVE_ID = /^[A-Za-z0-9_-]{10,}$/;
 export const tableUrl = (id: string, tab: string, extra = "") => `/?id=${encodeURIComponent(id)}&tab=${encodeURIComponent(tab)}${extra}`;
 const driveView = (fileId: string) => `https://drive.google.com/file/d/${fileId}/view`;
 
@@ -178,11 +183,21 @@ const CLIENT_JS = `
   });
   var none = document.getElementById("clearSel");
   if (none) none.addEventListener("click", function () { rows.forEach(function (tr) { sel(tr).checked = false; }); update(); });
+  var folder = document.getElementById("folder"), folderLink = document.getElementById("folderLink");
+  function folderValue() {
+    if (!folder) return "";
+    return folder.value === "__link" ? folderLink.value.trim() : folder.value;
+  }
+  if (folder) folder.addEventListener("change", function () {
+    folderLink.hidden = folder.value !== "__link";
+    if (!folderLink.hidden) folderLink.focus();
+    document.querySelectorAll("details.preview").forEach(function (d) { delete d.dataset.loaded; d.open = false; });
+  });
   document.querySelectorAll("details.preview").forEach(function (d) {
     d.addEventListener("toggle", function () {
       if (!d.open || d.dataset.loaded) return;
       d.dataset.loaded = "1";
-      fetch(page.dataset.preview + "&row=" + d.dataset.row).then(function (r) { return r.text(); })
+      fetch(page.dataset.preview + "&row=" + d.dataset.row + "&folder=" + encodeURIComponent(folderValue())).then(function (r) { return r.text(); })
         .then(function (t) { d.querySelector("pre").textContent = t; }, function () { d.querySelector("pre").textContent = "Không tải được."; });
     });
   });
@@ -209,6 +224,34 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
   const page = (title: string, body: Child) => "<!doctype html>" + <Layout title={title} hideStatus>{body}</Layout>;
   const quick = sheets && drive ? { db, sheets, drive, clientEmail } : undefined;
 
+  /**
+   * Thư mục cho ô "Lưu video vào": thư mục gốc và các thư mục con, cộng thư mục dán link lần trước.
+   * Chọn sẵn: lần trước, không có thì thư mục con "Video", không có nữa thì thư mục gốc.
+   */
+  async function folderChoices(c: Context): Promise<{ options: (DriveFolder & { label: string })[]; selected?: string; problem?: string }> {
+    const root = getSettings(db).driveRootFolderId;
+    const last = getCookie(c, FOLDER_COOKIE);
+    const options: (DriveFolder & { label: string })[] = [];
+    let problem: string | undefined;
+    if (root && drive) {
+      try {
+        const r = await drive.getFolder(root);
+        options.push({ ...r, label: r.name + " (thư mục gốc)" }, ...(await drive.listFolders(root)).map((f) => ({ ...f, label: r.name + " / " + f.name })));
+      } catch (e) {
+        problem = `Không đọc được thư mục Drive gốc: ${e instanceof Error ? e.message : String(e)}`;
+      }
+    }
+    if (last && DRIVE_ID.test(last) && !options.some((o) => o.id === last) && drive) {
+      try {
+        const f = await drive.getFolder(last);
+        options.push({ ...f, label: f.name });
+      } catch {}
+    }
+    const video = options.find((o) => o.id !== root && normalizeHeader(o.name) === "video");
+    const selected = options.find((o) => o.id === last)?.id ?? video?.id ?? options[0]?.id;
+    return { options, selected, problem };
+  }
+
   /** Sheet/tab đang xem: theo địa chỉ, rồi theo lần dùng trước, rồi tab đầu tiên đã kết nối. */
   function pickConfig(c: Context): SheetConfig | undefined {
     const id = c.req.query("id");
@@ -228,7 +271,8 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
     const configs = listSheetConfigs(db);
     const cfg = pickConfig(c);
     if (!cfg) return fallback(c);
-    setCookie(c, COOKIE, JSON.stringify([cfg.spreadsheetId, cfg.tab]), { path: "/", maxAge: 60 * 60 * 24 * 365, sameSite: "Lax" });
+    setCookie(c, COOKIE, JSON.stringify([cfg.spreadsheetId, cfg.tab]), { path: "/", maxAge: YEAR, sameSite: "Lax" });
+    const folders = await folderChoices(c);
 
     const quota = getDailyQuota(db);
     const active = activeBatch(db);
@@ -302,6 +346,7 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
               </table>
             </div>
           )}
+          {folders.problem && <Alert kind="warn">{folders.problem} Sửa ở ⚙ Nâng cao → Cài đặt, hoặc dán link thư mục ở ô "Lưu video vào".</Alert>}
           <form
             id="run"
             method="post"
@@ -321,6 +366,20 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
                 Bỏ chọn
               </button>
             </div>
+            <div class="folder-pick">
+              <label for="folder" class="inline-label">Lưu video vào</label>
+              <select id="folder" name="folder">
+                {folders.options.map((f) => (
+                  <option value={f.id} selected={f.id === folders.selected}>
+                    📁 {f.label}
+                  </option>
+                ))}
+                <option value="__link" selected={!folders.selected}>
+                  Dán link thư mục khác…
+                </option>
+              </select>
+              <input id="folderLink" name="folderLink" type="text" placeholder="https://drive.google.com/drive/folders/…" hidden={!!folders.selected} />
+            </div>
             <div class="run-right">
               <span id="runMsg" class="small warn-text" aria-live="polite">
                 {blocked && (runner ? (paused ? "Có lô đang tạm dừng: bấm Tiếp tục hoặc Huỷ ở trên trước." : "Đang tạo video, đợi xong rồi chọn tiếp.") : "Chưa sẵn sàng chạy bot.")}
@@ -334,6 +393,24 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
         </div>,
       ),
     );
+  });
+
+  /** Thư mục chọn ở ô "Lưu video vào": mã thư mục, hoặc link dán vào khi chọn "Dán link thư mục khác…". */
+  function readFolder(value: string, link: string): { id: string } | { error: string } | undefined {
+    if (value === "__link") {
+      const parsed = parseDriveLink(link.trim());
+      if (!link.trim()) return { error: "Chưa dán link thư mục Drive lưu video." };
+      if (parsed?.kind !== "folder") return { error: "Link thư mục không đúng dạng https://drive.google.com/drive/folders/…" };
+      return { id: parsed.id };
+    }
+    if (!value) return undefined;
+    return DRIVE_ID.test(value) ? { id: value } : { error: "Thư mục lưu video không hợp lệ." };
+  }
+
+  // "+ Thêm sheet": mở trang Kết nối sheet, lưu xong quay về Bảng.
+  app.get("/bang/them-sheet", (c) => {
+    setCookie(c, "masys_back", "bang", { path: "/", maxAge: 60 * 60, sameSite: "Lax" });
+    return c.redirect("/sheets", 303);
   });
 
   app.get("/bang/state", async (c) => {
@@ -354,7 +431,9 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
       // Chỉ cần chữ trong sheet để ghép yêu cầu, không kiểm tra ảnh trên Drive.
       const r = labelRows(await quick.sheets.readTab(cfg.spreadsheetId, cfg.tab), cfg, new Map()).find((x) => x.row === row);
       if (!r) return c.text(`Dòng ${row} không còn dữ liệu.`, 404);
-      const plan = await planForRows(quick, cfg, [r]);
+      const folder = readFolder(c.req.query("folder") ?? "", "");
+      if (folder && "error" in folder) return c.text(folder.error, 400);
+      const plan = await planForRows(quick, cfg, [r], folder?.id);
       return c.text(plan.ok ? plan.runs[0]!.requestText : plan.message);
     } catch (e) {
       return c.text(describeGoogleError(e, clientEmail), 502);
@@ -373,8 +452,11 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
     const active = activeBatch(db);
     if (active) return back(`&msg=${encodeURIComponent(`Lô #${active.id} chưa xong. Đợi xong (hoặc Tiếp tục / Huỷ lô đang tạm dừng) rồi tạo video tiếp.`)}`);
 
-    const r = await quickCreateBatch(quick, cfg, nums(body.row), new Set(nums(body.overwrite)));
+    const folder = readFolder(typeof body.folder === "string" ? body.folder : "", typeof body.folderLink === "string" ? body.folderLink : "");
+    if (folder && "error" in folder) return back(`&msg=${encodeURIComponent(folder.error)}`);
+    const r = await quickCreateBatch(quick, cfg, nums(body.row), new Set(nums(body.overwrite)), folder?.id);
     if (!r.ok) return back(`&msg=${encodeURIComponent(r.message)}`);
+    if (folder) setCookie(c, FOLDER_COOKIE, folder.id, { path: "/", maxAge: YEAR, sameSite: "Lax" });
     logger.info({ batchId: r.batchId, spreadsheetId: id, tab, rows: r.runs.map((x) => x.row) }, "Đã tạo lô từ Bảng");
     const started = runner.start(r.batchId);
     if (!started.ok) return back(`&msg=${encodeURIComponent(started.message)}`);
@@ -444,6 +526,9 @@ function TableHeader(props: {
         </select>
         <a class="button secondary" href={tableUrl(cfg.spreadsheetId, cfg.tab)} title="Đọc lại sheet">
           🔄 Làm mới
+        </a>
+        <a class="button secondary" href="/bang/them-sheet" title="Kết nối thêm một file sheet hoặc trang tính">
+          + Thêm sheet
         </a>
       </form>
       <div class="row small">

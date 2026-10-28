@@ -1,4 +1,5 @@
 import type { Hono } from "hono";
+import { deleteCookie, getCookie } from "hono/cookie";
 import type { Child } from "hono/jsx";
 import type { AppConfig } from "../config.js";
 import type { DB } from "../db/index.js";
@@ -190,6 +191,11 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
     }
     saveSheetConfig(db, cfg);
     logger.info({ spreadsheetId: cfg.spreadsheetId, tab: cfg.tab }, "Đã lưu ánh xạ cột");
+    // Vào từ nút "+ Thêm sheet" trên Bảng: lưu xong quay về Bảng với trang tính vừa thêm.
+    if (getCookie(c, "masys_back") === "bang") {
+      deleteCookie(c, "masys_back", { path: "/" });
+      return c.redirect(`/?id=${encodeURIComponent(cfg.spreadsheetId)}&tab=${encodeURIComponent(cfg.tab)}&ok=${encodeURIComponent(`Đã thêm trang tính "${cfg.tab}".`)}`, 303);
+    }
     return c.redirect(`/sheets?saved=${encodeURIComponent(cfg.tab)}`, 303);
   });
 

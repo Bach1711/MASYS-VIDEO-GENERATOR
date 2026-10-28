@@ -9,9 +9,11 @@ Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được �
 - Mở tool là thấy ngay **Bảng**: giống trang tính trong Google Sheet, có ảnh người mẫu, ảnh áo, prompt, video (bấm **▶ Xem**) và trạng thái từng dòng. Không cần mở sheet hay Drive nữa.
 - Tích chọn dòng (hoặc **☑ Chọn mọi dòng chưa có video**) rồi bấm **▶ Tạo video**. Tool tạo lô và chạy luôn, không còn các bước Chuẩn bị lô, Xem trước, Bắt đầu.
 - Đang chạy: dòng nào đang gửi, đang chờ Muse, xong hay lỗi hiện ngay trên bảng; video xong hiện luôn. Có nút **Tạm dừng**, **Tiếp tục**, **Huỷ**. Cần đăng nhập Muse thì bảng nói rõ phải làm gì.
+- **Lưu video vào:** chọn thư mục Drive ngay cạnh nút Tạo video (các thư mục con trong thư mục gốc, hoặc dán link thư mục khác). Mặc định là thư mục con "Video"; tool nhớ thư mục bạn dùng lần trước.
+- **+ Thêm sheet:** kết nối thêm file sheet hoặc trang tính, lưu xong tự quay về Bảng. Đổi giữa các sheet ở ô chọn trên cùng.
 - Muốn xem câu gửi Muse của một dòng: bấm **Xem yêu cầu gửi Muse**.
 - Các trang cũ (Kết nối sheet, Lịch sử lô, Nhật ký, Bot Muse, Cài đặt…) gom vào nút **⚙ Nâng cao** ở góc trên.
-- Sửa lỗi ảnh thu nhỏ đôi khi hiện ô xám khi nhiều dòng dùng chung một ảnh.
+- Sửa lỗi ảnh thu nhỏ đôi khi hiện ô xám khi nhiều dòng dùng chung một ảnh, và chữ trong tool hiện sai phông.
 
 ## v1.1.2
 

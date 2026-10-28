@@ -17,6 +17,8 @@ const ID = "1n8HgHWnmVQocIxycDJpXxldIEt4gnvvmiZ631LnOhSg";
 const TAB = "Trang tính1";
 const ROOT = "1eTZ0IlgShDhv4wMfH6OZ1Uwo5ve9GIOB";
 const VIDEO = "1ktAlBSjKy-C_uZfgBnTe_yWcmIShHLSI";
+const KENH2 = "1KENH2folderxxxxxxxxxxxxxxxxx";
+const NGOAI = "1NGOAIfolderxxxxxxxxxxxxxxxxx";
 const CFG: SheetConfig = { spreadsheetId: ID, tab: TAB, headerRow: 1, colImage: "A", colPrompt: "B", colVideo: "C", colStatus: "D", colShirt: "E" };
 const img = (id: string) => `https://drive.google.com/file/d/${id}/view`;
 
@@ -40,7 +42,7 @@ function setup(opts: { root?: string | null; noConfig?: boolean; limit?: number;
     getSpreadsheet: async () => ({ spreadsheetId: ID, title: "MASYS Video – Danh sách", tabs: [{ sheetId: 777, title: TAB, rowCount: 100, columnCount: 5 }] }),
     writeStatus: vi.fn(async () => {}),
   } as unknown as SheetsClient;
-  const folders: Record<string, string> = { [ROOT]: "MASYS Video", [VIDEO]: "Video" };
+  const folders: Record<string, string> = { [ROOT]: "MASYS Video", [VIDEO]: "Video", [KENH2]: "Kênh 2", [NGOAI]: "Thư mục ngoài" };
   const getFile = async (id: string): Promise<DriveFile> => {
     if (folders[id]) return { id, name: folders[id]!, mimeType: FOLDER_MIME, trashed: false };
     if (id.startsWith("imgimg")) return { id, name: `${id}.jpg`, mimeType: "image/jpeg", trashed: false };
@@ -49,7 +51,7 @@ function setup(opts: { root?: string | null; noConfig?: boolean; limit?: number;
   const drive = {
     getFile,
     getFolder: (id: string) => DriveClient.prototype.getFolder.call({ getFile }, id),
-    listFolders: async (parent: string) => (parent === ROOT ? [{ id: VIDEO, name: "Video" }] : []),
+    listFolders: async (parent: string) => (parent === ROOT ? [{ id: KENH2, name: "Kênh 2" }, { id: VIDEO, name: "Video" }] : []),
     thumbnail: async () => ({ contentType: "image/jpeg", data: new Uint8Array([1]) }),
   } as unknown as DriveClient;
   const config = loadConfig({
@@ -75,10 +77,16 @@ function setup(opts: { root?: string | null; noConfig?: boolean; limit?: number;
     thumbs: new ThumbnailCache(drive),
     runner: opts.runner === false ? undefined : (runner as unknown as BatchRunner),
   });
-  const run = (rows: number[], overwrite: number[] = []) =>
+  const run = (rows: number[], overwrite: number[] = [], extra: [string, string][] = []) =>
     app.request("/bang/run", {
       method: "POST",
-      body: new URLSearchParams([["id", ID], ["tab", TAB], ...rows.map((r) => ["row", String(r)] as [string, string]), ...overwrite.map((r) => ["overwrite", String(r)] as [string, string])]),
+      body: new URLSearchParams([
+        ["id", ID],
+        ["tab", TAB],
+        ...rows.map((r) => ["row", String(r)] as [string, string]),
+        ...overwrite.map((r) => ["overwrite", String(r)] as [string, string]),
+        ...extra,
+      ]),
     });
   return { app, db, sheets, runner, run, sheetGrid };
 }
@@ -147,7 +155,7 @@ describe("Bảng (CON-49)", () => {
     const a = setup({ limit: 1 });
     expect(query(await a.run([2, 3])).get("msg")).toContain("hôm nay chỉ còn 1 video");
     const b = setup({ root: null });
-    expect(query(await b.run([2])).get("msg")).toContain("Chưa đặt thư mục Drive lưu video");
+    expect(query(await b.run([2])).get("msg")).toContain("Chưa chọn thư mục Drive lưu video");
     const c = setup();
     expect(query(await c.run([])).get("msg")).toBe("Chưa chọn dòng nào.");
     for (const s of [a, b, c]) {
@@ -200,5 +208,58 @@ describe("Bảng (CON-49)", () => {
     expect(await (await app.request("/")).text()).toContain('data-blocked="1"');
     expect(query(await run([2])).get("msg")).toContain("Chưa nạp được khoá Google");
     expect((db.prepare("SELECT COUNT(*) AS n FROM batches").get() as { n: number }).n).toBe(0);
+  });
+
+  it("ô Lưu video vào: mặc định thư mục Video; chọn thư mục con khác hoặc dán link; nhớ lần trước", async () => {
+    const { app, run, db, runner } = setup();
+    const html = await (await app.request("/")).text();
+    expect(html).toContain(`<option value="${VIDEO}" selected="">📁 MASYS Video / Video`);
+    expect(html).toContain("📁 MASYS Video (thư mục gốc)");
+    expect(html).toContain("Dán link thư mục khác…");
+
+    const r1 = await run([2], [], [["folder", KENH2]]);
+    expect(getBatch(db, runner.start.mock.calls[0]![0])!.driveFolderId).toBe(KENH2);
+    expect(r1.headers.get("set-cookie")).toContain(`masys_folder=${KENH2}`);
+    // Lần sau mở Bảng, thư mục vừa dùng được chọn sẵn.
+    const again = await (await app.request("/", { headers: { cookie: `masys_folder=${KENH2}` } })).text();
+    expect(again).toContain(`<option value="${KENH2}" selected="">`);
+
+    db.prepare("UPDATE batches SET status = 'done'").run();
+    await run([3], [], [["folder", "__link"], ["folderLink", `https://drive.google.com/drive/folders/${NGOAI}?usp=sharing`]]);
+    expect(getBatch(db, runner.start.mock.calls[1]![0])!.driveFolderId).toBe(NGOAI);
+    // Thư mục ngoài dán lần trước vẫn hiện trong danh sách.
+    expect(await (await app.request("/", { headers: { cookie: `masys_folder=${NGOAI}` } })).text()).toContain("📁 Thư mục ngoài");
+  });
+
+  it("link thư mục sai hoặc không mở được: báo, không tạo lô; xem trước theo thư mục chọn", async () => {
+    const { run, db, app } = setup();
+    const msg = async (extra: [string, string][]) => query(await run([2], [], extra)).get("msg");
+    expect(await msg([["folder", "__link"], ["folderLink", "https://drive.google.com/file/d/abcdefghijk/view"]])).toContain("Link thư mục không đúng dạng");
+    expect(await msg([["folder", "__link"], ["folderLink", ""]])).toContain("Chưa dán link thư mục");
+    expect(await msg([["folder", "1KHONGCOfolderxxxxxxxxxxxxxx"]])).toContain("Không mở được thư mục");
+    expect((db.prepare("SELECT COUNT(*) AS n FROM batches").get() as { n: number }).n).toBe(0);
+    const text = await (await app.request(`/bang/preview?id=${ID}&tab=${encodeURIComponent(TAB)}&row=2&folder=${KENH2}`)).text();
+    expect(text).toContain(`https://drive.google.com/drive/folders/${KENH2}`);
+  });
+
+  it("+ Thêm sheet: mở Kết nối sheet, lưu ánh xạ xong quay về Bảng với trang tính mới", async () => {
+    const { app } = setup();
+    expect(await (await app.request("/")).text()).toContain('href="/bang/them-sheet"');
+    const go = await app.request("/bang/them-sheet");
+    expect(go.headers.get("location")).toBe("/sheets");
+    expect(go.headers.get("set-cookie")).toContain("masys_back=bang");
+    const save = (cookie: string) =>
+      app.request("/sheets/map", {
+        method: "POST",
+        headers: { cookie },
+        body: new URLSearchParams({ id: ID, tab: "Kênh 2", headerRow: "1", colImage: "A", colPrompt: "B", colVideo: "C", colStatus: "D" }),
+      });
+    const r = await save("masys_back=bang");
+    const back = new URL(r.headers.get("location")!, "http://x");
+    expect(back.pathname).toBe("/");
+    expect(back.searchParams.get("tab")).toBe("Kênh 2");
+    expect(back.searchParams.get("ok")).toBe('Đã thêm trang tính "Kênh 2".');
+    // Vào Kết nối sheet theo đường thường thì vẫn ở lại trang Kết nối sheet như cũ.
+    expect((await save("")).headers.get("location")).toBe(`/sheets?saved=${encodeURIComponent("Kênh 2")}`);
   });
 });
