@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **28/10/2026**, CON-50 — GĐ1–GĐ3 xong; GĐ4 "một màn hình" (spec v5.0): Bảng xong, sửa ngay trên Bảng chờ duyệt. File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **28/10/2026**, sau CON-50 — GĐ1–GĐ3 xong; GĐ4 "một màn hình" (spec v5.0): Bảng + sửa ngay trên Bảng xong. File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v5.0 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 15/18 ticket xong · 1 chờ duyệt · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 1/4
+**Tổng quan:** 16/18 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 2/4
 
 ```
-[■■■■■■■■□□]  15/18 — xong CON-35…CON-49 · CON-50 chờ duyệt · CON-51…52 chưa làm
+[■■■■■■■■■□]  16/18 — xong CON-35…CON-50 · CON-51…52 chưa làm
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -97,7 +97,7 @@ flowchart LR
     class placing done
     class logo done
     class bang done
-    class edit review
+    class edit done
     class quick,twoside todo
     class gsheets,gdrive,chrome,muse,op ext
 ```
@@ -136,13 +136,13 @@ flowchart LR
 | # | Ticket | Nội dung | Trạng thái | PR | Hoàn thành |
 |---|---|---|---|---|---|
 | 15 | [CON-49](https://linear.app/conducdaudan/issue/CON-49) | Màn hình Bảng + một nút Tạo video (v1.2.0) | 🟩 Xong | [#17](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/17) | 28/10/2026 |
-| 16 | [CON-50](https://linear.app/conducdaudan/issue/CON-50) | Sửa ngay trên Bảng: prompt, link ảnh, dải prompt, thêm dòng (v1.3.0) | 🟦 Chờ duyệt | [#18](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/18) | |
+| 16 | [CON-50](https://linear.app/conducdaudan/issue/CON-50) | Sửa ngay trên Bảng: prompt, link ảnh, dải prompt, thêm dòng (v1.3.0) | 🟩 Xong | [#18](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/18) | 28/10/2026 |
 | 17 | [CON-51](https://linear.app/conducdaudan/issue/CON-51) | Bắt đầu nhanh và hướng dẫn gọn (v1.4.0) | ⬜ Chưa làm | | |
 | 18 | [CON-52](https://linear.app/conducdaudan/issue/CON-52) | Áo hai mặt (chờ thử tay trên Muse) | ⬜ Chưa làm | | |
 
 ## Nhật ký cập nhật
 
-- **28/10/2026 · CON-50** (chờ duyệt): **sửa ngay trên Bảng** (spec v5.0 mục 16.3, D18). Nút **✎** (ô trống: **+**) ở prompt, ảnh người mẫu, ảnh áo → **Lưu lên sheet**. Trước khi ghi tool đọc lại ô: khác giá trị lúc bắt đầu sửa → không ghi, báo *"Ô này vừa được người khác sửa"* và hiện giá trị mới (bấm Lưu lần nữa để ghi đè có chủ ý); ô là công thức → không ghi. Link ảnh kiểm tra như F3 trước khi ghi. **+ Thêm dòng** ghi vào dòng trống đầu tiên sau dòng có dữ liệu cuối (ở bất kỳ cột nào), tab hết dòng thì thêm dòng trống vào cuối tab. **Dải prompt ▾**: áp cho các dòng (*3-6, 9*, sẵn các dòng đang tích) hoặc dải xuống tới dòng cuối; báo *"Sẽ thay prompt của N dòng"* để xác nhận; bỏ qua dòng đang tạo video / đã có video (trừ khi tích) / đã cùng prompt; dòng bị sửa giữa lúc xem trước và lúc ghi thì không ghi. Dòng đang trong lô khoá sửa (không có ✎). Ghi bằng một lệnh `values.batchUpdate` RAW, chỉ cột Prompt / Ảnh / Ảnh áo, Google phải xác nhận đúng từng ô; ô Video / Trạng thái bị chặn ngay trong `SheetsClient`. Mỗi ô ghi vào bảng SQLite mới `sheet_edits` (migration chỉ thêm) và hiện ở **Nhật ký → Ô đã sửa từ Bảng**. Bot khi so bản chụp tab bỏ qua ô tool vừa ghi theo yêu cầu người dùng (nếu ô còn đúng giá trị đó), nên sửa dòng khác trên Bảng lúc lô chạy không làm lô dừng nhầm vì "Muse sửa ô khác". CLAUDE.md cập nhật quy tắc ghi sheet theo D18. Đã thử với sheet thật trên tab thử **"Thử CON-50"** (người phụ trách cho phép tool tạo): thêm 2 dòng, sửa prompt, xung đột, link sai, dải prompt; tab `Trang tính1` không bị ghi; chụp màn hình sáng/tối.
+- **28/10/2026 · CON-50** (xong, đã duyệt và gộp vào main): **sửa ngay trên Bảng** (spec v5.0 mục 16.3, D18). Nút **✎** (ô trống: **+**) ở prompt, ảnh người mẫu, ảnh áo → **Lưu lên sheet**. Trước khi ghi tool đọc lại ô: khác giá trị lúc bắt đầu sửa → không ghi, báo *"Ô này vừa được người khác sửa"* và hiện giá trị mới (bấm Lưu lần nữa để ghi đè có chủ ý); ô là công thức → không ghi. Link ảnh kiểm tra như F3 trước khi ghi. **+ Thêm dòng** ghi vào dòng trống đầu tiên sau dòng có dữ liệu cuối (ở bất kỳ cột nào), tab hết dòng thì thêm dòng trống vào cuối tab. **Dải prompt ▾**: áp cho các dòng (*3-6, 9*, sẵn các dòng đang tích) hoặc dải xuống tới dòng cuối; báo *"Sẽ thay prompt của N dòng"* để xác nhận; bỏ qua dòng đang tạo video / đã có video (trừ khi tích) / đã cùng prompt; dòng bị sửa giữa lúc xem trước và lúc ghi thì không ghi. Dòng đang trong lô khoá sửa (không có ✎). Ghi bằng một lệnh `values.batchUpdate` RAW, chỉ cột Prompt / Ảnh / Ảnh áo, Google phải xác nhận đúng từng ô; ô Video / Trạng thái bị chặn ngay trong `SheetsClient`. Mỗi ô ghi vào bảng SQLite mới `sheet_edits` (migration chỉ thêm) và hiện ở **Nhật ký → Ô đã sửa từ Bảng**. Bot khi so bản chụp tab bỏ qua ô tool vừa ghi theo yêu cầu người dùng (nếu ô còn đúng giá trị đó), nên sửa dòng khác trên Bảng lúc lô chạy không làm lô dừng nhầm vì "Muse sửa ô khác". CLAUDE.md cập nhật quy tắc ghi sheet theo D18. Đã thử với sheet thật trên tab thử **"Thử CON-50"** (người phụ trách cho phép tool tạo): thêm 2 dòng, sửa prompt, xung đột, link sai, dải prompt; tab `Trang tính1` không bị ghi; chụp màn hình sáng/tối.
 
 - **28/10/2026 · CON-49** (xong, đã duyệt và gộp vào main): **màn hình Bảng** theo góp ý của đội ("giao diện nhiều nút, hướng dẫn dài"), spec **v5.0** (mục 16, D17–D20). Trang chủ là bảng đọc từ tab sheet (nhớ tab dùng lần trước): ảnh người mẫu + ảnh áo (bấm xem lớn), prompt, video ▶, nhãn trạng thái. Tích chọn / **Chọn mọi dòng chưa có video** (không vượt số còn lại hôm nay) → **Tạo video** tạo lô với mặc định (thư mục con "Video" trong thư mục gốc, mẫu trong Cài đặt, prompt trong sheet) và chạy luôn; mọi kiểm tra cũ giữ nguyên (quét lại, Ghi đè D10, giới hạn ngày D13, không chạy chồng lô). Trạng thái từng lượt hiện trên bảng; bảng tự làm mới (5 giây khi chạy, 30 giây khi rảnh; sheet đổi mà đang chọn dòng thì chỉ báo). Tạm dừng / Tiếp tục / Huỷ và báo "đăng nhập Muse rồi bấm Tiếp tục" ngay trên bảng. Xem yêu cầu gửi Muse từng dòng (tải khi bấm). Theo góp ý người phụ trách khi duyệt: ô **Lưu video vào** (thư mục con trong thư mục gốc hoặc dán link, nhớ lần trước bằng cookie) và **+ Thêm sheet** (Kết nối sheet, lưu xong quay về Bảng). Trang cũ vào **⚙ Nâng cao**. Sửa thêm: ảnh thu nhỏ tải trùng khi nhiều dòng chung một ảnh (đôi khi ô xám); dấu nháy trong CSS bị mã hoá nên phông Segoe UI không áp dụng. Đã thử **chỉ đọc** với sheet thật (20 dòng, có ảnh áo dòng 5), chụp màn hình sáng/tối.
 
