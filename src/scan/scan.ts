@@ -40,14 +40,16 @@ function describeDriveError(e: unknown): string {
   return `Không kiểm tra được ảnh: ${(e as Error).message}`;
 }
 
-/** F3: đọc toàn tab, kiểm tra từng file ảnh trên Drive (D14), gắn nhãn từng dòng. */
+/** F3: đọc toàn tab, kiểm tra từng file ảnh (người mẫu và ảnh áo) trên Drive (D14), gắn nhãn từng dòng. */
 export async function scanTab(sheets: SheetsClient, drive: DriveClient, cfg: SheetConfig): Promise<ScanResult> {
   const grid = await sheets.readTab(cfg.spreadsheetId, cfg.tab);
-  const imageCol = columnIndex(cfg.colImage);
+  const imageCols = [cfg.colImage, cfg.colShirt].filter((c): c is string => !!c).map(columnIndex);
   const ids = new Set<string>();
   for (let i = cfg.headerRow; i < grid.length; i++) {
-    const id = imageFileIdOf(grid[i]?.[imageCol] ?? "");
-    if (id) ids.add(id);
+    for (const col of imageCols) {
+      const id = imageFileIdOf((grid[i]?.[col] ?? "").trim());
+      if (id) ids.add(id);
+    }
   }
 
   const checks = new Map<string, ImageCheck>();

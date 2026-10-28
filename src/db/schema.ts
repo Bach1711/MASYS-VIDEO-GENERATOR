@@ -79,4 +79,9 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE settings ADD COLUMN lastRunVersion TEXT;
   `,
+  // 5: ghép ảnh áo (CON-46, spec v4.4). Cột Ảnh áo tuỳ chọn (NULL = không có); đoạn ghép áo (NULL = mẫu gốc).
+  `
+  ALTER TABLE sheet_configs ADD COLUMN colShirt TEXT;
+  ALTER TABLE settings ADD COLUMN shirtTemplate TEXT;
+  `,
 ];

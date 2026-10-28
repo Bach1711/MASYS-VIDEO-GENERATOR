@@ -3,7 +3,17 @@ import type { Context, Hono } from "hono";
 import type { Child } from "hono/jsx";
 import { activeRows, insertBatch, planRuns, type PlannedRun, type RowEdit } from "../batch/create.js";
 import { checkSelection } from "../batch/selection.js";
-import { DEFAULT_TEMPLATE, fileStamp, folderLink, isFileStamp, validateTemplate } from "../batch/template.js";
+import {
+  DEFAULT_SHIRT_TEMPLATE,
+  DEFAULT_TEMPLATE,
+  fileStamp,
+  folderLink,
+  isFileStamp,
+  lacksShirtSlot,
+  NO_SHIRT_SLOT_WARNING,
+  validateShirtTemplate,
+  validateTemplate,
+} from "../batch/template.js";
 import { getDailyQuota } from "../db/quota.js";
 import { getSettings } from "../db/settings.js";
 import { getSheetConfig, sheetName, type SheetConfig } from "../db/sheetConfigs.js";
@@ -215,6 +225,13 @@ export function registerBatchRoutes(app: Hono, deps: ScanDeps) {
     const template = settings.requestTemplate ?? DEFAULT_TEMPLATE;
     const templateProblems = validateTemplate(template);
     if (templateProblems.length) errors.push(`Mẫu yêu cầu đang lỗi (sửa ở Cài đặt): ${templateProblems.join(" ")}`);
+    const shirtTemplate = settings.shirtTemplate ?? DEFAULT_SHIRT_TEMPLATE;
+    const hasShirt = rows.some((r) => r.shirt);
+    if (hasShirt) {
+      const shirtProblems = validateShirtTemplate(shirtTemplate);
+      if (shirtProblems.length) errors.push(`Đoạn ghép áo đang lỗi (sửa ở Cài đặt): ${shirtProblems.join(" ")}`);
+    }
+    const shirtWarning = hasShirt && lacksShirtSlot(template) ? NO_SHIRT_SLOT_WARNING : undefined;
 
     let sheetId: number | undefined;
     try {
@@ -225,7 +242,7 @@ export function registerBatchRoutes(app: Hono, deps: ScanDeps) {
     }
     if (errors.length || !folder || sheetId === undefined) return editPage(errors);
 
-    const plan = planRuns({ cfg, sheetId, folderId: folder.id, batchExtra: f.batchExtra, stamp: f.stamp, template, rows, edits: f.edits });
+    const plan = planRuns({ cfg, sheetId, folderId: folder.id, batchExtra: f.batchExtra, stamp: f.stamp, template, shirtTemplate, rows, edits: f.edits });
     if (plan.problems.length) return editPage(plan.problems);
     const currentDigest = digest(plan.runs, folder.id);
 
@@ -244,6 +261,7 @@ export function registerBatchRoutes(app: Hono, deps: ScanDeps) {
               <>
                 <QuotaBox quota={quota} />
                 {rejectedNote}
+                {shirtWarning && <Alert kind="warn">{shirtWarning}</Alert>}
                 {warning && <Alert kind="warn">{warning}</Alert>}
               </>
             }
@@ -319,10 +337,15 @@ function EditForm(props: {
             <div class="card row-card">
               <div class="row-head">
                 {props.hasThumb(r.imageFileId) && <img class="thumb" src={`/thumb/${r.imageFileId}`} alt={`Ảnh dòng ${r.row}`} width="64" height="64" />}
+                {props.hasThumb(r.shirtFileId) && (
+                  <img class="thumb" src={`/thumb/${r.shirtFileId}`} alt={`Ảnh áo dòng ${r.row}`} width="64" height="64" />
+                )}
                 <div>
                   <strong>Dòng {r.row}</strong>
                   {r.label === "has_video" && <span class="badge b-has_video"> Ghi đè</span>}
+                  {r.shirt && <span class="badge b-ready"> Ghép áo</span>}
                   <div class="muted small">{truncate(r.image, 80)}</div>
+                  {r.shirt && <div class="muted small">Ảnh áo: {truncate(r.shirt, 80)}</div>}
                 </div>
               </div>
               <label for={`prompt_${r.row}`}>Prompt</label>

@@ -30,6 +30,7 @@ const DRIVE_FILE_ID = /^[A-Za-z0-9_-]{10,}$/;
 function RowView(props: { r: ScannedRow; cfg: SheetConfig; thumbs?: ThumbnailCache }) {
   const { r, cfg, thumbs } = props;
   const thumb = r.imageFileId && thumbs?.isKnown(r.imageFileId);
+  const shirtThumb = r.shirtFileId && thumbs?.isKnown(r.shirtFileId);
   return (
     <tr data-row={String(r.row)} data-label={r.label}>
       <td>
@@ -37,11 +38,16 @@ function RowView(props: { r: ScannedRow; cfg: SheetConfig; thumbs?: ThumbnailCac
       </td>
       <td>{r.row}</td>
       <td>
-        {thumb ? (
-          <img class="thumb" src={`/thumb/${r.imageFileId}`} alt={`Ảnh dòng ${r.row}`} loading="lazy" width="64" height="64" />
-        ) : (
-          <span class="muted">—</span>
-        )}
+        <div class="thumbs">
+          {thumb ? (
+            <img class="thumb" src={`/thumb/${r.imageFileId}`} alt={`Ảnh dòng ${r.row}`} title="Ảnh người mẫu" loading="lazy" width="64" height="64" />
+          ) : (
+            <span class="muted">—</span>
+          )}
+          {shirtThumb && (
+            <img class="thumb" src={`/thumb/${r.shirtFileId}`} alt={`Ảnh áo dòng ${r.row}`} title="Ảnh áo" loading="lazy" width="64" height="64" />
+          )}
+        </div>
       </td>
       <td class="prompt" title={r.prompt}>
         {r.prompt ? truncate(r.prompt, 160) : <span class="muted">(trống)</span>}

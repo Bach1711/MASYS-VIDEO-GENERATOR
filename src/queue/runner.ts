@@ -92,6 +92,8 @@ interface BatchRow {
 
 interface InputSnapshot {
   image: string;
+  /** Không có ở lượt tạo trước v1.1.0 (CON-46): khi đó bỏ qua việc so ảnh áo. */
+  shirt?: string;
   prompt: string;
   video: string;
   status: string;
@@ -266,9 +268,10 @@ export class BatchRunner {
       moveRun(this.db, run.id, "checking_row", "queued", `Không đọc được sheet: ${errText(e)}`);
       return { pause: "google" };
     }
-    if (current.image !== snap.image || current.prompt !== snap.prompt) {
+    const shirtChanged = snap.shirt !== undefined && current.shirt !== snap.shirt;
+    if (current.image !== snap.image || current.prompt !== snap.prompt || shirtChanged) {
       // Không ghi sheet: dòng N giờ có thể là của sản phẩm khác.
-      moveRun(this.db, run.id, "checking_row", "needs_review", "Ảnh hoặc prompt dòng này khác lúc tạo lô (lệch dòng)", {
+      moveRun(this.db, run.id, "checking_row", "needs_review", "Ảnh, ảnh áo hoặc prompt dòng này khác lúc tạo lô (lệch dòng)", {
         error: "lệch dòng",
         doneAt: now(),
       });
@@ -494,7 +497,13 @@ export class BatchRunner {
 
 function pick(row: string[], cfg: SheetConfig): InputSnapshot {
   const get = (col: string) => (row[columnIndex(col)] ?? "").trim();
-  return { image: get(cfg.colImage), prompt: get(cfg.colPrompt), video: get(cfg.colVideo), status: get(cfg.colStatus) };
+  return {
+    image: get(cfg.colImage),
+    shirt: cfg.colShirt ? get(cfg.colShirt) : "",
+    prompt: get(cfg.colPrompt),
+    video: get(cfg.colVideo),
+    status: get(cfg.colStatus),
+  };
 }
 
 function now(): string {

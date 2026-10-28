@@ -59,6 +59,7 @@ export function Layout(props: { title: string; children: Child }) {
           .warn-text { color:var(--warn-fg); }
           table.scan td { vertical-align:top; }
           td.prompt { max-width:380px; font-size:.92rem; }
+          .thumbs { display:flex; gap:4px; }
           img.thumb { width:64px; height:64px; object-fit:cover; border-radius:4px; background:var(--border); display:block; }
           .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:.85rem; white-space:nowrap; }
           .b-ready { background:var(--ok-bg); color:var(--ok-fg); }

@@ -318,6 +318,26 @@ describe("hàng đợi chạy lô (F5, §7)", () => {
     expect(t.writes.filter((w) => w.startsWith("D3"))).toEqual([]);
   });
 
+  it("ghép áo (CON-46): ảnh áo đổi so với lúc tạo lô → Cần xem; lượt tạo trước v1.1.0 (không lưu ảnh áo) thì không so", async () => {
+    const t = setup();
+    saveSheetConfig(t.db, { ...CFG, colShirt: "E" });
+    t.set("E2", img(8));
+    t.set("E3", img(9));
+    const id = createBatch(t.db, t.grid, [2, 3]);
+    // Dòng 2 giả làm lượt tạo trước v1.1.0: inputSnapshot không có shirt.
+    // Dòng 3 lưu ảnh áo lúc tạo lô, rồi ảnh áo bị đổi.
+    t.db.prepare("UPDATE runs SET inputSnapshot = json_set(inputSnapshot, '$.shirt', ?) WHERE batchId = ? AND rowNumber = 3").run(img(9), id);
+    t.set("E2", img(7));
+    t.set("E3", img(6));
+    t.runner.start(id);
+    await t.runner.idle();
+    expect(statesOf(t.db, id)).toEqual([
+      [2, "done"],
+      [3, "needs_review"],
+    ]);
+    expect(t.sent.map((s) => s.row)).toEqual([2]);
+  });
+
   it("§12.10: tool tắt giữa lượt → mở lại không gửi lại, theo dõi tiếp; Muse dán link thì Xong; dòng sau chờ Tiếp tục", async () => {
     const t = setup();
     const id = createBatch(t.db, t.grid, [2, 3]);

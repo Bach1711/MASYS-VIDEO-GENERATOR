@@ -2,6 +2,16 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v1.1.0
+
+**Mới: ghép ảnh áo vào ảnh người mẫu rồi tạo video.**
+
+- Sheet có cột **Ảnh áo** (link Drive ảnh thiết kế áo) thì Muse ghép áo vào ảnh người mẫu trước, rồi làm video theo prompt từ ảnh vừa ghép, trong cùng một lượt. Ảnh ghép không lưu, chỉ lưu video như cũ.
+- **Kết nối sheet** có thêm ô chọn cột **Ảnh áo** (tuỳ chọn, tool tự nhận tiêu đề "Ảnh áo"). Sheet đã kết nối từ trước: bấm **Sửa** ở tab đó rồi **Lưu ánh xạ** một lần.
+- **Quét và chọn dòng** hiện cả ảnh người mẫu và ảnh áo. Link ảnh áo hỏng thì dòng báo *Thiếu dữ liệu*. Ô Ảnh áo để trống thì dòng chạy như cũ.
+- **Cài đặt** có khung **Đoạn ghép áo** để sửa câu dặn Muse.
+- Nếu bạn đã tự sửa *Mẫu yêu cầu gửi Muse* trước bản này, tool sẽ nhắc thêm chỗ `{doan_ghep_ao}` (hoặc bấm *Khôi phục mẫu gốc*).
+
 ## v1.0.2
 
 Sửa lỗi cập nhật trong tool chậm và bị đứng khi mạng chập chờn.

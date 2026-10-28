@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **28/10/2026**, sau CON-45 — **hoàn thành GĐ1 và GĐ2**. File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **28/10/2026**, sau CON-46 — GĐ1, GĐ2 xong; GĐ3: ghép ảnh áo xong. File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
-> Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v4.3 · Linear: project **MASYS Video Generator**
+> Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v4.4 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 11/11 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉
+**Tổng quan:** 12/12 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 1/1 🎉
 
 ```
-[■■■■■■■■■■]  11/11 — xong CON-35…CON-45
+[■■■■■■■■■■]  12/12 — xong CON-35…CON-46
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -35,6 +35,7 @@ flowchart LR
         pack["Bản zip + Mo-MASYS.bat<br/>cài khoá Google lần đầu (DPAPI),<br/>số phiên bản<br/>CON-43"]
         update["Kiểm tra / cập nhật / quay về<br/>phiên bản (GitHub Releases)<br/>CON-44"]
         download["Tải bản mới song song,<br/>tự thử lại, tải tiếp<br/>CON-45"]
+        shirt["Ghép ảnh áo: cột Ảnh áo,<br/>ảnh thu nhỏ, đoạn ghép áo<br/>trong yêu cầu gửi Muse<br/>CON-46"]
     end
 
     subgraph EXT["Bên ngoài"]
@@ -63,6 +64,8 @@ flowchart LR
     pack -- "khoá đã mã hoá" --> secrets
     update --> pack
     update --> download
+    scan --> shirt
+    editor --> shirt
 
     classDef done fill:#c8f0c8,stroke:#2e7d32,color:#10300f
     classDef review fill:#cfe3ff,stroke:#1f5fbf,color:#0c2550
@@ -78,6 +81,7 @@ flowchart LR
     class pack done
     class update done
     class download done
+    class shirt done
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -102,7 +106,15 @@ flowchart LR
 | 10 | [CON-44](https://linear.app/conducdaudan/issue/CON-44) | Kiểm tra và cập nhật phiên bản ngay trong tool | 🟩 Xong | [#11](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/11) | 27/10/2026 |
 | 11 | [CON-45](https://linear.app/conducdaudan/issue/CON-45) | Sửa lỗi: cập nhật tải chậm / đứng khi mạng chập chờn (v1.0.2) | 🟩 Xong | [#13](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/13) | 28/10/2026 |
 
+## Bảng ticket (Giai đoạn 3 — theo góp ý của đội, spec v4.4)
+
+| # | Ticket | Nội dung | Trạng thái | PR | Hoàn thành |
+|---|---|---|---|---|---|
+| 12 | [CON-46](https://linear.app/conducdaudan/issue/CON-46) | Ghép ảnh áo vào ảnh người mẫu rồi tạo video (cột Ảnh áo, v1.1.0) | 🟩 Xong | [#14](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/14) | 28/10/2026 |
+
 ## Nhật ký cập nhật
+
+- **28/10/2026 · CON-46** (xong, đã duyệt và gộp vào main): **ghép ảnh áo** theo góp ý của đội (spec v4.4). Người phụ trách đã thử tay trên Muse: Muse ghép áo vào ảnh người mẫu rồi tạo video theo prompt trong cùng một lượt. Tool: **Kết nối sheet** thêm cột tuỳ chọn **Ảnh áo** (tự nhận tiêu đề "Ảnh áo", không lẫn với cột "Ảnh"); **Quét** hiện 2 ảnh thu nhỏ, link ảnh áo hỏng → *Thiếu dữ liệu*, ô trống → chạy như cũ; yêu cầu gửi Muse của dòng có ảnh áo có thêm **đoạn ghép áo** (phỏng theo câu người phụ trách đã thử) ngay dưới ảnh người mẫu, dòng không có thì không có; **Cài đặt** có khung **Đoạn ghép áo**; mẫu đã sửa tay mà thiếu chỗ `{doan_ghep_ao}` thì Cài đặt và Xem trước cảnh báo; trước khi gửi, ảnh áo đổi so với lúc tạo lô → *Cần xem*. Migration chỉ thêm cột. Đã thử chỉ đọc với sheet thật: tool nhận đúng cột E "Ảnh áo", đọc được ảnh áo dòng 5, xem trước đúng. Góp ý ~100 video/ngày: người phụ trách chốt để sau (đặt 50 trong Cài đặt là đủ).
 
 - **28/10/2026 · CON-45** (xong, đã duyệt và gộp vào main): **sửa lỗi cập nhật trong tool** phát hiện khi thử trên máy thứ hai (tải đứng ở 4.5/50 MB, 16 phút sau báo lỗi tiếng Anh). Nguyên nhân: GitHub giới hạn tốc độ **theo từng kết nối** (đo được khoảng 33 KB/giây mỗi kết nối), còn tool cũ tải một kết nối, không phát hiện kết nối đứng, không thử lại. Bản v1.0.2: tải **8 phần cùng lúc** rồi ghép (đo thật với GitHub: 6 kết nối ≈ 175 KB/giây, nhanh gấp khoảng 5 lần); 30 giây không nhận thêm dữ liệu thì tự ngắt và thử lại, **tải tiếp từ chỗ dừng**; vẫn hỏng thì giữ phần đã tải, bấm Cập nhật lần nữa để tải tiếp; trang cập nhật hiện tốc độ và *"Mạng chập chờn, đang thử lại (lần N/5)"*; mọi lỗi bằng tiếng Việt. Test với máy chủ giả đứng / ngắt / không hỗ trợ tải từng đoạn.
 
