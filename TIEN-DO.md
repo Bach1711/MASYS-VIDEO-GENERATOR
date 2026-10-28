@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **28/10/2026**, CON-48 (logo MASYS) chờ duyệt. File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **28/10/2026**, sau CON-48 — GĐ1, GĐ2 xong; GĐ3: ghép ảnh áo, sửa lỗi cập nhật EPERM, logo MASYS xong. File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v4.4 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 13/14 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 2/3 (CON-48 chờ duyệt)
+**Tổng quan:** 14/14 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉
 
 ```
-[■■■■■■■■■□]  13/14 — xong CON-35…CON-47 · CON-48 chờ duyệt
+[■■■■■■■■■■]  14/14 — xong CON-35…CON-48
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -87,7 +87,7 @@ flowchart LR
     class download done
     class shirt done
     class placing done
-    class logo review
+    class logo done
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -118,11 +118,11 @@ flowchart LR
 |---|---|---|---|---|---|
 | 12 | [CON-46](https://linear.app/conducdaudan/issue/CON-46) | Ghép ảnh áo vào ảnh người mẫu rồi tạo video (cột Ảnh áo, v1.1.0) | 🟩 Xong | [#14](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/14) | 28/10/2026 |
 | 13 | [CON-47](https://linear.app/conducdaudan/issue/CON-47) | Sửa lỗi: cập nhật báo EPERM khi diệt virus giữ file (v1.1.1) | 🟩 Xong | [#15](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/15) | 28/10/2026 |
-| 14 | [CON-48](https://linear.app/conducdaudan/issue/CON-48) | Thêm logo MASYS (tab Chrome, thanh trên cùng, Trang chủ), thử cập nhật từ v1.1.1 (v1.1.2) | 🟦 Chờ duyệt | [#16](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/16) | |
+| 14 | [CON-48](https://linear.app/conducdaudan/issue/CON-48) | Thêm logo MASYS (tab Chrome, thanh trên cùng, Trang chủ), thử cập nhật từ v1.1.1 (v1.1.2) | 🟩 Xong | [#16](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/16) | 28/10/2026 |
 
 ## Nhật ký cập nhật
 
-- **28/10/2026 · CON-48** (chờ duyệt): **logo MASYS** từ file người phụ trách gửi (PNG 1600×1600 nền trong suốt). Tab Chrome và thanh trên cùng dùng phần vòng tròn có nút play cắt từ logo (chữ quá nhỏ sẽ nhoè); Trang chủ có logo đầy đủ trên khung nền tối cố định (dòng "VIDEO GENERATOR" màu xanh đậm vẫn rõ ở chế độ tối). Ảnh thu nhỏ bằng `scripts/logo.mjs`, nằm sẵn trong code (`src/web/logoData.ts`, ~145 KB) nên bản zip không thêm file; đường dẫn ảnh kèm số phiên bản để Chrome lấy ảnh mới sau khi cập nhật. Bản này cũng dùng để thử cập nhật trong tool từ v1.1.1 (sau bản sửa EPERM).
+- **28/10/2026 · CON-48** (xong, đã duyệt và gộp vào main): **logo MASYS** từ file người phụ trách gửi (PNG 1600×1600 nền trong suốt). Tab Chrome và thanh trên cùng dùng phần vòng tròn có nút play cắt từ logo (chữ quá nhỏ sẽ nhoè); Trang chủ có logo đầy đủ trên khung nền tối cố định (dòng "VIDEO GENERATOR" màu xanh đậm vẫn rõ ở chế độ tối). Ảnh thu nhỏ bằng `scripts/logo.mjs`, nằm sẵn trong code (`src/web/logoData.ts`, ~145 KB) nên bản zip không thêm file; đường dẫn ảnh kèm số phiên bản để Chrome lấy ảnh mới sau khi cập nhật. Bản này cũng dùng để thử cập nhật trong tool từ v1.1.1 (sau bản sửa EPERM).
 
 - **28/10/2026 · CON-47** (xong, đã duyệt và gộp vào main): **sửa lỗi cập nhật** phát hiện trên máy thứ hai (v1.0.0 → v1.1.0: tải xong nhưng báo `EPERM: operation not permitted, rename …`). Nguyên nhân: phần mềm diệt virus quét file vừa giải nén và giữ file, nên Windows không cho đổi tên thư mục; code cũ chỉ thử một lần. Bản v1.1.1: bị giữ file thì chờ tăng dần rồi thử lại (tới ~20 giây), vẫn không được thì **sao chép** thư mục sang chỗ mới; dọn thư mục tạm / bản cũ không được thì để lần sau, không làm hỏng việc cập nhật; trang cập nhật báo đang chờ quét; lỗi bằng tiếng Việt. Đã tái hiện trên Windows (PowerShell giữ `node.exe`): đổi tên thẳng báo đúng EPERM; code mới chờ ~8 giây rồi chuyển được, giữ lâu hơn thì sao chép thành công.
 
