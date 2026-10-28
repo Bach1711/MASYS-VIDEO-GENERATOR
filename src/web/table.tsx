@@ -13,6 +13,9 @@ import { normalizeHeader } from "../google/mapping.js";
 import { fillMissingTitles, getSheetConfig, listSheetConfigs, sheetName, type SheetConfig } from "../db/sheetConfigs.js";
 import { parseDriveLink, type DriveClient, type DriveFolder } from "../google/drive.js";
 import { describeGoogleError } from "../google/errors.js";
+import { GoogleApiError } from "../google/http.js";
+import { FIELD_TEXT, type EditField } from "../db/sheetEdits.js";
+import { addRow, applyFill, CONFLICT_TEXT, editCell, isEditField, lockedRows, parseRowList, planFill, type EditDeps } from "../sheetEdit/edit.js";
 import type { SheetsClient } from "../google/sheets.js";
 import { logger } from "../logger.js";
 import { PAUSE_TEXT, type BatchRunner, type PauseReason } from "../queue/runner.js";
@@ -77,12 +80,41 @@ function Thumb(props: { fileId?: string; link: string; alt: string; known: (id?:
   return <span class="muted small">không xem được</span>;
 }
 
-function Row(props: { r: ScannedRow; run?: { state: string; error: string | null }; locked: boolean; known: (id?: string) => boolean; hasShirtCol: boolean }) {
-  const { r, run } = props;
+/** Ô sửa được trên Bảng (D18): giá trị đầy đủ nằm ở data-value để mở khung sửa; dòng đang tạo video thì không có nút ✎. */
+function EditCell(props: { field: EditField; value: string; editable: boolean; class?: string; children: Child }) {
+  const label = props.field === "prompt" ? "Sửa prompt" : props.value ? `Đổi link ${FIELD_TEXT[props.field].toLowerCase()}` : `Thêm ${FIELD_TEXT[props.field].toLowerCase()}`;
+  return (
+    <td class={props.class} data-field={props.field} data-value={props.value}>
+      <div class="cellwrap">
+        <div class="cellbody">{props.children}</div>
+        {props.editable && (
+          <button type="button" class="edit" title={label} aria-label={label}>
+            {props.field !== "prompt" && !props.value ? "+" : "✎"}
+          </button>
+        )}
+      </div>
+    </td>
+  );
+}
+
+function Row(props: {
+  r: ScannedRow;
+  run?: { state: string; error: string | null };
+  locked: boolean;
+  editable: boolean;
+  known: (id?: string) => boolean;
+  hasShirtCol: boolean;
+}) {
+  const { r, run, editable } = props;
   const inBatch = !!run;
   const selectable = r.selectable && !inBatch && !props.locked;
   return (
-    <tr data-row={String(r.row)} data-label={r.label} class={run && !["queued"].includes(run.state) ? "live" : ""}>
+    <tr
+      data-row={String(r.row)}
+      data-label={r.label}
+      class={run && !["queued"].includes(run.state) ? "live" : ""}
+      title={editable ? undefined : "Dòng đang tạo video: chưa sửa được"}
+    >
       <td>
         <input type="checkbox" class="sel" name="row" value={String(r.row)} form="run" disabled={!selectable} aria-label={`Chọn dòng ${r.row}`} />
         {r.label === "has_video" && r.canOverwrite && !inBatch && !props.locked && (
@@ -92,15 +124,15 @@ function Row(props: { r: ScannedRow; run?: { state: string; error: string | null
         )}
       </td>
       <td>{r.row}</td>
-      <td>
+      <EditCell field="image" value={r.image} editable={editable}>
         <Thumb fileId={r.imageFileId} link={r.image} alt={`Người mẫu dòng ${r.row}`} known={props.known} />
-      </td>
+      </EditCell>
       {props.hasShirtCol && (
-        <td>
+        <EditCell field="shirt" value={r.shirt} editable={editable}>
           <Thumb fileId={r.shirtFileId} link={r.shirt} alt={`Áo dòng ${r.row}`} known={props.known} />
-        </td>
+        </EditCell>
       )}
-      <td class="prompt">
+      <EditCell field="prompt" value={r.prompt} editable={editable} class="prompt">
         <div title={r.prompt}>{r.prompt ? truncate(r.prompt, 140) : <span class="muted">(trống)</span>}</div>
         {r.prompt && (
           <details class="preview" data-row={String(r.row)}>
@@ -108,7 +140,7 @@ function Row(props: { r: ScannedRow; run?: { state: string; error: string | null
             <pre class="request">Đang tải…</pre>
           </details>
         )}
-      </td>
+      </EditCell>
       <td>
         {r.video ? (
           /^https?:\/\//.test(r.video) ? (
@@ -202,13 +234,104 @@ const CLIENT_JS = `
     });
   });
   update();
+
+  // Sửa ngay trên Bảng (D18): mọi lần ghi đi qua tool, tool đọc lại ô trên sheet trước khi ghi.
+  function post(path, body) {
+    body.id = page.dataset.sheet; body.tab = page.dataset.tab;
+    return fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json(); });
+  }
+  function done(text) { location.href = page.dataset.self + "&ok=" + encodeURIComponent(text); }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
+  var LINK_HINT = "Dán link Drive của file ảnh (chia sẻ \\u201cBất kỳ ai có đường liên kết\\u201d hoặc chia sẻ cho tool). Để trống để xoá link.";
+  function openEditor(td) {
+    if (td.querySelector(".editor")) return;
+    var field = td.dataset.field, row = Number(td.closest("tr").dataset.row), expected = td.dataset.value;
+    var box = el("div", "editor");
+    var input = el(field === "prompt" ? "textarea" : "input");
+    if (field === "prompt") input.rows = 5; else { input.type = "text"; input.placeholder = "https://drive.google.com/file/d/\\u2026"; }
+    input.value = expected;
+    box.appendChild(input);
+    if (field !== "prompt") box.appendChild(el("div", "muted small", LINK_HINT));
+    var current = el("div", "small conflict"); current.hidden = true; box.appendChild(current);
+    var bar = el("div", "row"), save = el("button", "small", "Lưu lên sheet"), cancel = el("button", "secondary small", "Huỷ");
+    save.type = cancel.type = "button";
+    var msg = el("span", "small warn-text");
+    bar.appendChild(save); bar.appendChild(cancel); bar.appendChild(msg); box.appendChild(bar);
+    cancel.addEventListener("click", function () { box.remove(); });
+    save.addEventListener("click", function () {
+      save.disabled = true; msg.textContent = "Đang lưu\\u2026";
+      post("/bang/sua", { row: row, field: field, expected: expected, value: input.value }).then(function (r) {
+        if (r.ok) return r.changed ? done("Đã lưu dòng " + row + " lên sheet.") : box.remove();
+        save.disabled = false; msg.textContent = r.message;
+        if (r.conflict) { expected = r.current; current.hidden = false; current.textContent = "Trên sheet bây giờ: " + (r.current || "(trống)"); }
+      }, function () { save.disabled = false; msg.textContent = "Không kết nối được tool."; });
+    });
+    td.appendChild(box);
+    input.focus();
+  }
+  document.querySelectorAll("td[data-field] button.edit").forEach(function (b) {
+    b.addEventListener("click", function () { openEditor(b.closest("td")); });
+  });
+
+  // Thêm dòng: tool ghi vào dòng trống đầu tiên sau dòng dữ liệu cuối.
+  var addBox = document.getElementById("addBox");
+  var addOpen = document.getElementById("addOpen");
+  if (addOpen) addOpen.addEventListener("click", function () { addBox.hidden = !addBox.hidden; if (!addBox.hidden) addBox.querySelector("input, textarea").focus(); });
+  var addGo = document.getElementById("addGo");
+  if (addGo) addGo.addEventListener("click", function () {
+    var msg = document.getElementById("addMsg"), v = function (id) { var e = document.getElementById(id); return e ? e.value : ""; };
+    addGo.disabled = true; msg.textContent = "Đang thêm\\u2026";
+    post("/bang/them-dong", { image: v("addImage"), shirt: v("addShirt"), prompt: v("addPrompt") }).then(function (r) {
+      if (r.ok) return done("Đã thêm dòng " + r.row + " vào sheet.");
+      addGo.disabled = false; msg.textContent = r.message;
+    }, function () { addGo.disabled = false; msg.textContent = "Không kết nối được tool."; });
+  });
+
+  // Dải prompt: xem trước (đếm dòng sẽ thay) → xác nhận → ghi.
+  var fillBox = document.getElementById("fillBox");
+  var fillOpen = document.getElementById("fillOpen");
+  if (fillOpen) fillOpen.addEventListener("click", function () {
+    fillBox.hidden = !fillBox.hidden;
+    if (fillBox.hidden) return;
+    var picked = rows.filter(function (tr) { return sel(tr).checked; }).map(function (tr) { return tr.dataset.row; });
+    var rowsInput = document.getElementById("fillRows");
+    if (rowsInput && picked.length && !rowsInput.value) rowsInput.value = picked.join(", ");
+  });
+  var fillGo = document.getElementById("fillGo");
+  if (fillGo) fillGo.addEventListener("click", function () {
+    var msg = document.getElementById("fillMsg");
+    var body = {
+      source: Number(document.getElementById("fillSource").value),
+      mode: document.querySelector("input[name=fillMode]:checked").value,
+      rows: document.getElementById("fillRows").value,
+      includeVideo: document.getElementById("fillVideo").checked,
+    };
+    fillGo.disabled = true; msg.textContent = "Đang đọc sheet\\u2026";
+    post("/bang/dai-prompt/xem", body).then(function (r) {
+      fillGo.disabled = false;
+      if (!r.ok) { msg.textContent = r.message; return; }
+      msg.textContent = r.summary;
+      if (!r.plan.targets.length || !confirm(r.summary + "\\n\\nGhi lên sheet?")) return;
+      fillGo.disabled = true; msg.textContent = "Đang ghi\\u2026";
+      return post("/bang/dai-prompt", { prompt: r.plan.prompt, targets: r.plan.targets }).then(function (w) {
+        if (w.ok && w.written) return done(w.message);
+        fillGo.disabled = false; msg.textContent = w.message;
+      });
+    }).catch(function () { fillGo.disabled = false; msg.textContent = "Không kết nối được tool."; });
+  });
+  function editing() {
+    return !!document.querySelector(".editor") || (addBox && !addBox.hidden) || (fillBox && !fillBox.hidden);
+  }
+
   // Tự làm mới: lô đổi trạng thái → tải lại; sheet đổi → tải lại nếu chưa chọn gì, không thì báo.
+  // Đang sửa ô / thêm dòng / dải prompt thì không tải lại, chỉ báo.
   var every = page.dataset.live === "1" ? 5000 : 30000;
   function poll() {
     fetch(page.dataset.state).then(function (r) { return r.json(); }).then(function (s) {
-      if (s.batch !== page.dataset.batch) return location.reload();
+      if (s.batch !== page.dataset.batch && !editing()) return location.reload();
       if (s.data && s.data !== page.dataset.data) {
-        if (chosen() === 0 && !document.querySelector("details.preview[open]")) return location.reload();
+        if (chosen() === 0 && !document.querySelector("details.preview[open]") && !editing()) return location.reload();
         document.getElementById("stale").hidden = false;
       }
       setTimeout(poll, every);
@@ -301,6 +424,9 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
     const known = (id?: string) => !!id && !!thumbs?.isKnown(id);
     const hasShirtCol = !!cfg.colShirt;
     const ready = rows.filter((r) => r.label === "ready" && !runs.has(r.row)).length;
+    const editLocked = lockedRows(db, cfg.spreadsheetId, cfg.tab);
+    const canEdit = (r: ScannedRow) => !editLocked.has(r.row) && r.label !== "running";
+    const withPrompt = rows.filter((r) => r.prompt);
 
     return c.html(
       page(
@@ -312,6 +438,9 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
           data-data={data}
           data-state={`/bang/state?id=${encodeURIComponent(cfg.spreadsheetId)}&tab=${encodeURIComponent(cfg.tab)}`}
           data-preview={`/bang/preview?id=${encodeURIComponent(cfg.spreadsheetId)}&tab=${encodeURIComponent(cfg.tab)}`}
+          data-sheet={cfg.spreadsheetId}
+          data-tab={cfg.tab}
+          data-self={tableUrl(cfg.spreadsheetId, cfg.tab)}
         >
           {head}
           {ok && <Alert kind="ok">{ok}</Alert>}
@@ -322,7 +451,7 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
           </div>
           {rows.length === 0 ? (
             <Alert kind="warn">
-              Trang tính chưa có dòng dữ liệu nào bên dưới dòng tiêu đề {cfg.headerRow}. Thêm dòng trong Google Sheet rồi bấm 🔄.
+              Trang tính chưa có dòng dữ liệu nào bên dưới dòng tiêu đề {cfg.headerRow}. Bấm <strong>+ Thêm dòng</strong> ở dưới.
             </Alert>
           ) : (
             <div class="scroll">
@@ -340,12 +469,84 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <Row r={r} run={runs.get(r.row)} locked={blocked} known={known} hasShirtCol={hasShirtCol} />
+                    <Row r={r} run={runs.get(r.row)} locked={blocked} editable={canEdit(r)} known={known} hasShirtCol={hasShirtCol} />
                   ))}
                 </tbody>
               </table>
             </div>
           )}
+          <div class="row add-row">
+            <button type="button" id="addOpen" class="secondary">
+              + Thêm dòng
+            </button>
+            <span class="muted small">Sửa ô: bấm ✎ (hoặc + khi ô trống). Tool ghi thẳng lên Google Sheet.</span>
+          </div>
+          <div id="addBox" class="card" hidden>
+            <h2>Thêm dòng</h2>
+            <p class="muted small">Tool ghi vào dòng trống đầu tiên sau dòng cuối cùng của sheet. Ảnh là link Drive của file ảnh.</p>
+            <div class="field">
+              <label for="addImage">Ảnh người mẫu</label>
+              <input id="addImage" type="text" class="wide" placeholder="https://drive.google.com/file/d/…" />
+            </div>
+            {hasShirtCol && (
+              <div class="field">
+                <label for="addShirt">Ảnh áo (không bắt buộc)</label>
+                <input id="addShirt" type="text" class="wide" placeholder="https://drive.google.com/file/d/…" />
+              </div>
+            )}
+            <div class="field">
+              <label for="addPrompt">Prompt</label>
+              <textarea id="addPrompt" rows={4}></textarea>
+            </div>
+            <div class="row">
+              <button type="button" id="addGo">
+                Thêm vào sheet
+              </button>
+              <span id="addMsg" class="small warn-text" aria-live="polite"></span>
+            </div>
+          </div>
+          <div id="fillBox" class="card" hidden>
+            <h2>Dải prompt</h2>
+            {withPrompt.length === 0 ? (
+              <p class="muted">Chưa có dòng nào có prompt để dải.</p>
+            ) : (
+              <>
+                <div class="field">
+                  <label for="fillSource">Lấy prompt của dòng</label>
+                  <select id="fillSource">
+                    {withPrompt.map((r) => (
+                      <option value={String(r.row)}>
+                        Dòng {r.row}: {truncate(r.prompt, 70)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div class="field">
+                  <label class="inline">
+                    <input type="radio" name="fillMode" value="rows" checked /> Áp cho các dòng
+                  </label>{" "}
+                  <input id="fillRows" type="text" placeholder="ví dụ 3-6, 9 (sẵn các dòng đang tích)" />
+                </div>
+                <div class="field">
+                  <label class="inline">
+                    <input type="radio" name="fillMode" value="down" /> Dải xuống tới dòng cuối
+                  </label>
+                </div>
+                <div class="field">
+                  <label class="inline">
+                    <input type="checkbox" id="fillVideo" /> Thay cả dòng đã có video
+                  </label>
+                  <div class="muted small">Dòng đang tạo video luôn được bỏ qua.</div>
+                </div>
+                <div class="row">
+                  <button type="button" id="fillGo">
+                    Áp prompt…
+                  </button>
+                  <span id="fillMsg" class="small warn-text" aria-live="polite"></span>
+                </div>
+              </>
+            )}
+          </div>
           {folders.problem && <Alert kind="warn">{folders.problem} Sửa ở ⚙ Nâng cao → Cài đặt, hoặc dán link thư mục ở ô "Lưu video vào".</Alert>}
           <form
             id="run"
@@ -364,6 +565,9 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
               </button>
               <button type="button" id="clearSel" class="secondary">
                 Bỏ chọn
+              </button>
+              <button type="button" id="fillOpen" class="secondary" title="Chép prompt của một dòng sang nhiều dòng">
+                Dải prompt ▾
               </button>
             </div>
             <div class="folder-pick">
@@ -437,6 +641,91 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
       return c.text(plan.ok ? plan.runs[0]!.requestText : plan.message);
     } catch (e) {
       return c.text(describeGoogleError(e, clientEmail), 502);
+    }
+  });
+
+  // Sửa ngay trên Bảng (D18). Chỉ nhận JSON: trang khác không gửi được kiểu này tới tool mà không bị trình duyệt chặn.
+  async function editRequest(c: Context): Promise<{ cfg: SheetConfig; body: Record<string, unknown>; deps: EditDeps } | Response> {
+    if (!(c.req.header("content-type") ?? "").startsWith("application/json")) return c.json({ ok: false, message: "Yêu cầu không hợp lệ" }, 415);
+    let body: Record<string, unknown>;
+    try {
+      body = (await c.req.json()) as Record<string, unknown>;
+    } catch {
+      return c.json({ ok: false, message: "Yêu cầu không hợp lệ" }, 400);
+    }
+    const cfg = getSheetConfig(db, String(body.id ?? ""), String(body.tab ?? ""));
+    if (!cfg || !sheets || !drive) return c.json({ ok: false, message: "Chưa kết nối sheet này hoặc chưa nạp khoá Google." }, 400);
+    return { cfg, body, deps: { db, sheets, drive } };
+  }
+  const googleFail = (c: Context, e: unknown, what: string) => {
+    logger.warn({ err: e }, what);
+    return c.json({ ok: false, message: e instanceof GoogleApiError ? describeGoogleError(e, clientEmail) : e instanceof Error ? e.message : String(e) }, 502);
+  };
+
+  app.post("/bang/sua", async (c) => {
+    const req = await editRequest(c);
+    if (req instanceof Response) return req;
+    const { cfg, body, deps } = req;
+    if (!isEditField(body.field)) return c.json({ ok: false, message: "Ô này không sửa được trong tool." }, 400);
+    try {
+      const r = await editCell(deps, cfg, { row: Number(body.row), field: body.field, expected: String(body.expected ?? ""), value: String(body.value ?? "") });
+      if (r.ok && r.changed) logger.info({ spreadsheetId: cfg.spreadsheetId, tab: cfg.tab, row: Number(body.row), field: body.field }, "Đã sửa ô từ Bảng");
+      return c.json(r);
+    } catch (e) {
+      return googleFail(c, e, "Không sửa được ô từ Bảng");
+    }
+  });
+
+  app.post("/bang/them-dong", async (c) => {
+    const req = await editRequest(c);
+    if (req instanceof Response) return req;
+    const { cfg, body, deps } = req;
+    try {
+      const r = await addRow(deps, cfg, { image: String(body.image ?? ""), shirt: String(body.shirt ?? ""), prompt: String(body.prompt ?? "") });
+      if (r.ok) logger.info({ spreadsheetId: cfg.spreadsheetId, tab: cfg.tab, row: r.row }, "Đã thêm dòng từ Bảng");
+      return c.json(r);
+    } catch (e) {
+      return googleFail(c, e, "Không thêm được dòng từ Bảng");
+    }
+  });
+
+  const rowsText = (ns: number[]) => ns.join(", ");
+  const skippedText = (s: { row: number; why: string }[]) => (s.length ? ` Bỏ qua: ${s.map((x) => `dòng ${x.row} (${x.why})`).join("; ")}.` : "");
+
+  app.post("/bang/dai-prompt/xem", async (c) => {
+    const req = await editRequest(c);
+    if (req instanceof Response) return req;
+    const { cfg, body, deps } = req;
+    const mode = body.mode === "down" ? "down" : "rows";
+    const rows = mode === "rows" ? parseRowList(String(body.rows ?? "")) : [];
+    if (rows === null) return c.json({ ok: false, message: "Ô dòng chưa đúng dạng, ví dụ: 3-6, 9" });
+    try {
+      const r = await planFill(deps, cfg, { source: Number(body.source), mode, rows, includeVideo: body.includeVideo === true });
+      if (!r.ok) return c.json(r);
+      const t = r.plan.targets.map((x) => x.row);
+      const summary = t.length
+        ? `Sẽ thay prompt của ${t.length} dòng (dòng ${rowsText(t)}) bằng prompt của dòng ${Number(body.source)}.${skippedText(r.plan.skipped)}`
+        : `Không có dòng nào cần thay.${skippedText(r.plan.skipped)}`;
+      return c.json({ ok: true, plan: r.plan, summary });
+    } catch (e) {
+      return googleFail(c, e, "Không xem trước được dải prompt");
+    }
+  });
+
+  app.post("/bang/dai-prompt", async (c) => {
+    const req = await editRequest(c);
+    if (req instanceof Response) return req;
+    const { cfg, body, deps } = req;
+    const targets = (Array.isArray(body.targets) ? body.targets : []).map((t) => ({ row: Number((t as { row?: unknown }).row), old: String((t as { old?: unknown }).old ?? "") }));
+    try {
+      const r = await applyFill(deps, cfg, { prompt: String(body.prompt ?? ""), targets });
+      logger.info({ spreadsheetId: cfg.spreadsheetId, tab: cfg.tab, rows: r.written }, "Đã dải prompt từ Bảng");
+      const parts = [r.written.length ? `Đã thay prompt của ${r.written.length} dòng (dòng ${rowsText(r.written)}).` : "Chưa ghi dòng nào."];
+      if (r.conflicts.length) parts.push(`${CONFLICT_TEXT} nên không ghi: dòng ${rowsText(r.conflicts.map((x) => x.row))}.`);
+      parts.push(skippedText(r.skipped).trim());
+      return c.json({ ok: true, written: r.written.length, message: parts.filter(Boolean).join(" ") });
+    } catch (e) {
+      return googleFail(c, e, "Không dải được prompt");
     }
   });
 

@@ -120,6 +120,17 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
           .folder-pick input { min-width:280px; }
           .inline-label { display:inline; margin:0; font-weight:600; }
           #runBtn { font-size:1.05rem; padding:8px 18px; font-weight:600; }
+          .cellwrap { display:flex; gap:4px; align-items:flex-start; }
+          .cellbody { flex:1 1 auto; min-width:0; }
+          button.edit { background:none; border:1px solid transparent; color:var(--link); padding:2px 6px; font-size:1rem; line-height:1; }
+          button.edit:hover { border-color:var(--border); background:var(--bg); }
+          .editor { margin-top:8px; display:flex; flex-direction:column; gap:6px; min-width:260px; }
+          .editor input { width:100%; box-sizing:border-box; }
+          .editor .row { align-items:center; }
+          .conflict { background:var(--warn-bg); color:var(--warn-fg); padding:6px 8px; border-radius:6px; white-space:pre-wrap; word-break:break-word; }
+          .add-row { align-items:center; margin:10px 0 16px; }
+          input.wide { width:100%; box-sizing:border-box; }
+          #fillRows { min-width:240px; }
           footer { max-width:1100px; margin:0 auto; padding:8px 16px 24px; color:var(--muted); font-size:.85rem; }
           @media (prefers-color-scheme: dark) { :root { --info-bg:#1b2a47; --info-fg:#a9c6ff; --bad-bg:#3d1b1b; --bad-fg:#ffb3b3; } }
         `}</style>

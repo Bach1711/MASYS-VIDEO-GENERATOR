@@ -4,6 +4,7 @@ import { getDailyQuota } from "../db/quota.js";
 import { logRunEvent, moveRun } from "../db/runs.js";
 import { getSettings } from "../db/settings.js";
 import { getSheetConfig, type SheetConfig } from "../db/sheetConfigs.js";
+import { toolWrittenCells } from "../db/sheetEdits.js";
 import { columnIndex } from "../google/a1.js";
 import { parseDriveLink, type DriveClient } from "../google/drive.js";
 import { GoogleApiError } from "../google/http.js";
@@ -300,11 +301,12 @@ export class BatchRunner {
     }
 
     // Bước 4: sentAt ghi trước khi bấm Gửi.
+    const sentAt = now();
     moveRun(this.db, run.id, "checking_row", "sending", "Gửi yêu cầu cho Muse (cuộc trò chuyện mới)", {
-      sentAt: now(),
+      sentAt,
       tabSnapshot: JSON.stringify(before),
     });
-    const sentRun = { ...run, tabSnapshot: JSON.stringify(before) };
+    const sentRun = { ...run, sentAt, tabSnapshot: JSON.stringify(before) };
     try {
       const { chatUrl } = await this.bot.send(run.requestText);
       moveRun(this.db, run.id, "sending", "waiting", "Đã gửi Muse, theo dõi ô Video", { museChatUrl: chatUrl });
@@ -398,7 +400,13 @@ export class BatchRunner {
     if (run.tabSnapshot) {
       try {
         const after = await this.sheets.readTab(cfg.spreadsheetId, cfg.tab, "FORMULA");
-        changed = unexpectedChanges(diffSnapshots(JSON.parse(run.tabSnapshot) as Grid, after), [videoCell, statusCell]).map((c) => c.cell);
+        // Ô người dùng sửa trên Bảng trong lúc chờ (D18) không phải Muse sửa: bỏ qua nếu ô còn đúng giá trị tool đã ghi.
+        // Tính từ trước lúc gửi một khoảng để gồm cả lần sửa giữa lúc chụp tab và lúc gửi.
+        const since = new Date(Date.parse(run.sentAt ?? now()) - TOOL_EDIT_MARGIN_MS).toISOString();
+        const mine = toolWrittenCells(this.db, cfg.spreadsheetId, cfg.tab, since);
+        changed = unexpectedChanges(diffSnapshots(JSON.parse(run.tabSnapshot) as Grid, after), [videoCell, statusCell])
+          .filter((c) => mine.get(c.cell) !== c.after)
+          .map((c) => c.cell);
       } catch (e) {
         logger.warn({ err: e, runId: run.id }, "Không chụp lại được tab để so");
       }
@@ -505,6 +513,9 @@ function pick(row: string[], cfg: SheetConfig): InputSnapshot {
     status: get(cfg.colStatus),
   };
 }
+
+/** Ô tool ghi theo yêu cầu người dùng trong khoảng này trước lúc gửi vẫn được tính (tab được chụp trước rồi mới gửi). */
+const TOOL_EDIT_MARGIN_MS = 10 * 60_000;
 
 function now(): string {
   return new Date().toISOString();
