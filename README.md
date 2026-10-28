@@ -98,7 +98,7 @@ Tool đọc sheet, ghi ô Trạng thái và kiểm tra file video bằng một *
 6. **Chia sẻ** cho email service account (dạng `…@….iam.gserviceaccount.com`):
    - **Google Sheet**: quyền **Người chỉnh sửa** (để ghi ô Trạng thái).
    - **Thư mục Drive gốc** chứa thư mục lưu video: quyền **Người xem** (để kiểm tra video).
-   - Ảnh người mẫu trong cột Ảnh: để chế độ *"Bất kỳ ai có đường liên kết"* (Muse cần mở được ảnh).
+   - Ảnh người mẫu trong cột Ảnh và ảnh thiết kế trong cột Ảnh áo: để chế độ *"Bất kỳ ai có đường liên kết"* (Muse cần mở được ảnh).
 7. Chạy lại `op run --env-file=.env -- npm run dev`.
 
 ## 3. Đăng nhập Muse trong cửa sổ bot (làm một lần)
@@ -112,11 +112,13 @@ Tool đọc sheet, ghi ô Trạng thái và kiểm tra file video bằng một *
 
 ## 4. Dùng hằng ngày
 
-1. **Kết nối sheet** (một lần mỗi sheet/tab): dán link sheet, chọn trang tính, chọn cột Ảnh / Prompt / Video / Trạng thái.
+1. **Kết nối sheet** (một lần mỗi sheet/tab): dán link sheet, chọn trang tính, chọn cột Ảnh / Prompt / Video / Trạng thái, và cột **Ảnh áo** nếu sheet có (tuỳ chọn, xem dưới).
 2. **Quét và chọn dòng**: tick các dòng cần làm video. Dòng đã có link video bị khoá (muốn làm lại thì tick **Ghi đè**).
 3. **Chuẩn bị lô**: chọn thư mục Drive lưu video, sửa prompt từng dòng hoặc thêm "yêu cầu thêm chung" nếu muốn (sheet **không** bị sửa), xem trước nguyên văn yêu cầu gửi Muse, bấm **Tạo lô**.
 4. Ở trang **Lô #N**, bấm **Bắt đầu chạy**. Bot gửi lần lượt từng dòng, mỗi dòng một cuộc trò chuyện Muse mới, nghỉ 20–60 giây giữa hai dòng. Mỗi dòng thường mất 3–5 phút.
 5. Theo dõi ở trang lô; xem lại ở **Lịch sử lô** và **Nhật ký** (có ảnh chụp màn hình khi lỗi).
+
+**Ghép ảnh áo (từ v1.1.0):** sheet có cột **Ảnh áo** (link Drive ảnh thiết kế áo) thì ở **Kết nối sheet** chọn thêm cột này (tool tự nhận tiêu đề "Ảnh áo"). Sheet đã kết nối từ trước: bấm **Sửa** ở tab đó rồi **Lưu ánh xạ** một lần. Dòng có ảnh áo: bảng quét hiện 2 ảnh, yêu cầu gửi Muse có thêm đoạn dặn Muse **ghép áo vào ảnh người mẫu trước rồi tạo video theo prompt**, trong cùng một lượt; ảnh ghép không lưu. Dòng để trống ô Ảnh áo chạy như cũ. Câu chữ đoạn này sửa ở **Cài đặt → Đoạn ghép áo**.
 
 > ⚠️ **Đang chạy lô thì đừng sửa sheet** (kể cả dán link vào dòng khác). Tool so toàn bộ trang tính trước và sau mỗi lượt để bắt Muse sửa nhầm ô; một ô bị đổi tay cũng bị coi là "Muse sửa ô khác" và lô tạm dừng. Muốn sửa thì bấm **Tạm dừng** trước, sửa xong bấm **Tiếp tục**.
 
@@ -149,7 +151,7 @@ Dải báo trên đầu mọi trang và trang lô cho biết lý do. Xử lý xo
 
 ## 6. Cài đặt
 
-Trang **Cài đặt**: thời gian chờ mỗi dòng (1–120 phút), khoảng nghỉ giữa hai dòng, giới hạn video/ngày, địa chỉ trang Muse (để trống = `https://muse.ai/`), thư mục Drive gốc, mẫu yêu cầu gửi Muse. Đổi trong lúc lô chạy thì áp dụng từ dòng kế tiếp.
+Trang **Cài đặt**: thời gian chờ mỗi dòng (1–120 phút), khoảng nghỉ giữa hai dòng, giới hạn video/ngày, địa chỉ trang Muse (để trống = `https://muse.ai/`), thư mục Drive gốc, mẫu yêu cầu gửi Muse và đoạn ghép áo (mẫu đã sửa tay mà thiếu chỗ `{doan_ghep_ao}` thì trang báo; bấm *Khôi phục mẫu gốc* là có). Đổi trong lúc lô chạy thì áp dụng từ dòng kế tiếp.
 
 ## 7. Khi Muse đổi giao diện: sửa selector
 

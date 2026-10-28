@@ -1,6 +1,17 @@
 import type { Hono } from "hono";
 import type { Child } from "hono/jsx";
-import { DEFAULT_TEMPLATE, PLACEHOLDERS, REQUIRED_PLACEHOLDERS, validateTemplate, type Placeholder } from "../batch/template.js";
+import {
+  DEFAULT_SHIRT_TEMPLATE,
+  DEFAULT_TEMPLATE,
+  lacksShirtSlot,
+  NO_SHIRT_SLOT_WARNING,
+  PLACEHOLDERS,
+  REQUIRED_PLACEHOLDERS,
+  SHIRT_PLACEHOLDERS,
+  validateShirtTemplate,
+  validateTemplate,
+  type Placeholder,
+} from "../batch/template.js";
 import { DEFAULT_MUSE_URL } from "../bot/museSelectors.js";
 import {
   getSettings,
@@ -9,6 +20,7 @@ import {
   saveRunSettings,
   setDriveRootFolder,
   setRequestTemplate,
+  setShirtTemplate,
 } from "../db/settings.js";
 import { parseDriveLink, type DriveFolder } from "../google/drive.js";
 import { describeGoogleError } from "../google/errors.js";
@@ -32,6 +44,8 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
       rootError?: string;
       templateErrors?: string[];
       templateDraft?: string;
+      shirtErrors?: string[];
+      shirtDraft?: string;
       runErrors?: string[];
       runDraft?: Record<string, unknown>;
     } = {},
@@ -47,6 +61,7 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
       }
     }
     const template = opts.templateDraft ?? s.requestTemplate ?? DEFAULT_TEMPLATE;
+    const shirtTemplate = opts.shirtDraft ?? s.shirtTemplate ?? DEFAULT_SHIRT_TEMPLATE;
     return page(
       <>
         <h1>Cài đặt</h1>
@@ -102,6 +117,7 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
               </li>
             ))}
           </ul>
+          {lacksShirtSlot(s.requestTemplate ?? DEFAULT_TEMPLATE) && <Alert kind="warn">{NO_SHIRT_SLOT_WARNING}</Alert>}
           {opts.templateErrors && opts.templateErrors.length > 0 && (
             <Alert kind="warn">
               Chưa lưu vì mẫu có lỗi:
@@ -132,6 +148,50 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
             </div>
           </form>
         </section>
+
+        <section class="card" id="ghep-ao">
+          <h2>Đoạn ghép áo</h2>
+          <p class="muted">
+            {s.shirtTemplate ? "Đang dùng đoạn đã sửa." : "Đang dùng đoạn gốc (spec §8.2)."} Chỉ dòng có ảnh áo mới có đoạn này: tool đặt nó vào chỗ{" "}
+            <code>{"{doan_ghep_ao}"}</code> của mẫu trên. Dòng không có ảnh áo thì bỏ trống.
+          </p>
+          <ul class="placeholders">
+            {(Object.keys(SHIRT_PLACEHOLDERS) as (keyof typeof SHIRT_PLACEHOLDERS)[]).map((p) => (
+              <li>
+                <code>{`{${p}}`}</code> — {SHIRT_PLACEHOLDERS[p]} <strong>(bắt buộc)</strong>
+              </li>
+            ))}
+          </ul>
+          {opts.shirtErrors && opts.shirtErrors.length > 0 && (
+            <Alert kind="warn">
+              Chưa lưu vì đoạn có lỗi:
+              <ul>
+                {opts.shirtErrors.map((e) => (
+                  <li>{e}</li>
+                ))}
+              </ul>
+            </Alert>
+          )}
+          <form method="post" action="/settings/shirt">
+            <textarea name="template" rows={5} class="mono">
+              {shirtTemplate}
+            </textarea>
+            <div class="row-between">
+              <button
+                type="submit"
+                name="action"
+                value="reset"
+                class="secondary"
+                onclick="return confirm('Bỏ đoạn đã sửa và quay về đoạn gốc?')"
+              >
+                Khôi phục đoạn gốc
+              </button>
+              <button type="submit" name="action" value="save">
+                Lưu đoạn ghép áo
+              </button>
+            </div>
+          </form>
+        </section>
       </>,
     );
   }
@@ -142,6 +202,8 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
       root: "Đã lưu thư mục gốc.",
       reset: "Đã quay về mẫu gốc.",
       template: "Đã lưu mẫu.",
+      shirt: "Đã lưu đoạn ghép áo.",
+      shirtReset: "Đã quay về đoạn ghép áo gốc.",
       run: "Đã lưu. Lô đang chạy (nếu có) dùng cài đặt mới từ dòng kế tiếp.",
     };
     const notice = saved && <Alert kind="ok">{text[saved] ?? "Đã lưu."}</Alert>;
@@ -184,6 +246,19 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
     // Lưu đúng mẫu gốc thì coi như dùng mẫu gốc (để sau này mẫu gốc đổi vẫn theo).
     setRequestTemplate(db, draft.trim() === DEFAULT_TEMPLATE.trim() ? null : draft);
     return c.redirect("/settings?saved=template", 303);
+  });
+
+  app.post("/settings/shirt", async (c) => {
+    const body = await c.req.parseBody();
+    if (body.action === "reset") {
+      setShirtTemplate(db, null);
+      return c.redirect("/settings?saved=shirtReset#ghep-ao", 303);
+    }
+    const draft = String(body.template ?? "").replace(/\r\n/g, "\n");
+    const errors = validateShirtTemplate(draft);
+    if (errors.length) return c.html(await render({ shirtErrors: errors, shirtDraft: draft }), 400);
+    setShirtTemplate(db, draft.trim() === DEFAULT_SHIRT_TEMPLATE.trim() ? null : draft);
+    return c.redirect("/settings?saved=shirt#ghep-ao", 303);
   });
 }
 

@@ -5,6 +5,7 @@ import {
   combineExtra,
   folderLink,
   renderTemplate,
+  shirtBlock,
   sheetLink,
   videoFileName,
   type TemplateValues,
@@ -25,8 +26,8 @@ export interface PlannedRun {
   extra: string;
   fileName: string;
   requestText: string;
-  /** Ảnh và prompt gốc trong sheet lúc tạo lô — CON-40 dùng để phát hiện dòng bị đổi. */
-  inputSnapshot: { image: string; prompt: string; video: string; status: string };
+  /** Ảnh, ảnh áo và prompt gốc trong sheet lúc tạo lô — CON-40 dùng để phát hiện dòng bị đổi. */
+  inputSnapshot: { image: string; shirt: string; prompt: string; video: string; status: string };
 }
 
 export interface BatchPlan {
@@ -36,6 +37,8 @@ export interface BatchPlan {
   batchExtra: string;
   stamp: string;
   template: string;
+  /** Đoạn ghép áo (v4.4) cho dòng có ảnh áo. */
+  shirtTemplate: string;
   rows: ScannedRow[];
   edits: Map<number, RowEdit>;
 }
@@ -54,6 +57,7 @@ export function planRuns(p: BatchPlan): { runs: PlannedRun[]; problems: string[]
     const fileName = videoFileName(p.cfg.tab, r.row, p.stamp);
     const values: TemplateValues = {
       link_anh: r.image,
+      doan_ghep_ao: shirtBlock(p.shirtTemplate, r.shirt),
       prompt,
       yeu_cau_them: combineExtra(p.batchExtra, edit.extra),
       link_thu_muc: folderLink(p.folderId),
@@ -69,7 +73,7 @@ export function planRuns(p: BatchPlan): { runs: PlannedRun[]; problems: string[]
       extra: edit.extra.trim(),
       fileName,
       requestText: renderTemplate(p.template, values),
-      inputSnapshot: { image: r.image, prompt: r.prompt, video: r.video, status: r.status },
+      inputSnapshot: { image: r.image, shirt: r.shirt, prompt: r.prompt, video: r.video, status: r.status },
     });
   }
   return { runs, problems };

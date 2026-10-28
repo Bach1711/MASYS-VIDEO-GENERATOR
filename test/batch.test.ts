@@ -30,6 +30,7 @@ const img = (id: string) => `https://drive.google.com/file/d/${id}/view`;
 describe("mẫu yêu cầu §8.2", () => {
   const values: TemplateValues = {
     link_anh: img("imgimgimg02"),
+    doan_ghep_ao: "",
     prompt: "Người mẫu cười, chỉ vào hình in {o_video}",
     yeu_cau_them: "nền phòng ngủ",
     link_thu_muc: `https://drive.google.com/drive/folders/${VIDEO}`,
@@ -193,7 +194,7 @@ describe("trang Chuẩn bị lô", () => {
     expect(b.runs[1]!.promptSent).toBe("prompt gốc 5");
 
     const snap = JSON.parse((db.prepare("SELECT inputSnapshot FROM runs WHERE rowNumber = 2").get() as { inputSnapshot: string }).inputSnapshot);
-    expect(snap).toEqual({ image: img("imgimgimg02"), prompt: "prompt gốc 2", video: "", status: "" });
+    expect(snap).toEqual({ image: img("imgimgimg02"), shirt: "", prompt: "prompt gốc 2", video: "", status: "" });
     expect(sheetGrid[1]![1]).toBe("prompt gốc 2");
     expect(sheetWrites).toEqual([]);
     const events = db.prepare("SELECT toState, message FROM run_events ORDER BY id").all();
@@ -301,5 +302,93 @@ describe("trang Cài đặt (thư mục gốc, mẫu yêu cầu)", () => {
 
     await app.request("/settings/template", form({ action: "reset" }));
     expect(getSettings(db).requestTemplate).toBeNull();
+  });
+});
+
+describe("ghép ảnh áo (CON-46, spec v4.4)", () => {
+  /** Sheet có thêm cột E "Ảnh áo": dòng 2 có ảnh áo, dòng 3 để trống. */
+  function withShirt(o: { shirt?: string } = {}) {
+    const t = setup();
+    saveSheetConfig(t.db, { ...CFG, colShirt: "E" });
+    t.sheetGrid[0]!.push("Ảnh áo");
+    t.sheetGrid[1]!.push(o.shirt ?? img("imgimgimg12"));
+    t.sheetGrid[2]!.push("");
+    return t;
+  }
+  const previewOf = async (t: ReturnType<typeof withShirt>, rows: string[]) => {
+    const fields = formFields(await (await t.post(rows.map((r) => ["row", r] as [string, string]))).text());
+    return t.post([...fields.filter(([k]) => k !== "id" && k !== "tab"), ["step", "preview"]]);
+  };
+
+  it("dòng có ảnh áo có đoạn ghép áo ngay dưới ảnh người mẫu; dòng không có thì giữ nguyên như cũ, không dòng trống thừa", async () => {
+    const t = withShirt();
+    const editHtml = await (await t.post([["row", "2"], ["row", "3"]])).text();
+    expect(editHtml).toContain(`/thumb/imgimgimg12`);
+    expect(editHtml).toContain("Ghép áo");
+
+    const res = await previewOf(t, ["2", "3"]);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain(
+      `Ảnh: ${img("imgimgimg02")}\nẢnh áo: ${img("imgimgimg12")}\nHãy ghép áo trong ảnh áo vào người mẫu trong ảnh người mẫu ở trên, rồi dựa theo prompt dưới đây để tạo video theo ảnh vừa ghép đó.`,
+    );
+    expect(html).toContain(`Ảnh: ${img("imgimgimg03")}\nPrompt: prompt gốc 3`);
+    expect(html.match(/Ảnh áo:/g)).toHaveLength(1);
+    expect(html).not.toContain("{doan_ghep_ao}");
+    expect(html).not.toContain("thiếu chỗ {doan_ghep_ao}");
+  });
+
+  it("đoạn ghép áo đã sửa trong Cài đặt được dùng; mẫu chính thiếu {doan_ghep_ao} thì Xem trước cảnh báo", async () => {
+    const t = withShirt();
+    t.db.prepare("UPDATE settings SET shirtTemplate = ? WHERE id = 1").run("ÁO: {link_anh_ao} — ghép vào người mẫu.");
+    let html = await (await previewOf(t, ["2"])).text();
+    expect(html).toContain(`ÁO: ${img("imgimgimg12")} — ghép vào người mẫu.`);
+
+    setRequestTemplate(t.db, DEFAULT_TEMPLATE.replace("{doan_ghep_ao}\n", ""));
+    html = await (await previewOf(t, ["2"])).text();
+    expect(html).toContain("thiếu chỗ {doan_ghep_ao}");
+    expect(html).not.toContain("ÁO:");
+  });
+
+  it("link ảnh áo hỏng → dòng Thiếu dữ liệu, không vào lô", async () => {
+    const t = withShirt({ shirt: "https://example.com/ao.png" });
+    const res = await t.post([["row", "2"]]);
+    expect(res.status).toBe(409);
+    expect(await res.text()).toContain("dòng 2 (Thiếu dữ liệu)");
+  });
+
+  it("lưu link ảnh áo vào inputSnapshot khi tạo lô", async () => {
+    const t = withShirt();
+    const preview = await (await previewOf(t, ["2"])).text();
+    const create = await t.post([...formFields(preview).filter(([k]) => k !== "id" && k !== "tab"), ["step", "create"]]);
+    expect(create.status).toBe(303);
+    const snap = JSON.parse((t.db.prepare("SELECT inputSnapshot FROM runs WHERE rowNumber = 2").get() as { inputSnapshot: string }).inputSnapshot);
+    expect(snap.shirt).toBe(img("imgimgimg12"));
+  });
+
+  it("Cài đặt: khung Đoạn ghép áo lưu / báo lỗi / khôi phục; báo khi mẫu chính thiếu chỗ ghép áo", async () => {
+    const { app, db } = setup();
+    const form = (f: Record<string, string>) => ({ method: "POST", body: new URLSearchParams(f) });
+    let page = await (await app.request("/settings")).text();
+    expect(page).toContain("Đoạn ghép áo");
+    expect(page).toContain("{link_anh_ao}");
+    expect(page).not.toContain("thiếu chỗ {doan_ghep_ao}");
+
+    const bad = await app.request("/settings/shirt", form({ action: "save", template: "Ghép áo {link_ao}" }));
+    expect(bad.status).toBe(400);
+    const badHtml = await bad.text();
+    expect(badHtml).toContain("Không có chỗ trống tên: {link_ao}");
+    expect(badHtml).toContain("Mẫu phải có: {link_anh_ao}");
+    expect(getSettings(db).shirtTemplate).toBeNull();
+
+    const ok = await app.request("/settings/shirt", form({ action: "save", template: "Áo: {link_anh_ao}" }));
+    expect(ok.status).toBe(303);
+    expect(getSettings(db).shirtTemplate).toBe("Áo: {link_anh_ao}");
+    await app.request("/settings/shirt", form({ action: "reset" }));
+    expect(getSettings(db).shirtTemplate).toBeNull();
+
+    setRequestTemplate(db, DEFAULT_TEMPLATE.replace("{doan_ghep_ao}\n", ""));
+    page = await (await app.request("/settings")).text();
+    expect(page).toContain("thiếu chỗ {doan_ghep_ao}");
   });
 });

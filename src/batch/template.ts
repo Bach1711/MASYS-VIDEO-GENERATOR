@@ -2,7 +2,7 @@
 
 export const DEFAULT_TEMPLATE = `Hãy tạo một video dọc 9:16, dài khoảng 8–10 giây, một cảnh, từ ảnh người mẫu sau:
 Ảnh: {link_anh}
-
+{doan_ghep_ao}
 Prompt: {prompt}
 Yêu cầu thêm: {yeu_cau_them}
 Luôn giữ nguyên hình in trên áo, không làm méo hay đổi chữ/hình.
@@ -12,8 +12,20 @@ Sau khi tạo xong:
 2. Dán link Google Drive của video vào ô {o_video} của tab "{ten_tab}" trong Google Sheet {link_sheet}.
 3. Chỉ sửa đúng ô {o_video}. Không sửa bất kỳ ô nào khác.`;
 
+/**
+ * Đoạn ghép áo (spec v4.4 §8.2): chỉ thêm vào yêu cầu của dòng có ảnh áo, thay cho {doan_ghep_ao}.
+ * Phỏng theo câu người phụ trách đã thử tay thành công trên Muse ngày 28/10/2026.
+ */
+export const DEFAULT_SHIRT_TEMPLATE = `Ảnh áo: {link_anh_ao}
+Hãy ghép áo trong ảnh áo vào người mẫu trong ảnh người mẫu ở trên, rồi dựa theo prompt dưới đây để tạo video theo ảnh vừa ghép đó. Giữ nguyên khuôn mặt người mẫu và hình in trên áo. Không cần lưu ảnh vừa ghép.`;
+
+export const SHIRT_PLACEHOLDERS = {
+  link_anh_ao: "Link Drive của ảnh áo (cột Ảnh áo)",
+} as const;
+
 export const PLACEHOLDERS = {
   link_anh: "Link Drive của ảnh (cột Ảnh)",
+  doan_ghep_ao: "Đoạn ghép áo bên dưới, chỉ có ở dòng có ảnh áo (dòng không có ảnh áo thì bỏ trống)",
   prompt: "Prompt đã chỉnh",
   yeu_cau_them: "Yêu cầu thêm (chung cho lô; riêng dòng)",
   link_thu_muc: "Link thư mục Drive lưu video",
@@ -33,19 +45,46 @@ const TOKEN = /\{([A-Za-z_]+)\}/g;
 
 /** Lỗi của mẫu: chỗ trống không tồn tại (gõ sai) hoặc thiếu chỗ bắt buộc. Rỗng = hợp lệ. */
 export function validateTemplate(template: string): string[] {
+  return checkPlaceholders(template, Object.keys(PLACEHOLDERS), REQUIRED_PLACEHOLDERS);
+}
+
+/** Lỗi của đoạn ghép áo: chỉ được dùng {link_anh_ao}, và bắt buộc có nó. */
+export function validateShirtTemplate(template: string): string[] {
+  return checkPlaceholders(template, Object.keys(SHIRT_PLACEHOLDERS), ["link_anh_ao"]);
+}
+
+function checkPlaceholders(template: string, known: string[], required: string[]): string[] {
   const problems: string[] = [];
   if (!template.trim()) return ["Mẫu đang trống."];
   const used = new Set([...template.matchAll(TOKEN)].map((m) => m[1]!));
-  const unknown = [...used].filter((p) => !(p in PLACEHOLDERS));
+  const unknown = [...used].filter((p) => !known.includes(p));
   if (unknown.length) problems.push(`Không có chỗ trống tên: ${unknown.map((p) => `{${p}}`).join(", ")}`);
-  const missing = REQUIRED_PLACEHOLDERS.filter((p) => !used.has(p));
+  const missing = required.filter((p) => !used.has(p));
   if (missing.length) problems.push(`Mẫu phải có: ${missing.map((p) => `{${p}}`).join(", ")}`);
   return problems;
 }
 
-/** Điền một lượt: giá trị đã điền không bị thay tiếp (prompt có chữ "{o_video}" vẫn giữ nguyên). */
-export function renderTemplate(template: string, values: TemplateValues): string {
-  return template.replace(TOKEN, (whole, name: string) => (name in values ? values[name as Placeholder] : whole));
+/** Mẫu chính (đã sửa tay từ trước v4.4) thiếu chỗ đặt đoạn ghép áo: dòng có ảnh áo sẽ không được ghép. */
+export function lacksShirtSlot(template: string): boolean {
+  return !template.includes("{doan_ghep_ao}");
+}
+
+export const NO_SHIRT_SLOT_WARNING =
+  "Mẫu yêu cầu gửi Muse đang thiếu chỗ {doan_ghep_ao}, nên dòng có ảnh áo sẽ không được ghép áo (Muse chỉ dùng ảnh người mẫu). Thêm {doan_ghep_ao} vào mẫu, hoặc bấm Khôi phục mẫu gốc, ở Cài đặt.";
+
+/** Đoạn ghép áo đã điền link cho một dòng; dòng không có ảnh áo thì rỗng. */
+export function shirtBlock(shirtTemplate: string, shirtLink: string): string {
+  return shirtLink ? renderTemplate(shirtTemplate, { link_anh_ao: shirtLink }).trim() : "";
+}
+
+/**
+ * Điền một lượt: giá trị đã điền không bị thay tiếp (prompt có chữ "{o_video}" vẫn giữ nguyên).
+ * {doan_ghep_ao} rỗng mà đứng riêng một dòng thì bỏ luôn dòng đó, không để lại dòng trống thừa.
+ */
+export function renderTemplate(template: string, values: Partial<Record<string, string>>): string {
+  let t = template;
+  if (values.doan_ghep_ao === "") t = t.replace(/^[ \t]*\{doan_ghep_ao\}[ \t]*(\r?\n|$)/gm, "");
+  return t.replace(TOKEN, (whole, name: string) => values[name] ?? whole);
 }
 
 /** Gộp yêu cầu thêm: chung cho lô trước, riêng dòng sau. */

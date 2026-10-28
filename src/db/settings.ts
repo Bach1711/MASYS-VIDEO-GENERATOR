@@ -10,12 +10,14 @@ export interface Settings {
   museUrl: string | null;
   /** null = dùng mẫu mặc định §8.2. */
   requestTemplate: string | null;
+  /** Đoạn ghép áo (v4.4); null = dùng đoạn mặc định §8.2. */
+  shirtTemplate: string | null;
 }
 
 export function getSettings(db: DB): Settings {
   return db
     .prepare(
-      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate FROM settings WHERE id = 1",
+      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate FROM settings WHERE id = 1",
     )
     .get() as Settings;
 }
@@ -26,6 +28,10 @@ export function setDriveRootFolder(db: DB, folderId: string | null): void {
 
 export function setRequestTemplate(db: DB, template: string | null): void {
   db.prepare("UPDATE settings SET requestTemplate = ? WHERE id = 1").run(template);
+}
+
+export function setShirtTemplate(db: DB, template: string | null): void {
+  db.prepare("UPDATE settings SET shirtTemplate = ? WHERE id = 1").run(template);
 }
 
 /** Các cài đặt chạy lô của trang Cài đặt (F7). */

@@ -1,7 +1,9 @@
 import { columnLetter } from "./a1.js";
 
 export type ColumnRole = "colImage" | "colPrompt" | "colVideo" | "colStatus";
-export type ColumnGuess = Partial<Record<ColumnRole, string>>;
+/** Cột tuỳ chọn (v4.4): Ảnh áo. */
+export type OptionalColumnRole = "colShirt";
+export type ColumnGuess = Partial<Record<ColumnRole | OptionalColumnRole, string>>;
 
 export const ROLE_LABELS: Record<ColumnRole, string> = {
   colImage: "Ảnh",
@@ -10,10 +12,16 @@ export const ROLE_LABELS: Record<ColumnRole, string> = {
   colStatus: "Trạng thái",
 };
 
-// Thứ tự quan trọng: đoán Trạng thái và Video trước để "Link video" không bị nhận thành cột Ảnh.
-const RULES: [ColumnRole, RegExp][] = [
+export const OPTIONAL_ROLE_LABELS: Record<OptionalColumnRole, string> = {
+  colShirt: "Ảnh áo",
+};
+
+// Thứ tự quan trọng: đoán Trạng thái và Video trước để "Link video" không bị nhận thành cột Ảnh;
+// đoán Ảnh áo trước Ảnh để "Ảnh áo" không bị nhận thành cột ảnh người mẫu.
+const RULES: [ColumnRole | OptionalColumnRole, RegExp][] = [
   ["colStatus", /\b(trang thai|tinh trang|status)\b/],
   ["colVideo", /\bvideo\b/],
+  ["colShirt", /\b((anh|hinh|hinh anh|image|img|photo) (ao|thiet ke)|thiet ke ao|ao thiet ke|shirt|t-?shirt|design)\b/],
   ["colImage", /\b(anh|hinh|hinh anh|image|img|photo|picture)\b/],
   ["colPrompt", /\b(prompt|mo ta|noi dung|description)\b/],
 ];

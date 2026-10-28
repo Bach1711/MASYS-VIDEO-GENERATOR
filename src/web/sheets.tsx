@@ -14,7 +14,7 @@ import {
 } from "../db/sheetConfigs.js";
 import { columnLetter, parseSpreadsheetId } from "../google/a1.js";
 import { describeGoogleError, shareHint } from "../google/errors.js";
-import { guessColumns, ROLE_LABELS, type ColumnRole } from "../google/mapping.js";
+import { guessColumns, OPTIONAL_ROLE_LABELS, ROLE_LABELS, type ColumnRole } from "../google/mapping.js";
 import type { SheetsClient } from "../google/sheets.js";
 import { logger } from "../logger.js";
 import { Layout } from "./layout.js";
@@ -79,6 +79,7 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
                   {ROLES.map((r) => (
                     <th>{ROLE_LABELS[r]}</th>
                   ))}
+                  <th>{OPTIONAL_ROLE_LABELS.colShirt}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -95,6 +96,7 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
                     {ROLES.map((r) => (
                       <td>{cfg[r]}</td>
                     ))}
+                    <td>{cfg.colShirt || <span class="muted">—</span>}</td>
                     <td>
                       <a href={`/sheets/map?id=${encodeURIComponent(cfg.spreadsheetId)}&tab=${encodeURIComponent(cfg.tab)}`}>Sửa</a>
                     </td>
@@ -175,6 +177,7 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
       colPrompt: str("colPrompt"),
       colVideo: str("colVideo"),
       colStatus: str("colStatus"),
+      colShirt: str("colShirt") || null,
     };
     const problem = validateSheetConfig(cfg);
     if (problem) {
@@ -203,7 +206,10 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
       return <>{title}<Alert kind="warn">{describeGoogleError(e, clientEmail)}</Alert></>;
     }
     // Chỉ dùng bản đã lưu khi vẫn đọc cùng dòng tiêu đề; đổi dòng thì đoán lại.
-    const initial = p.saved && p.saved.headerRow === p.headerRow ? p.saved : guessColumns(headers);
+    const guessed = guessColumns(headers);
+    const initial = p.saved && p.saved.headerRow === p.headerRow ? p.saved : guessed;
+    // Ánh xạ lưu từ trước khi có cột Ảnh áo (v4.4): gợi ý cột Ảnh áo theo tiêu đề, người dùng bấm Lưu mới áp dụng.
+    const shirt = (p.saved?.headerRow === p.headerRow ? p.saved.colShirt : undefined) || guessed.colShirt;
     const columnCount = Math.max(headers.length, 4);
     const options = Array.from({ length: columnCount }, (_, i) => ({ col: columnLetter(i), label: headers[i] ?? "" }));
 
@@ -239,6 +245,21 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
               </select>
             </div>
           ))}
+          <div class="field">
+            <label for="colShirt">{OPTIONAL_ROLE_LABELS.colShirt} (tuỳ chọn)</label>
+            <select id="colShirt" name="colShirt">
+              <option value="" selected={!shirt}>
+                — Không có —
+              </option>
+              {options.map((o) => (
+                <option value={o.col} selected={shirt === o.col}>
+                  {o.col}
+                  {o.label ? ` — ${o.label}` : ""}
+                </option>
+              ))}
+            </select>
+            <div class="muted small">Có ảnh áo thì Muse ghép áo vào ảnh người mẫu trước rồi mới tạo video. Dòng để trống ô Ảnh áo vẫn chạy như thường.</div>
+          </div>
           <button type="submit">Lưu ánh xạ</button>
         </form>
       </>

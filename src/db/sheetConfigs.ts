@@ -10,6 +10,8 @@ export interface SheetConfig {
   colPrompt: string;
   colVideo: string;
   colStatus: string;
+  /** Cột Ảnh áo (tuỳ chọn, v4.4); null/trống = sheet không có ảnh áo. */
+  colShirt?: string | null;
   /** Tên file sheet, chỉ để hiển thị; có thể chưa biết. */
   spreadsheetTitle?: string | null;
 }
@@ -19,6 +21,10 @@ export function validateSheetConfig(c: SheetConfig): string | null {
   const cols = [c.colImage, c.colPrompt, c.colVideo, c.colStatus];
   if (!cols.every(isColumn)) return "Phải chọn đủ 4 cột Ảnh, Prompt, Video, Trạng thái.";
   if (new Set(cols).size !== 4) return "Bốn cột Ảnh, Prompt, Video, Trạng thái phải khác nhau.";
+  if (c.colShirt) {
+    if (!isColumn(c.colShirt)) return "Cột Ảnh áo không hợp lệ.";
+    if (cols.includes(c.colShirt)) return "Cột Ảnh áo phải khác bốn cột Ảnh, Prompt, Video, Trạng thái.";
+  }
   return null;
 }
 
@@ -43,13 +49,13 @@ export function saveSheetConfig(db: DB, c: SheetConfig): void {
   const problem = validateSheetConfig(c);
   if (problem) throw new Error(problem);
   db.prepare(
-    `INSERT INTO sheet_configs (spreadsheetId, tab, headerRow, colImage, colPrompt, colVideo, colStatus, spreadsheetTitle)
-     VALUES (@spreadsheetId, @tab, @headerRow, @colImage, @colPrompt, @colVideo, @colStatus, @spreadsheetTitle)
+    `INSERT INTO sheet_configs (spreadsheetId, tab, headerRow, colImage, colPrompt, colVideo, colStatus, colShirt, spreadsheetTitle)
+     VALUES (@spreadsheetId, @tab, @headerRow, @colImage, @colPrompt, @colVideo, @colStatus, @colShirt, @spreadsheetTitle)
      ON CONFLICT (spreadsheetId, tab) DO UPDATE SET
        headerRow = excluded.headerRow, colImage = excluded.colImage, colPrompt = excluded.colPrompt,
-       colVideo = excluded.colVideo, colStatus = excluded.colStatus,
+       colVideo = excluded.colVideo, colStatus = excluded.colStatus, colShirt = excluded.colShirt,
        spreadsheetTitle = COALESCE(excluded.spreadsheetTitle, sheet_configs.spreadsheetTitle)`,
-  ).run({ ...c, spreadsheetTitle: c.spreadsheetTitle ?? null });
+  ).run({ ...c, colShirt: c.colShirt || null, spreadsheetTitle: c.spreadsheetTitle ?? null });
   if (c.spreadsheetTitle) setSpreadsheetTitle(db, c.spreadsheetId, c.spreadsheetTitle);
 }
 

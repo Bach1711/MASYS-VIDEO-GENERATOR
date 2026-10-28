@@ -59,9 +59,28 @@ describe("trang Kết nối sheet", () => {
     const res = await app.request("/sheets/map", { method: "POST", body: form });
     expect(res.status).toBe(303);
     expect(getSheetConfig(db, ID, "Trang tính1")).toEqual({
-      spreadsheetId: ID, tab: "Trang tính1", headerRow: 1, colImage: "A", colPrompt: "B", colVideo: "C", colStatus: "D",
+      spreadsheetId: ID, tab: "Trang tính1", headerRow: 1, colImage: "A", colPrompt: "B", colVideo: "C", colStatus: "D", colShirt: null,
       spreadsheetTitle: null,
     });
+  });
+
+  it("cột Ảnh áo (CON-46): tự đoán theo tiêu đề, để Không có được, lưu được; danh sách hiện cột", async () => {
+    const { app, db } = setup({ readRow: async () => ["Ảnh", "Ảnh áo", "Prompt", "Video", "Trạng Thái"] });
+    const html = await (await app.request(`/sheets/map?id=${ID}&tab=${encodeURIComponent("Trang tính1")}`)).text();
+    expect(html).toMatch(/<option value="A" selected="">A — Ảnh<\/option>/);
+    expect(html).toMatch(/<select id="colShirt" name="colShirt">[\s\S]*?<option value="B" selected="">B — Ảnh áo<\/option>/);
+    expect(html).toContain("— Không có —");
+
+    const base = { id: ID, tab: "Trang tính1", headerRow: "1", colImage: "A", colPrompt: "C", colVideo: "D", colStatus: "E" };
+    await app.request("/sheets/map", { method: "POST", body: new URLSearchParams({ ...base, colShirt: "B" }) });
+    expect(getSheetConfig(db, ID, "Trang tính1")?.colShirt).toBe("B");
+    expect(await (await app.request("/sheets")).text()).toContain("<th>Ảnh áo</th>");
+
+    await app.request("/sheets/map", { method: "POST", body: new URLSearchParams({ ...base, colShirt: "" }) });
+    expect(getSheetConfig(db, ID, "Trang tính1")?.colShirt).toBeNull();
+
+    const dup = await app.request("/sheets/map", { method: "POST", body: new URLSearchParams({ ...base, colShirt: "A" }) });
+    expect(dup.status).toBe(400);
   });
 
   it("lưu tên file sheet khi lưu ánh xạ; danh sách hiện tên file thay cho mã", async () => {
