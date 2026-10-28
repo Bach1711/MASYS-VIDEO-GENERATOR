@@ -2,6 +2,17 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v1.4.0
+
+**Mới: bắt đầu trong 4 bước, hướng dẫn gọn.**
+
+- Máy mới mở tool là thấy **4 bước**, bước nào xong có dấu ✅: *1. Khoá Google* · *2. Dán link Google Sheet* · *3. Đăng nhập Muse* · *4. Thư mục Drive lưu video*. Còn thiếu bước nào thì Bảng nhắc đúng bước đó ở trên cùng.
+- **Kết nối sheet một bước:** dán link, tool tự chọn trang tính và tự tìm cột Ảnh, Prompt, Video, Trạng thái, Ảnh áo, rồi bạn chỉ bấm **Xác nhận**. Chỉ khi tool không tìm ra cột mới phải chọn tay. Nút **+ Thêm sheet** cũng làm như vậy.
+- **Đăng nhập Muse:** bấm **Mở cửa sổ Muse**, tự đăng nhập, rồi bấm **Kiểm tra**. Tool nhớ lần kiểm tra thành công (và mỗi lần gửi Muse thành công), không tự mở Chrome mỗi lần mở tool. Sau khi cập nhật, Bảng sẽ nhắc bước này một lần: bấm Kiểm tra là xong.
+- **Thư mục Drive lưu video:** dán link thư mục ngay trong các bước bắt đầu; tool báo nếu chưa có thư mục con "Video".
+- Chữ gợi ý ngắn ngay chỗ cần: cạnh nút Tạo video, ô Lưu video vào, số video còn lại hôm nay, ô tích của dòng không chọn được.
+- Hướng dẫn mới, ngắn: **⚙ Nâng cao → Hướng dẫn** (gồm cách xử lý khi tool tạm dừng). Các bước bắt đầu mở lại được ở **⚙ Nâng cao → Các bước bắt đầu**.
+
 ## v1.3.0
 
 **Mới: sửa ngay trên Bảng, không cần mở Google Sheet.**

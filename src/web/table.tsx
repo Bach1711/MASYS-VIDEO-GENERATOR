@@ -25,6 +25,7 @@ import type { ThumbnailCache } from "../scan/thumbnails.js";
 import { RUN_BADGE, RUN_STATE_TEXT } from "./batchRun.js";
 import { Alert, truncate } from "./components.js";
 import { Layout } from "./layout.js";
+import { StartSteps, startStatus } from "./start.js";
 
 // Màn hình chính "Bảng" (spec v5.0 mục 16.2, D17, D19): nội dung tab sheet thành bảng, tích chọn dòng,
 // một nút Tạo video (tạo lô với mặc định và chạy luôn), trạng thái từng dòng ngay trên bảng.
@@ -116,7 +117,16 @@ function Row(props: {
       title={editable ? undefined : "Dòng đang tạo video: chưa sửa được"}
     >
       <td>
-        <input type="checkbox" class="sel" name="row" value={String(r.row)} form="run" disabled={!selectable} aria-label={`Chọn dòng ${r.row}`} />
+        <input
+          type="checkbox"
+          class="sel"
+          name="row"
+          value={String(r.row)}
+          form="run"
+          disabled={!selectable}
+          aria-label={`Chọn dòng ${r.row}`}
+          title={selectable ? undefined : r.label === "has_video" ? "Đã có video: tích Ghi đè nếu muốn làm lại" : r.label === "missing_data" ? "Thiếu dữ liệu: xem lý do ở cột Trạng thái" : undefined}
+        />
         {r.label === "has_video" && r.canOverwrite && !inBatch && !props.locked && (
           <label class="inline small" title="Làm lại video cho dòng đã có video (D10)">
             <input type="checkbox" class="ow" name="overwrite" value={String(r.row)} form="run" /> Ghi đè
@@ -445,6 +455,7 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
           {head}
           {ok && <Alert kind="ok">{ok}</Alert>}
           {msg && <Alert kind="warn">{msg}</Alert>}
+          <StartSteps status={startStatus(config, db)} clientEmail={clientEmail} back={tableUrl(cfg.spreadsheetId, cfg.tab)} compact />
           <ActiveBatchBox active={active} runner={runner} cfg={cfg} db={db} />
           <div id="stale" class="card warn" hidden>
             Sheet vừa thay đổi. <a href={tableUrl(cfg.spreadsheetId, cfg.tab)}>🔄 Làm mới bảng</a> (các dòng đang chọn sẽ bỏ chọn).
@@ -583,6 +594,7 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
                 </option>
               </select>
               <input id="folderLink" name="folderLink" type="text" placeholder="https://drive.google.com/drive/folders/…" hidden={!!folders.selected} />
+              <span class="muted small">Muse lưu video xong vào thư mục này.</span>
             </div>
             <div class="run-right">
               <span id="runMsg" class="small warn-text" aria-live="polite">
@@ -592,6 +604,7 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
                 ▶ Tạo video (0 dòng)
               </button>
             </div>
+            <div class="muted small hint run-hint">Bot gửi lần lượt từng dòng cho Muse, mỗi dòng khoảng 3–5 phút. Cứ để tool chạy, video xong hiện ngay trên bảng.</div>
           </form>
           <script dangerouslySetInnerHTML={{ __html: CLIENT_JS }} />
         </div>,
@@ -611,11 +624,8 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
     return DRIVE_ID.test(value) ? { id: value } : { error: "Thư mục lưu video không hợp lệ." };
   }
 
-  // "+ Thêm sheet": mở trang Kết nối sheet, lưu xong quay về Bảng.
-  app.get("/bang/them-sheet", (c) => {
-    setCookie(c, "masys_back", "bang", { path: "/", maxAge: 60 * 60, sameSite: "Lax" });
-    return c.redirect("/sheets", 303);
-  });
+  // "+ Thêm sheet" (đường cũ): kết nối nhanh, lưu xong quay về Bảng (CON-51).
+  app.get("/bang/them-sheet", (c) => c.redirect("/ket-noi", 303));
 
   app.get("/bang/state", async (c) => {
     const cfg = getSheetConfig(db, c.req.query("id") ?? "", c.req.query("tab") ?? "");
@@ -816,13 +826,14 @@ function TableHeader(props: {
         <a class="button secondary" href={tableUrl(cfg.spreadsheetId, cfg.tab)} title="Đọc lại sheet">
           🔄 Làm mới
         </a>
-        <a class="button secondary" href="/bang/them-sheet" title="Kết nối thêm một file sheet hoặc trang tính">
+        <a class="button secondary" href="/ket-noi" title="Kết nối thêm một file sheet hoặc trang tính">
           + Thêm sheet
         </a>
       </form>
       <div class="row small">
-        <span class="pill">
+        <span class="pill" title="Giới hạn video mỗi ngày để giữ tài khoản Muse an toàn. Đổi ở ⚙ Nâng cao → Cài đặt.">
           Hôm nay <strong>{quota.used}/{quota.limit}</strong> video
+          {quota.remaining === 0 ? <span class="warn-text"> · đã đủ, mai làm tiếp</span> : <span class="muted"> · còn {quota.remaining}</span>}
         </span>
         <span class={`pill ${needLogin ? "bad" : ""}`}>
           {needLogin ? "⚠ Cần đăng nhập Muse" : props.bot?.isOpen ? "Muse: cửa sổ bot đang mở" : "Muse: tự mở khi tạo video"}

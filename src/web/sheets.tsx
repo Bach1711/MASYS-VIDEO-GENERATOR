@@ -52,7 +52,7 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
   const page = (body: Child) => "<!doctype html>" + <Layout title="Kết nối sheet">{body}</Layout>;
   const noClient = (
     <Alert kind="warn">
-      Chưa nạp được khoá service account nên chưa kết nối được Google Sheet. Xem hướng dẫn ở <a href="/">trang chủ</a>.
+      Chưa nạp được khoá service account nên chưa kết nối được Google Sheet. Xem <a href="/bat-dau">các bước bắt đầu</a>.
     </Alert>
   );
 
@@ -164,7 +164,7 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
     if (!sheets) return c.html(page(<><h1>Ánh xạ cột</h1>{noClient}</>));
     const saved = getSheetConfig(db, id, tab);
     const headerRow = Number(c.req.query("headerRow") ?? saved?.headerRow ?? 1);
-    return c.html(page(await mappingForm({ id, tab, headerRow, saved })));
+    return c.html(page(await mappingForm({ id, tab, headerRow, saved, back: c.req.query("back") === "bang" })));
   });
 
   app.post("/sheets/map", async (c) => {
@@ -182,7 +182,7 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
     };
     const problem = validateSheetConfig(cfg);
     if (problem) {
-      return c.html(page(await mappingForm({ id: cfg.spreadsheetId, tab: cfg.tab, headerRow: cfg.headerRow, saved: cfg, error: problem })), 400);
+      return c.html(page(await mappingForm({ id: cfg.spreadsheetId, tab: cfg.tab, headerRow: cfg.headerRow, saved: cfg, error: problem, back: str("back") === "bang" })), 400);
     }
     try {
       cfg.spreadsheetTitle = (await sheets?.getSpreadsheet(cfg.spreadsheetId))?.title;
@@ -191,15 +191,16 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
     }
     saveSheetConfig(db, cfg);
     logger.info({ spreadsheetId: cfg.spreadsheetId, tab: cfg.tab }, "Đã lưu ánh xạ cột");
-    // Vào từ nút "+ Thêm sheet" trên Bảng: lưu xong quay về Bảng với trang tính vừa thêm.
-    if (getCookie(c, "masys_back") === "bang") {
+    // Vào từ Kết nối nhanh / "+ Thêm sheet" trên Bảng: lưu xong quay về Bảng với trang tính vừa thêm.
+    if (str("back") === "bang" || getCookie(c, "masys_back") === "bang") {
       deleteCookie(c, "masys_back", { path: "/" });
       return c.redirect(`/?id=${encodeURIComponent(cfg.spreadsheetId)}&tab=${encodeURIComponent(cfg.tab)}&ok=${encodeURIComponent(`Đã thêm trang tính "${cfg.tab}".`)}`, 303);
     }
     return c.redirect(`/sheets?saved=${encodeURIComponent(cfg.tab)}`, 303);
   });
 
-  async function mappingForm(p: { id: string; tab: string; headerRow: number; saved?: SheetConfig; error?: string }) {
+  async function mappingForm(p: { id: string; tab: string; headerRow: number; saved?: SheetConfig; error?: string; back?: boolean }) {
+    const backField = p.back ? <input type="hidden" name="back" value="bang" /> : null;
     const title = <h1>Ánh xạ cột · {p.tab}</h1>;
     if (!Number.isInteger(p.headerRow) || p.headerRow < 1) {
       return <>{title}<Alert kind="warn">Dòng tiêu đề phải là số nguyên ≥ 1.</Alert></>;
@@ -226,6 +227,7 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
         <form class="card" method="get" action="/sheets/map">
           <input type="hidden" name="id" value={p.id} />
           <input type="hidden" name="tab" value={p.tab} />
+          {backField}
           <label for="hr">Dòng tiêu đề</label>
           <div class="row">
             <input id="hr" name="headerRow" type="number" min="1" value={String(p.headerRow)} />
@@ -237,6 +239,7 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
           <input type="hidden" name="id" value={p.id} />
           <input type="hidden" name="tab" value={p.tab} />
           <input type="hidden" name="headerRow" value={String(p.headerRow)} />
+          {backField}
           {ROLES.map((role) => (
             <div class="field">
               <label for={role}>{ROLE_LABELS[role]}</label>

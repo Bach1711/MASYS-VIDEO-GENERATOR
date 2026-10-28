@@ -7,6 +7,7 @@ import { STATE_TEXT, type CheckResult, type MuseBot } from "../bot/museBot.js";
 import type { AppConfig } from "../config.js";
 import type { DB } from "../db/index.js";
 import { getDailyQuota } from "../db/quota.js";
+import { rememberMuseCheck, setMuseReady } from "../db/settings.js";
 import { listSheetConfigs, sheetName } from "../db/sheetConfigs.js";
 import { logger } from "../logger.js";
 import type { BatchRunner } from "../queue/runner.js";
@@ -167,6 +168,7 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
   app.post("/bot/check", async (c) => {
     if (!bot) return c.html(render(), 503);
     lastCheck = { ...(await bot.check()), at: new Date() };
+    rememberMuseCheck(db, lastCheck.state);
     logger.info({ state: lastCheck.state, url: lastCheck.url }, "Kiểm tra trang Muse");
     return c.redirect("/bot", 303);
   });
@@ -187,6 +189,7 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
     const r = await manualSend(db, bot, runId);
     lastCheck = undefined;
     if (r.ok) {
+      setMuseReady(db, new Date().toISOString());
       return c.html(
         render(
           <Alert kind="ok">

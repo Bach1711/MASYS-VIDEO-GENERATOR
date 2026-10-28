@@ -9,8 +9,9 @@ Cần có: máy Windows 10/11 đã cài Google Chrome, và file khoá Google (.j
    Nếu Windows hỏi "Windows protected your PC", bấm "More info" rồi "Run anyway".
 3. Lần đầu: tool mở trang "Cài khoá Google". Chọn file khoá .json rồi bấm Lưu khoá. Tool tự khởi động lại.
    Khoá được mã hoá và cất trong máy, chỉ tài khoản Windows của bạn mở được. Có thể xoá file .json gốc sau bước này.
-4. Vào trang Bot Muse, bấm "Mở trình duyệt bot" và tự đăng nhập Meta Muse trong cửa sổ Chrome đó (chỉ làm một lần).
-5. Dùng tool như hướng dẫn sử dụng: Kết nối sheet → Quét và chọn dòng → Tạo lô → Bắt đầu chạy.
+4. Làm tiếp các bước tool hiện trên màn hình (mỗi bước có dấu ✅ khi xong):
+   dán link Google Sheet → đăng nhập Muse trong cửa sổ bot → dán link thư mục Drive lưu video.
+5. Trên màn hình Bảng: tích các dòng cần làm rồi bấm "Tạo video". Cần giúp: ⚙ Nâng cao → Hướng dẫn.
 
 Dữ liệu (lịch sử lô, cài đặt, phiên đăng nhập Muse, khoá đã mã hoá) nằm ở %LOCALAPPDATA%\masys-video,
 không nằm trong thư mục này.

@@ -4,6 +4,7 @@ import { BotError, type WatchResult } from "../src/bot/museBot.js";
 import { openDatabase, type DB } from "../src/db/index.js";
 import { saveSheetConfig, type SheetConfig } from "../src/db/sheetConfigs.js";
 import { recordSheetEdits } from "../src/db/sheetEdits.js";
+import { getSettings } from "../src/db/settings.js";
 import { columnIndex } from "../src/google/a1.js";
 import type { DriveClient, DriveFile } from "../src/google/drive.js";
 import { GoogleApiError } from "../src/google/http.js";
@@ -191,6 +192,15 @@ describe("hàng đợi chạy lô (F5, §7)", () => {
       .all(id)
       .map((e) => (e as { toState: string }).toState);
     expect(path).toEqual(["checking_row", "sending", "waiting", "verifying", "done"]);
+  });
+
+  it("gửi Muse thành công thì nhớ Muse đã đăng nhập (bước 3 bắt đầu nhanh, CON-51)", async () => {
+    const t = setup();
+    expect(getSettings(t.db).museReadyAt).toBeNull();
+    const id = createBatch(t.db, t.grid, [2]);
+    t.runner.start(id);
+    await t.runner.idle();
+    expect(getSettings(t.db).museReadyAt).toBeTruthy();
   });
 
   it("§12.5: có người dán link vào dòng 8 trước khi tới lượt → bỏ qua, không gửi Muse", async () => {
