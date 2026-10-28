@@ -19,7 +19,26 @@ export interface UpdateJob {
   step: UpdateStep;
   bytes: number;
   total?: number;
+  /** Tốc độ tải (byte/giây) trong vài giây gần nhất. */
+  speed?: number;
+  /** Đang thử lại sau khi mạng đứng / ngắt. */
+  retry?: { attempt: number; max: number };
   error?: string;
+}
+
+/** Cập nhật số byte, tốc độ (đo trong ~5 giây gần nhất) và bỏ dòng "đang thử lại" khi tải nhích lên. */
+function speedMeter(job: UpdateJob) {
+  const samples: { t: number; bytes: number }[] = [];
+  return (bytes: number, total?: number) => {
+    const t = Date.now();
+    if (bytes > job.bytes) job.retry = undefined;
+    job.bytes = bytes;
+    if (total) job.total = total;
+    samples.push({ t, bytes });
+    while (samples.length > 2 && t - samples[0]!.t > 5_000) samples.shift();
+    const first = samples[0]!;
+    if (t - first.t >= 1_000) job.speed = ((bytes - first.bytes) * 1000) / (t - first.t);
+  };
 }
 
 export interface UpdaterOptions {
@@ -36,7 +55,7 @@ export interface UpdaterOptions {
   extract?: (zipFile: string, destDir: string) => void;
 }
 
-const sha256 = (b: Buffer) => crypto.createHash("sha256").update(b).digest("hex");
+const sha256File = (file: string) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 
 function systemTarExtract(zipFile: string, destDir: string) {
   // tar.exe có sẵn trên Windows 10+ đọc được zip; không cần thư viện giải nén.
@@ -121,22 +140,44 @@ export class Updater {
     this.job = job;
     const tmp = path.join(layout.versionsDir, "_tai-ve");
     const dest = layout.versionDir(release.version);
+    const zipFile = path.join(tmp, `v${release.version}.zip`);
+    // Phần zip tải dở của đúng bản này (lần bấm trước bị ngắt: `.part` và các đoạn `.part.N`) được giữ để tải tiếp; còn lại dọn đi.
+    const part = `${zipFile}.part`;
+    const cleanTmp = (keepPart: boolean) => {
+      if (!fs.existsSync(tmp)) return;
+      for (const f of fs.readdirSync(tmp)) {
+        if (!keepPart || !f.startsWith(path.basename(part))) fs.rmSync(path.join(tmp, f), { recursive: true, force: true });
+      }
+      if (!keepPart) fs.rmSync(tmp, { recursive: true, force: true });
+    };
+    cleanTmp(true);
+    fs.mkdirSync(tmp, { recursive: true });
     let placed = false;
     try {
       const shaText = (await this.o.source.download(release.sha256Url)).toString("utf8");
       const expected = shaText.trim().split(/\s+/)[0]?.toLowerCase();
       if (!expected || !/^[0-9a-f]{64}$/.test(expected)) throw new Error("File SHA-256 trên GitHub không hợp lệ; đã huỷ.");
-      const zip = await this.o.source.download(release.zipUrl, (n) => (job.bytes = n));
+      await this.o.source.downloadToFile(release.zipUrl, part, {
+        size: release.zipSize,
+        onProgress: speedMeter(job),
+        onRetry: (attempt, max) => (job.retry = { attempt, max }),
+      });
+      job.retry = undefined;
 
       job.step = "verifying";
-      if (sha256(zip) !== expected) throw new Error("File tải về bị hỏng (sai mã SHA-256); đã huỷ, bản đang dùng giữ nguyên.");
+      if (sha256File(part) !== expected) {
+        fs.rmSync(part, { force: true }); // hỏng thì lần sau tải lại từ đầu
+        throw new Error("File tải về bị hỏng (sai mã SHA-256); đã huỷ, bản đang dùng giữ nguyên. Bấm Cập nhật để tải lại.");
+      }
+      fs.renameSync(part, zipFile);
 
       job.step = "extracting";
-      fs.rmSync(tmp, { recursive: true, force: true });
       fs.mkdirSync(path.join(tmp, "x"), { recursive: true });
-      const zipFile = path.join(tmp, `v${release.version}.zip`);
-      fs.writeFileSync(zipFile, zip);
-      (this.o.extract ?? systemTarExtract)(zipFile, path.join(tmp, "x"));
+      try {
+        (this.o.extract ?? systemTarExtract)(zipFile, path.join(tmp, "x"));
+      } catch {
+        throw new Error("Giải nén bản mới không được (ổ đĩa đầy hoặc file zip hỏng); đã huỷ, bản đang dùng giữ nguyên.");
+      }
       const src = path.join(tmp, "x", "MASYS-Video", "phien-ban", release.version);
       if (!isCompleteVersion(src)) throw new Error("File zip bản mới thiếu thành phần; đã huỷ.");
       const pkg = JSON.parse(fs.readFileSync(path.join(src, "app", "package.json"), "utf8")) as { version?: string };
@@ -147,7 +188,11 @@ export class Updater {
       fs.rmSync(tmp, { recursive: true, force: true });
 
       job.step = "backing_up";
-      await this.backup(`v${this.o.currentVersion}-sang-v${release.version}`);
+      try {
+        await this.backup(`v${this.o.currentVersion}-sang-v${release.version}`);
+      } catch {
+        throw new Error("Không sao lưu được dữ liệu (ổ đĩa đầy?); đã huỷ, bản đang dùng giữ nguyên.");
+      }
 
       // Trong lúc tải có thể đã bấm chạy lô: kiểm tra lại ngay trước khi chuyển.
       const late = this.o.blocker();
@@ -161,9 +206,12 @@ export class Updater {
       logger.info({ from: current, to: release.version }, "Chuyển sang bản mới");
       this.o.switchVersion();
     } catch (e) {
+      // Lỗi lúc tải: giữ phần đã tải để lần bấm sau tải tiếp.
+      const keepPart = job.step === "downloading";
       job.step = "failed";
+      job.retry = undefined;
       job.error = (e as Error).message;
-      fs.rmSync(tmp, { recursive: true, force: true });
+      cleanTmp(keepPart);
       // Bản mới đã giải nén nhưng chưa chuyển thì giữ lại cũng vô hại; chỉ xoá khi lỗi trước bước đó.
       if (!placed) fs.rmSync(dest, { recursive: true, force: true });
       logger.warn({ target: release.version, problem: job.error }, "Cập nhật không thành công");
