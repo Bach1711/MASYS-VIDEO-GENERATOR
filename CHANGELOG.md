@@ -2,6 +2,14 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v1.1.2
+
+**Tool có logo MASYS.**
+
+- Tab Chrome của tool hiện biểu tượng MASYS, dễ tìm giữa nhiều tab.
+- Thanh trên cùng có logo và chữ **MASYS Video**, bấm vào là về Trang chủ.
+- Trang chủ có logo đầy đủ.
+
 ## v1.1.1
 
 Sửa lỗi cập nhật trong tool báo *"EPERM: operation not permitted"* ở bước cuối.
