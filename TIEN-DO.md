@@ -110,7 +110,7 @@ flowchart LR
 
 | # | Ticket | Nội dung | Trạng thái | PR | Hoàn thành |
 |---|---|---|---|---|---|
-| 12 | [CON-46](https://linear.app/conducdaudan/issue/CON-46) | Ghép ảnh áo vào ảnh người mẫu rồi tạo video (cột Ảnh áo, v1.1.0) | 🟦 Chờ duyệt | PR_LINK | |
+| 12 | [CON-46](https://linear.app/conducdaudan/issue/CON-46) | Ghép ảnh áo vào ảnh người mẫu rồi tạo video (cột Ảnh áo, v1.1.0) | 🟦 Chờ duyệt | [#14](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/14) | |
 
 ## Nhật ký cập nhật
 
