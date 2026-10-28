@@ -14,6 +14,7 @@ import { registerBatchRunRoutes } from "./batchRun.js";
 import { registerBotRoutes } from "./bot.js";
 import { registerHistoryRoutes, StatusBanner } from "./history.js";
 import { HomePage } from "./home.js";
+import { LOGO_PREFIX, registerLogoRoutes } from "./logo.js";
 import { setStatusBanner, setUpdateBanner } from "./layout.js";
 import { registerScanRoutes } from "./scan.js";
 import { registerSettingsRoutes } from "./settings.js";
@@ -42,11 +43,12 @@ export function createApp(config: AppConfig, db: DB, deps: AppDeps = {}) {
 
   // Bản zip chưa có khoá Google: mọi trang dẫn về Cài khoá (D15).
   app.use("*", async (c, next) => {
-    if (c.req.method === "GET" && needsKeySetup(config) && !c.req.path.startsWith("/setup") && c.req.path !== "/health") {
+    if (c.req.method === "GET" && needsKeySetup(config) && !c.req.path.startsWith("/setup") && !c.req.path.startsWith(LOGO_PREFIX) && c.req.path !== "/health") {
       return c.redirect("/setup", 302);
     }
     await next();
   });
+  registerLogoRoutes(app);
 
   app.get("/", (c) => {
     const { dailyVideoLimit } = db.prepare("SELECT dailyVideoLimit FROM settings WHERE id = 1").get() as {

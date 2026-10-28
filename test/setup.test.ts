@@ -97,6 +97,29 @@ function setupApp(opts: { env?: Record<string, string>; verifyFails?: boolean; r
   return { app, store, restart, verifyKey, upload };
 }
 
+describe("logo MASYS (CON-48)", () => {
+  it("mọi trang có biểu tượng tab và logo ở thanh trên; ảnh trả về đúng PNG, kể cả khi chưa cài khoá", async () => {
+    const { app } = setupApp();
+    const page = await (await app.request("/setup")).text();
+    expect(page).toContain(`rel="icon" type="image/png" sizes="32x32" href="/logo/icon-32.png?v=${APP_VERSION}"`);
+    expect(page).toContain('class="brand"');
+    for (const f of ["icon-32.png", "icon-64.png", "icon-180.png", "masys.png"]) {
+      const r = await app.request(`/logo/${f}?v=${APP_VERSION}`);
+      expect(r.status).toBe(200);
+      expect(r.headers.get("content-type")).toBe("image/png");
+      expect(r.headers.get("cache-control")).toContain("immutable");
+      const png = Buffer.from(await r.arrayBuffer());
+      expect(png.subarray(1, 4).toString("ascii")).toBe("PNG");
+    }
+    expect((await app.request("/logo/khong-co.png")).status).toBe(404);
+  });
+
+  it("Trang chủ có logo đầy đủ", async () => {
+    const { app } = setupApp({ env: FAKE_KEY_ENV });
+    expect(await (await app.request("/")).text()).toContain(`src="/logo/masys.png?v=${APP_VERSION}"`);
+  });
+});
+
 describe("trang Cài khoá Google (D15)", () => {
   it("chưa có khoá thì mọi trang dẫn về /setup, trừ /health", async () => {
     const { app } = setupApp();

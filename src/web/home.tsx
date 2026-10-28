@@ -1,10 +1,14 @@
 import type { ServiceAccountStatus } from "../config.js";
+import { logoUrl } from "./logo.js";
 import { Layout } from "./layout.js";
 
 export function HomePage(props: { serviceAccount: ServiceAccountStatus; dailyVideoLimit: number }) {
   const sa = props.serviceAccount;
   return (
     <Layout title="MASYS Video">
+      <div class="hero">
+        <img src={logoUrl("masys.png")} alt="MASYS Video Generator" />
+      </div>
       <h1>MASYS Video Generator</h1>
       {sa.ok ? (
         <div class="card">

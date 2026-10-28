@@ -1,5 +1,6 @@
 import type { Child } from "hono/jsx";
 import { APP_NAME, APP_VERSION } from "../version.js";
+import { logoUrl } from "./logo.js";
 
 /** Dải báo lô đang chạy / tạm dừng trên đầu mọi trang (CON-41); createApp gắn vào. */
 let statusBanner: (() => Child) | undefined;
@@ -20,6 +21,9 @@ export function Layout(props: { title: string; children: Child }) {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{props.title}</title>
+        <link rel="icon" type="image/png" sizes="32x32" href={logoUrl("icon-32.png")} />
+        <link rel="icon" type="image/png" sizes="180x180" href={logoUrl("icon-180.png")} />
+        <link rel="apple-touch-icon" href={logoUrl("icon-180.png")} />
         <style>{`
           :root { --bg:#f7f7f8; --fg:#1b1b1f; --muted:#5f6068; --card:#fff; --border:#dcdce0; --warn-bg:#fff4e5; --warn-fg:#7a4100; --ok-bg:#e6f6e6; --ok-fg:#1d5a1d; --link:#1f5fbf; --accent:#1f5fbf; }
           @media (prefers-color-scheme: dark) {
@@ -36,6 +40,11 @@ export function Layout(props: { title: string; children: Child }) {
           nav { border-bottom:1px solid var(--border); background:var(--card); }
           nav div { max-width:960px; margin:0 auto; padding:10px 16px; display:flex; gap:16px; flex-wrap:wrap; }
           a { color:var(--link); }
+          nav div { align-items:center; }
+          nav a.brand { display:flex; align-items:center; gap:8px; font-weight:700; color:var(--fg); text-decoration:none; margin-right:8px; }
+          nav a.brand img { width:28px; height:28px; }
+          .hero { display:flex; justify-content:center; background:#0b0b12; border-radius:12px; padding:16px; margin-bottom:16px; }
+          .hero img { width:180px; height:180px; }
           .ok { background:var(--ok-bg); color:var(--ok-fg); border-color:transparent; }
           label { display:block; font-weight:600; margin-bottom:6px; }
           .row { display:flex; gap:8px; flex-wrap:wrap; }
@@ -96,6 +105,10 @@ export function Layout(props: { title: string; children: Child }) {
       <body>
         <nav>
           <div>
+            <a href="/" class="brand" title="MASYS Video Generator">
+              <img src={logoUrl("icon-64.png")} alt="" />
+              MASYS Video
+            </a>
             <a href="/">Trang chủ</a>
             <a href="/sheets">Kết nối sheet</a>
             <a href="/scan">Quét và chọn dòng</a>
