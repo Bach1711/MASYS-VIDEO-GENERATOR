@@ -34,14 +34,14 @@
 </main>
 <script type="text/plain" id="source"># Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **28/10/2026**, CON-45 (sửa lỗi cập nhật) chờ duyệt. File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **28/10/2026**, sau CON-45 — **hoàn thành GĐ1 và GĐ2**. File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v4.3 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 10/11 ticket xong · GĐ1 8/8 🎉 · GĐ2 2/3 (CON-45 chờ duyệt)
+**Tổng quan:** 11/11 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉
 
 ```
-[■■■■■■■■■□]  10/11 — xong CON-35…CON-44 · CON-45 chờ duyệt
+[■■■■■■■■■■]  11/11 — xong CON-35…CON-45
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -111,7 +111,7 @@ flowchart LR
     class progress done
     class pack done
     class update done
-    class download review
+    class download done
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -134,11 +134,11 @@ flowchart LR
 |---|---|---|---|---|---|
 | 9 | [CON-43](https://linear.app/conducdaudan/issue/CON-43) | Đóng gói zip chạy ngay, cài khoá Google lần đầu, số phiên bản | 🟩 Xong | [#10](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/10) | 27/10/2026 |
 | 10 | [CON-44](https://linear.app/conducdaudan/issue/CON-44) | Kiểm tra và cập nhật phiên bản ngay trong tool | 🟩 Xong | [#11](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/11) | 27/10/2026 |
-| 11 | [CON-45](https://linear.app/conducdaudan/issue/CON-45) | Sửa lỗi: cập nhật tải chậm / đứng khi mạng chập chờn (v1.0.2) | 🟦 Chờ duyệt | [#13](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/13) | |
+| 11 | [CON-45](https://linear.app/conducdaudan/issue/CON-45) | Sửa lỗi: cập nhật tải chậm / đứng khi mạng chập chờn (v1.0.2) | 🟩 Xong | [#13](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/13) | 28/10/2026 |
 
 ## Nhật ký cập nhật
 
-- **28/10/2026 · CON-45** (chờ duyệt): **sửa lỗi cập nhật trong tool** phát hiện khi thử trên máy thứ hai (tải đứng ở 4.5/50 MB, 16 phút sau báo lỗi tiếng Anh). Nguyên nhân: GitHub giới hạn tốc độ **theo từng kết nối** (đo được khoảng 33 KB/giây mỗi kết nối), còn tool cũ tải một kết nối, không phát hiện kết nối đứng, không thử lại. Bản v1.0.2: tải **8 phần cùng lúc** rồi ghép (đo thật với GitHub: 6 kết nối ≈ 175 KB/giây, nhanh gấp khoảng 5 lần); 30 giây không nhận thêm dữ liệu thì tự ngắt và thử lại, **tải tiếp từ chỗ dừng**; vẫn hỏng thì giữ phần đã tải, bấm Cập nhật lần nữa để tải tiếp; trang cập nhật hiện tốc độ và *"Mạng chập chờn, đang thử lại (lần N/5)"*; mọi lỗi bằng tiếng Việt. Test với máy chủ giả đứng / ngắt / không hỗ trợ tải từng đoạn.
+- **28/10/2026 · CON-45** (xong, đã duyệt và gộp vào main): **sửa lỗi cập nhật trong tool** phát hiện khi thử trên máy thứ hai (tải đứng ở 4.5/50 MB, 16 phút sau báo lỗi tiếng Anh). Nguyên nhân: GitHub giới hạn tốc độ **theo từng kết nối** (đo được khoảng 33 KB/giây mỗi kết nối), còn tool cũ tải một kết nối, không phát hiện kết nối đứng, không thử lại. Bản v1.0.2: tải **8 phần cùng lúc** rồi ghép (đo thật với GitHub: 6 kết nối ≈ 175 KB/giây, nhanh gấp khoảng 5 lần); 30 giây không nhận thêm dữ liệu thì tự ngắt và thử lại, **tải tiếp từ chỗ dừng**; vẫn hỏng thì giữ phần đã tải, bấm Cập nhật lần nữa để tải tiếp; trang cập nhật hiện tốc độ và *"Mạng chập chờn, đang thử lại (lần N/5)"*; mọi lỗi bằng tiếng Việt. Test với máy chủ giả đứng / ngắt / không hỗ trợ tải từng đoạn.
 
 - **27/10/2026 · CON-44** (xong, đã duyệt và gộp vào main): **cập nhật ngay trong tool** (spec D16). Trang **Cài đặt** có khung **Phiên bản**: bản đang dùng, nút *Kiểm tra phiên bản*, bản mới kèm ghi chú thay đổi, nút **Cập nhật lên vX.Y.Z** và **Quay về vX.Y.Z**. Mỗi lần mở tool tự hỏi GitHub một lần; có bản mới thì hiện dải báo trên đầu trang, không tự cập nhật. Cập nhật: tải → so SHA-256 → giải nén vào `phien-banX.Y.Z` cạnh bản cũ → sao lưu `data.db` (giữ 3) → khởi động lại → báo *Đã cập nhật*. Nút bị khoá khi lô đang chạy hoặc có dòng đang gửi / chờ Muse. Bản mới không lên trong 60 giây (hoặc hỏng ngay khi chạy) thì tự quay về bản cũ và báo. Chỉ tải từ GitHub Releases của repo này. Lệnh `npm run release` + `CHANGELOG.md` để phát hành. Đã chạy thử trên máy với GitHub giả: v1.0.0 → cập nhật v1.0.1 (5 giây, cài đặt còn nguyên) → Quay về v1.0.0 → cập nhật lên bản hỏng v1.0.2 → tự quay về v1.0.0; cả trường hợp launcher bản mới hỏng. Thử thật với GitHub sau khi gộp và công khai repo.
 
