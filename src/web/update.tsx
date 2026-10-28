@@ -16,7 +16,8 @@ const STEP_TEXT: Record<UpdateJob["step"], string> = {
 };
 
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
-const dateVi = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("vi-VN") : "");
+const rate = (bps: number) => (bps >= 1024 * 1024 ? `${(bps / 1024 / 1024).toFixed(1)} MB/giây` : `${Math.round(bps / 1024)} KB/giây`);
+const dateVi =(iso?: string) => (iso ? new Date(iso).toLocaleDateString("vi-VN") : "");
 
 /** Script chờ tool mới lên đúng phiên bản rồi chuyển trang (tiến trình cũ tắt trước, nên đợi vài giây). */
 function waitForVersion(version: string, then: string) {
@@ -62,7 +63,7 @@ export function VersionCard(props: { updater?: Updater }) {
             {blocker && <span class="warn-text small">{blocker}</span>}
           </form>
           <p class="muted small">
-            Tool tải bản mới, kiểm tra, sao lưu dữ liệu rồi tự khởi động lại (khoảng 1–2 phút). Lịch sử lô, cài đặt, đăng nhập Muse và khoá
+            Tool tải bản mới, kiểm tra, sao lưu dữ liệu rồi tự khởi động lại (vài phút, tuỳ mạng; mạng đứt giữa chừng thì tool tự tải tiếp). Lịch sử lô, cài đặt, đăng nhập Muse và khoá
             Google giữ nguyên.
           </p>
         </div>
@@ -145,7 +146,9 @@ export function registerUpdateRoutes(app: Hono, deps: { updater?: Updater }) {
       );
     }
     const progress =
-      job.step === "downloading" ? ` ${mb(job.bytes)}${job.total ? ` / ${mb(job.total)}` : ""}` : "";
+      job.step === "downloading"
+        ? ` ${mb(job.bytes)}${job.total ? ` / ${mb(job.total)}` : ""}${job.speed !== undefined && !job.retry ? ` · ${rate(job.speed)}` : ""}`
+        : "";
     return c.html(
       page(
         "Đang cập nhật",
@@ -157,6 +160,11 @@ export function registerUpdateRoutes(app: Hono, deps: { updater?: Updater }) {
               <strong>{STEP_TEXT[job.step]}</strong>
               {progress}…
             </p>
+            {job.retry && (
+              <p class="warn-text">
+                Mạng chập chờn, đang thử lại (lần {job.retry.attempt}/{job.retry.max})… Phần đã tải được giữ lại, không tải lại từ đầu.
+              </p>
+            )}
             <p class="muted">Đừng đóng cửa sổ đen. Trang tự chuyển khi xong.</p>
           </div>
           {job.step === "switching" && waitForVersion(job.target, "/settings#phien-ban")}

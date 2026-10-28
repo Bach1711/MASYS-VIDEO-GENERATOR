@@ -286,6 +286,17 @@ describe("giao diện phiên bản", () => {
     expect(page).toContain('"1.0.1"');
   });
 
+  it("trang tiến trình hiện tốc độ tải; mạng đứng thì báo đang thử lại", async () => {
+    const { app, updater } = await appWith();
+    updater.job = { target: "1.0.1", step: "downloading", bytes: 4.5 * 1024 * 1024, total: 50.1 * 1024 * 1024, speed: 2.5 * 1024 * 1024 };
+    let page = await (await app.request("/update")).text();
+    expect(page).toContain("4.5 MB / 50.1 MB · 2.5 MB/giây");
+    updater.job.retry = { attempt: 2, max: 5 };
+    page = await (await app.request("/update")).text();
+    expect(page).toContain("Mạng chập chờn, đang thử lại (lần 2/5)");
+    expect(page).not.toContain("MB/giây");
+  });
+
   it("thông báo sau khi mở tool hiện trên mọi trang tới khi bấm Đã hiểu", async () => {
     const { app, updater } = await appWith({ current: "1.0.1", remote: "1.0.1" });
     updater.notice = { kind: "ok", text: "Đã cập nhật lên v1.0.1 (từ v1.0.0)." };

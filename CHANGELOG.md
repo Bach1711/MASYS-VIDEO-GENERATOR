@@ -2,6 +2,16 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v1.0.2
+
+Sửa lỗi cập nhật trong tool chậm và bị đứng khi mạng chập chờn.
+
+- Tải bản mới **nhanh hơn nhiều**. Tool tải nhiều phần cùng lúc, vì GitHub giới hạn tốc độ của từng kết nối.
+- Tải bị đứng 30 giây thì tool tự thử lại, tải tiếp từ chỗ dừng, không tải lại từ đầu. Mạng chậm nhưng vẫn chạy thì tool cứ tải tới xong.
+- Nếu vẫn không được, phần đã tải được giữ lại. Bấm **Cập nhật** lần nữa để tải tiếp.
+- Trang cập nhật hiện tốc độ tải và báo *"Mạng chập chờn, đang thử lại"* khi bị đứng.
+- Mọi câu báo lỗi khi cập nhật đều bằng tiếng Việt.
+
 ## v1.0.1
 
 Bản thử cơ chế cập nhật trong tool. Không thay đổi tính năng.
