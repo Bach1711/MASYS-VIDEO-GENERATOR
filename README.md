@@ -117,6 +117,7 @@ Tool đọc sheet, ghi ô Trạng thái và kiểm tra file video bằng một *
 2. Tích các dòng cần làm (hoặc **☑ Chọn mọi dòng chưa có video**), bấm **▶ Tạo video**. Tool tự tạo lô và chạy luôn: lưu video vào thư mục chọn ở ô **Lưu video vào** (mặc định thư mục con "Video" trong thư mục gốc ở Cài đặt; chọn thư mục con khác hoặc dán link thư mục khác; tool nhớ lần trước), mẫu yêu cầu trong Cài đặt, prompt đúng như trong sheet.
 3. Trạng thái từng dòng và video hiện ngay trên bảng. Cần đăng nhập Muse thì bảng báo và có nút **Tiếp tục**; có nút **Tạm dừng** / **Huỷ**.
 4. Muốn xem trước câu gửi Muse của một dòng: bấm **Xem yêu cầu gửi Muse** ở dòng đó.
+5. **Sửa ngay trên Bảng (từ v1.3.0):** bấm **✎** cạnh prompt, ảnh người mẫu hoặc ảnh áo (ô trống thì bấm **+**), sửa rồi **Lưu lên sheet**: tool ghi thẳng vào Google Sheet. Link ảnh được kiểm tra trước khi ghi. Nếu ô vừa bị người khác sửa trên sheet, tool không ghi mà báo *"Ô này vừa được người khác sửa"* và hiện giá trị mới. **+ Thêm dòng** ghi vào dòng trống đầu tiên sau dòng cuối. **Dải prompt ▾** chép prompt của một dòng sang các dòng chọn hoặc xuống tới dòng cuối (hỏi xác nhận trước; bỏ qua dòng đang tạo video và dòng đã có video). Dòng đang tạo video thì không sửa được. Mọi ô đã sửa ghi ở **Nhật ký → Ô đã sửa từ Bảng**. Tool không bao giờ sửa ô Video, không xoá hay chèn dòng.
 
 Các trang cũ (kết nối sheet, quét kiểu cũ có sửa prompt riêng cho lần gửi, lịch sử lô, nhật ký, bot Muse, cài đặt) nằm trong nút **⚙ Nâng cao** góc trên. Cách dùng kiểu cũ:
 
@@ -128,7 +129,7 @@ Các trang cũ (kết nối sheet, quét kiểu cũ có sửa prompt riêng cho 
 
 **Ghép ảnh áo (từ v1.1.0):** sheet có cột **Ảnh áo** (link Drive ảnh thiết kế áo) thì ở **Kết nối sheet** chọn thêm cột này (tool tự nhận tiêu đề "Ảnh áo"). Sheet đã kết nối từ trước: bấm **Sửa** ở tab đó rồi **Lưu ánh xạ** một lần. Dòng có ảnh áo: bảng quét hiện 2 ảnh, yêu cầu gửi Muse có thêm đoạn dặn Muse **ghép áo vào ảnh người mẫu trước rồi tạo video theo prompt**, trong cùng một lượt; ảnh ghép không lưu. Dòng để trống ô Ảnh áo chạy như cũ. Câu chữ đoạn này sửa ở **Cài đặt → Đoạn ghép áo**.
 
-> ⚠️ **Đang chạy lô thì đừng sửa sheet** (kể cả dán link vào dòng khác). Tool so toàn bộ trang tính trước và sau mỗi lượt để bắt Muse sửa nhầm ô; một ô bị đổi tay cũng bị coi là "Muse sửa ô khác" và lô tạm dừng. Muốn sửa thì bấm **Tạm dừng** trước, sửa xong bấm **Tiếp tục**.
+> ⚠️ **Đang chạy lô thì sửa trên Bảng, đừng sửa thẳng trên Google Sheet.** Tool so toàn bộ trang tính trước và sau mỗi lượt để bắt Muse sửa nhầm ô. Ô sửa bằng **✎ / Thêm dòng / Dải prompt** trên Bảng được tool nhận ra là của bạn; ô bị đổi tay trên sheet thì vẫn bị coi là "Muse sửa ô khác" và lô tạm dừng. Muốn sửa trên sheet thì bấm **Tạm dừng** trước, sửa xong bấm **Tiếp tục**.
 
 **Giới hạn mỗi ngày** mặc định **5 video** (đổi ở Cài đặt). Đủ số thì lô tự tạm dừng, hôm sau bấm Tiếp tục. Tạo nhiều video tự động mỗi ngày làm tăng rủi ro tài khoản Meta bị hạn chế.
 

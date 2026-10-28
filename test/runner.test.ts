@@ -3,6 +3,7 @@ import { FAKE_KEY_ENV } from "./fakeKey.js";
 import { BotError, type WatchResult } from "../src/bot/museBot.js";
 import { openDatabase, type DB } from "../src/db/index.js";
 import { saveSheetConfig, type SheetConfig } from "../src/db/sheetConfigs.js";
+import { recordSheetEdits } from "../src/db/sheetEdits.js";
 import { columnIndex } from "../src/google/a1.js";
 import type { DriveClient, DriveFile } from "../src/google/drive.js";
 import { GoogleApiError } from "../src/google/http.js";
@@ -281,6 +282,39 @@ describe("hàng đợi chạy lô (F5, §7)", () => {
       "link không hợp lệ: file không tồn tại hoặc service account không xem được",
       "link không hợp lệ: file không phải video (image/png)",
     ]);
+  });
+
+  it("người dùng sửa ô dòng khác trên Bảng trong lúc chờ Muse (D18): không coi là Muse sửa nhầm", async () => {
+    const t = setup({
+      muse: (row) => {
+        setTimeout(() => {
+          // Tool ghi B7 theo yêu cầu người dùng (có trong nhật ký sửa), rồi Muse dán link video.
+          recordSheetEdits(t.db, ID, TAB, "edit", [{ cell: "B7", row: 7, field: "prompt", oldValue: "prompt 7", newValue: "prompt 7 mới" }]);
+          t.set("B7", "prompt 7 mới");
+          t.set(`C${row}`, vid(row));
+        }, 5);
+      },
+    });
+    const id = createBatch(t.db, t.grid, [3]);
+    t.runner.start(id);
+    await t.runner.idle();
+    expect(statesOf(t.db, id)).toEqual([[3, "done"]]);
+  });
+
+  it("ô tool đã ghi nhưng sau đó bị đổi sang giá trị khác: vẫn báo Muse sửa ô khác", async () => {
+    const t = setup({
+      muse: (row) => {
+        setTimeout(() => {
+          recordSheetEdits(t.db, ID, TAB, "edit", [{ cell: "B7", row: 7, field: "prompt", oldValue: "prompt 7", newValue: "prompt 7 mới" }]);
+          t.set("B7", "Muse ghi đè");
+          t.set(`C${row}`, vid(row));
+        }, 5);
+      },
+    });
+    const id = createBatch(t.db, t.grid, [3]);
+    t.runner.start(id);
+    await t.runner.idle();
+    expect(runsOf(t.db, id)[0]!.error).toBe("Muse sửa ô khác (B7)");
   });
 
   it("§12.9: Muse sửa nhầm ô khác trong lúc chờ → Cần xem, tạm dừng lô, dòng sau chưa chạy", async () => {

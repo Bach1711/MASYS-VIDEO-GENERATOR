@@ -2,6 +2,20 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v1.3.0
+
+**Mới: sửa ngay trên Bảng, không cần mở Google Sheet.**
+
+- Bấm **✎** cạnh prompt, ảnh người mẫu hoặc ảnh áo (ô trống thì bấm **+**), sửa rồi bấm **Lưu lên sheet**. Tool ghi thẳng vào Google Sheet.
+- Dán link ảnh: tool kiểm tra link Drive mở được và đúng là ảnh rồi mới ghi; sai thì báo ngay tại ô.
+- Nếu đúng lúc đó có người khác vừa sửa ô ấy trên sheet, tool **không ghi đè** mà báo *"Ô này vừa được người khác sửa"* và hiện nội dung mới. Muốn giữ nội dung của mình thì bấm Lưu lần nữa.
+- **+ Thêm dòng:** điền ảnh người mẫu, ảnh áo, prompt; tool ghi vào dòng trống đầu tiên sau dòng cuối của sheet.
+- **Dải prompt ▾:** chép prompt của một dòng sang các dòng đã chọn (ví dụ *3-6, 9*) hoặc xuống tới dòng cuối. Tool báo *"Sẽ thay prompt của N dòng"* để bạn xác nhận trước khi ghi; dòng đang tạo video và dòng đã có video được bỏ qua (trừ khi tích *Thay cả dòng đã có video*).
+- Dòng đang tạo video thì khoá sửa cho tới khi xong.
+- Đang chạy lô vẫn sửa được các dòng khác trên Bảng mà lô không bị dừng nhầm vì *"Muse sửa ô khác"*.
+- Mọi ô đã sửa (ô nào, nội dung cũ, nội dung mới, lúc nào) xem ở **⚙ Nâng cao → Nhật ký → Ô đã sửa từ Bảng**.
+- Tool không bao giờ sửa ô Video, không xoá hay chèn dòng.
+
 ## v1.2.0
 
 **Mới: màn hình Bảng, bấm một nút là tạo video.**

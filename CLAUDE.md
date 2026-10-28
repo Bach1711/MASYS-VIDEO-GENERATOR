@@ -24,4 +24,4 @@
 - **Bí mật:** không bao giờ dán key/token vào code, commit hay khung chat. `.env` chỉ chứa `op://…`; chạy bằng `op run --env-file=.env -- <lệnh>`.
 - **Bot Muse:** không bao giờ gõ mật khẩu Meta, không vượt captcha/2FA; người dùng tự đăng nhập trong hồ sơ bot (D6). Hồ sơ bot, SQLite và ảnh chụp màn hình nằm ngoài repo; không log cookie.
 - **Không tự gửi lại yêu cầu cho Muse khi không chắc** đã gửi hay chưa (D9). Chạy tuần tự, mỗi dòng một cuộc trò chuyện mới (D7).
-- Tool chỉ ghi **đúng một ô Trạng thái** mỗi lần; không sửa ô nào khác trong sheet.
+- Bot khi chạy lô chỉ ghi **đúng một ô Trạng thái** mỗi lần. Ngoài ra (D18, từ v1.3.0) tool chỉ ghi ô **Prompt / Ảnh người mẫu / Ảnh áo** khi người dùng sửa trên Bảng (đọc lại ô trước khi ghi, khác thì không ghi) và thêm dòng ở cuối; **không bao giờ** ghi ô Video, không xoá / chèn / sắp xếp dòng. Mọi lần ghi lưu ở bảng `sheet_edits`.

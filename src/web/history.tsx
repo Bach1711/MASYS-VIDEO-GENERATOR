@@ -3,6 +3,7 @@ import type { Hono } from "hono";
 import type { DB } from "../db/index.js";
 import { activeBatch, listBatches, listLogs, PROBLEM_STATES } from "../db/history.js";
 import { listSheetConfigs, sheetName } from "../db/sheetConfigs.js";
+import { FIELD_TEXT, KIND_TEXT, listSheetEdits } from "../db/sheetEdits.js";
 import { PAUSE_SHORT, type BatchRunner, type PauseReason } from "../queue/runner.js";
 import { BATCH_STATUS_TEXT, RUN_BADGE, RUN_STATE_TEXT } from "./batchRun.js";
 import { truncate } from "./components.js";
@@ -10,6 +11,50 @@ import { Layout } from "./layout.js";
 
 /** Link xem ảnh chụp màn hình lỗi (phục vụ ở /bot/screenshot, chỉ tên file trong thư mục ảnh chụp). */
 export const screenshotHref = (p: string) => `/bot/screenshot/${encodeURIComponent(path.basename(p))}`;
+
+/** Các ô tool đã ghi lên sheet khi người dùng sửa trên Bảng (D18): ô, giá trị cũ, giá trị mới, giờ. */
+function SheetEditLog(props: { db: DB }) {
+  const edits = listSheetEdits(props.db, 200);
+  const names = new Map(listSheetConfigs(props.db).map((c) => [c.spreadsheetId, sheetName(c)]));
+  const val = (s: string) => (s ? truncate(s, 120) : <span class="muted">(trống)</span>);
+  return (
+    <>
+      <h2 class="sub-h">Ô đã sửa từ Bảng</h2>
+      {edits.length === 0 ? (
+        <p class="muted">Chưa sửa ô nào trên sheet từ tool.</p>
+      ) : (
+        <div class="scroll">
+          <table class="scan">
+            <thead>
+              <tr>
+                <th>Lúc</th>
+                <th>Sheet · ô</th>
+                <th>Việc</th>
+                <th>Giá trị cũ</th>
+                <th>Giá trị mới</th>
+              </tr>
+            </thead>
+            <tbody>
+              {edits.map((e) => (
+                <tr>
+                  <td class="small">{new Date(e.at).toLocaleString("vi-VN")}</td>
+                  <td>
+                    {names.get(e.spreadsheetId) ?? e.spreadsheetId.slice(0, 8)} › {e.tab} · <strong>{e.cell}</strong>
+                  </td>
+                  <td class="small">
+                    {KIND_TEXT[e.kind]} · {FIELD_TEXT[e.field]}
+                  </td>
+                  <td class="small">{val(e.oldValue)}</td>
+                  <td class="small">{val(e.newValue)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
 
 /** Dải báo trên đầu mọi trang khi có lô đang chạy hoặc tạm dừng. */
 export function StatusBanner(props: { db: DB; runner?: BatchRunner }) {
@@ -174,6 +219,7 @@ export function registerHistoryRoutes(app: Hono, deps: { db: DB }) {
                 </table>
               </div>
             )}
+            {!batchId && <SheetEditLog db={db} />}
             <p class="muted small">
               Nhật ký chỉ ghi các bước của tool (không có khoá service account, mật khẩu hay cookie). Ảnh chụp màn hình nằm trên máy này, ngoài
               thư mục code.

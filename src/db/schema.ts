@@ -84,4 +84,21 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE sheet_configs ADD COLUMN colShirt TEXT;
   ALTER TABLE settings ADD COLUMN shirtTemplate TEXT;
   `,
+  // 6: sửa ngay trên Bảng (CON-50, spec v5.0 D18). Mỗi ô tool ghi lên sheet theo yêu cầu người dùng.
+  // kind: 'edit' (sửa một ô), 'fill' (dải prompt), 'add_row' (thêm dòng).
+  `
+  CREATE TABLE sheet_edits (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    spreadsheetId TEXT NOT NULL,
+    tab           TEXT NOT NULL,
+    cell          TEXT NOT NULL,
+    rowNumber     INTEGER NOT NULL,
+    field         TEXT NOT NULL,
+    oldValue      TEXT NOT NULL,
+    newValue      TEXT NOT NULL,
+    kind          TEXT NOT NULL
+  );
+  CREATE INDEX sheet_edits_tab ON sheet_edits(spreadsheetId, tab, at);
+  `,
 ];

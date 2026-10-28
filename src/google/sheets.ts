@@ -71,7 +71,7 @@ export class SheetsClient {
   }
 
   /**
-   * Ghi ô Trạng thái dòng N — lệnh ghi duy nhất của tool (D11, §8.1): `values.update` đúng một ô, RAW.
+   * Ghi ô Trạng thái dòng N — lệnh ghi duy nhất của bot khi chạy lô (D11, §8.1): `values.update` đúng một ô, RAW.
    * Google phải xác nhận đã ghi đúng ô đó và không quá một ô, nếu không thì báo lỗi.
    */
   async writeStatus(config: SheetConfig, row: number, text: string): Promise<void> {
@@ -87,6 +87,57 @@ export class SheetsClient {
     if (!r.updatedRange?.endsWith(target) || (r.updatedCells ?? 0) > 1 || (r.updatedRows ?? 0) > 1 || (r.updatedColumns ?? 0) > 1) {
       throw new Error(`Google ghi vào vùng không mong đợi: ${r.updatedRange ?? "?"} (${r.updatedCells ?? "?"} ô)`);
     }
+  }
+
+  /** Giá trị gốc (FORMULA) của từng ô, theo thứ tự `cells`; ô trống là "". */
+  async readCells(spreadsheetId: string, tab: string, cells: { col: string; row: number }[]): Promise<string[]> {
+    if (cells.length === 0) return [];
+    const ranges = cells.map((c) => `ranges=${enc(cellRange(tab, c.col, c.row))}`).join("&");
+    const r = await this.http<{ valueRanges?: { values?: unknown[][] }[] }>(
+      "GET",
+      `${SHEETS}/${enc(spreadsheetId)}/values:batchGet?${ranges}&majorDimension=ROWS&valueRenderOption=FORMULA`,
+    );
+    return cells.map((_, i) => toGrid(r.valueRanges?.[i]?.values)[0]?.[0] ?? "");
+  }
+
+  /**
+   * Ghi các ô dữ liệu người dùng sửa trên Bảng (D18): chỉ cột Prompt, Ảnh người mẫu, Ảnh áo; không bao giờ
+   * ô Video hay Trạng thái, không ghi dòng tiêu đề. Một lệnh `values.batchUpdate`, RAW, mỗi ô một lần;
+   * Google phải xác nhận ghi đúng từng ô, nếu không thì báo lỗi.
+   */
+  async writeDataCells(config: SheetConfig, cells: { col: string; row: number; value: string }[]): Promise<void> {
+    if (cells.length === 0) return;
+    const allowed = new Set([config.colPrompt, config.colImage, config.colShirt].filter((c): c is string => !!c));
+    const seen = new Set<string>();
+    for (const c of cells) {
+      if (c.col === config.colVideo || c.col === config.colStatus || !allowed.has(c.col)) throw new Error(`Tool không được ghi cột ${c.col}.`);
+      if (c.row <= config.headerRow) throw new Error(`Không ghi vào dòng tiêu đề hoặc phía trên (dòng ${c.row}).`);
+      const key = `${c.col}${c.row}`;
+      if (seen.has(key)) throw new Error(`Ô ${key} bị ghi hai lần trong cùng một lệnh.`);
+      seen.add(key);
+    }
+    type Resp = { responses?: { updatedRange?: string; updatedCells?: number }[] };
+    const r = await this.http<Resp>("POST", `${SHEETS}/${enc(config.spreadsheetId)}/values:batchUpdate`, {
+      valueInputOption: "RAW",
+      data: cells.map((c) => ({ range: cellRange(config.tab, c.col, c.row), majorDimension: "ROWS", values: [[c.value]] })),
+    });
+    const res = r.responses ?? [];
+    cells.forEach((c, i) => {
+      const got = res[i];
+      if (!got?.updatedRange?.endsWith(`!${c.col}${c.row}`) || (got.updatedCells ?? 0) > 1) {
+        throw new Error(`Google ghi vào vùng không mong đợi: ${got?.updatedRange ?? "?"} (${got?.updatedCells ?? "?"} ô)`);
+      }
+    });
+  }
+
+  /** Tab có ít nhất `row` dòng; thiếu thì thêm dòng trống vào CUỐI tab (không chèn giữa, D18). */
+  async ensureRows(spreadsheetId: string, tab: string, row: number): Promise<void> {
+    const t = (await this.getSpreadsheet(spreadsheetId)).tabs.find((x) => x.title === tab);
+    if (!t) throw new Error(`Không thấy trang tính "${tab}".`);
+    if (t.rowCount >= row) return;
+    await this.http("POST", `${SHEETS}/${enc(spreadsheetId)}:batchUpdate`, {
+      requests: [{ appendDimension: { sheetId: t.sheetId, dimension: "ROWS", length: row - t.rowCount } }],
+    });
   }
 
   private async readRange(spreadsheetId: string, range: string, render: ValueRender): Promise<Grid> {

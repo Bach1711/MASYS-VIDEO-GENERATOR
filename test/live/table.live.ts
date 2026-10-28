@@ -53,6 +53,12 @@ for (const scheme of ["light", "dark"] as const) {
     await page.click("summary:has-text('Nâng cao')");
     await page.screenshot({ path: path.join(out, "bang-menu.png") });
   }
+  // CON-50: mở khung sửa prompt dòng 2, Thêm dòng và Dải prompt (chỉ mở, không bấm Lưu nên không ghi gì).
+  await page.click('tr[data-row="2"] td[data-field="prompt"] button.edit');
+  await page.click('tr[data-row="2"] td[data-field="image"] button.edit');
+  await page.click("#addOpen");
+  await page.click("#fillOpen");
+  await page.screenshot({ path: path.join(out, `bang-sua-${scheme}.png`), fullPage: true });
 }
 await browser.close();
 console.log("Đã chụp vào", out);
