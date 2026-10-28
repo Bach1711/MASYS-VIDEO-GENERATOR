@@ -100,7 +100,7 @@ flowchart LR
 |---|---|---|---|---|---|
 | 9 | [CON-43](https://linear.app/conducdaudan/issue/CON-43) | Đóng gói zip chạy ngay, cài khoá Google lần đầu, số phiên bản | 🟩 Xong | [#10](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/10) | 27/10/2026 |
 | 10 | [CON-44](https://linear.app/conducdaudan/issue/CON-44) | Kiểm tra và cập nhật phiên bản ngay trong tool | 🟩 Xong | [#11](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/11) | 27/10/2026 |
-| 11 | [CON-45](https://linear.app/conducdaudan/issue/CON-45) | Sửa lỗi: cập nhật tải chậm / đứng khi mạng chập chờn (v1.0.2) | 🟦 Chờ duyệt | PR_LINK | |
+| 11 | [CON-45](https://linear.app/conducdaudan/issue/CON-45) | Sửa lỗi: cập nhật tải chậm / đứng khi mạng chập chờn (v1.0.2) | 🟦 Chờ duyệt | [#13](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/13) | |
 
 ## Nhật ký cập nhật
 
