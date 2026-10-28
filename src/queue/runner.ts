@@ -2,7 +2,7 @@ import { BotError, type WatchResult } from "../bot/museBot.js";
 import type { DB } from "../db/index.js";
 import { getDailyQuota } from "../db/quota.js";
 import { logRunEvent, moveRun } from "../db/runs.js";
-import { getSettings } from "../db/settings.js";
+import { getSettings, setMuseReady } from "../db/settings.js";
 import { getSheetConfig, type SheetConfig } from "../db/sheetConfigs.js";
 import { toolWrittenCells } from "../db/sheetEdits.js";
 import { columnIndex } from "../google/a1.js";
@@ -310,6 +310,7 @@ export class BatchRunner {
     try {
       const { chatUrl } = await this.bot.send(run.requestText);
       moveRun(this.db, run.id, "sending", "waiting", "Đã gửi Muse, theo dõi ô Video", { museChatUrl: chatUrl });
+      setMuseReady(this.db, now());
     } catch (e) {
       const err = e instanceof BotError ? e : new BotError("send_unconfirmed", `Lỗi khi gửi: ${errText(e)}`, true);
       if (!err.sent) {
@@ -317,6 +318,7 @@ export class BatchRunner {
         await this.writeStatusSafe(cfg, run, snap.status);
         const to = err.code === "login" || err.code === "challenge" ? "paused_login" : "paused_ui";
         moveRun(this.db, run.id, "sending", to, `Chưa gửi: ${err.message}`, { sentAt: null }, err.screenshot);
+        if (to === "paused_login") setMuseReady(this.db, null);
         await this.bot.bringToFront();
         return { pause: to === "paused_login" ? "login" : "ui" };
       }

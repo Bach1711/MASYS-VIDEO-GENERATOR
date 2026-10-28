@@ -117,12 +117,13 @@ describe("Bảng (CON-49)", () => {
     expect(r.headers.get("set-cookie")).toContain("masys_bang=");
   });
 
-  it("chưa kết nối sheet nào: hiện trang giới thiệu cũ; /gioi-thieu luôn mở được", async () => {
+  it("chưa kết nối sheet nào: trang chủ là các bước bắt đầu (CON-51); /gioi-thieu cũ chuyển sang Hướng dẫn", async () => {
     const { app } = setup({ noConfig: true });
     const html = await (await app.request("/")).text();
     expect(html).not.toContain('id="bang"');
-    expect(html).toContain("Kết nối sheet và ánh xạ cột");
-    expect((await app.request("/gioi-thieu")).status).toBe(200);
+    expect(html).toContain("Bắt đầu trong 4 bước");
+    expect((await app.request("/gioi-thieu")).headers.get("location")).toBe("/huong-dan");
+    expect((await app.request("/huong-dan")).status).toBe(200);
   });
 
   it("Tạo video: tạo lô với thư mục mặc định (thư mục con Video), prompt trong sheet, rồi chạy luôn", async () => {
@@ -242,12 +243,11 @@ describe("Bảng (CON-49)", () => {
     expect(text).toContain(`https://drive.google.com/drive/folders/${KENH2}`);
   });
 
-  it("+ Thêm sheet: mở Kết nối sheet, lưu ánh xạ xong quay về Bảng với trang tính mới", async () => {
+  it("+ Thêm sheet: mở Kết nối nhanh; lưu ánh xạ xong quay về Bảng với trang tính mới", async () => {
     const { app } = setup();
-    expect(await (await app.request("/")).text()).toContain('href="/bang/them-sheet"');
-    const go = await app.request("/bang/them-sheet");
-    expect(go.headers.get("location")).toBe("/sheets");
-    expect(go.headers.get("set-cookie")).toContain("masys_back=bang");
+    expect(await (await app.request("/")).text()).toContain('href="/ket-noi"');
+    expect((await app.request("/bang/them-sheet")).headers.get("location")).toBe("/ket-noi");
+    // Bản cũ đánh dấu quay về Bảng bằng cookie; vẫn nhận.
     const save = (cookie: string) =>
       app.request("/sheets/map", {
         method: "POST",

@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **28/10/2026**, sau CON-50 — GĐ1–GĐ3 xong; GĐ4 "một màn hình" (spec v5.0): Bảng + sửa ngay trên Bảng xong. File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **28/10/2026**, sau CON-51 — GĐ1–GĐ3 xong; GĐ4 "một màn hình" (spec v5.0): Bảng, sửa ngay trên Bảng, bắt đầu nhanh xong; còn áo hai mặt. File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v5.0 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 16/18 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 2/4
+**Tổng quan:** 17/18 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/4
 
 ```
-[■■■■■■■■■□]  16/18 — xong CON-35…CON-50 · CON-51…52 chưa làm
+[■■■■■■■■■□]  17/18 — xong CON-35…CON-51 · CON-52 chưa làm
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -38,7 +38,7 @@ flowchart LR
         placing["Chuyển bản mới vào chỗ<br/>chịu được diệt virus giữ file<br/>CON-47"]
         bang["Màn hình Bảng +<br/>một nút Tạo video<br/>CON-49"]
         edit["Sửa ngay trên Bảng: ✎ ô, đọc lại trước khi ghi,<br/>dải prompt, thêm dòng, nhật ký sửa<br/>CON-50"]
-        quick["Bắt đầu nhanh,<br/>hướng dẫn gọn<br/>CON-51"]
+        quick["Bắt đầu 4 bước ✅, kết nối sheet<br/>một bước, gợi ý tại chỗ, hướng dẫn gọn<br/>CON-51"]
         twoside["Áo hai mặt<br/>CON-52"]
         logo["Logo MASYS: tab Chrome,<br/>thanh trên cùng, Trang chủ<br/>CON-48"]
         shirt["Ghép ảnh áo: cột Ảnh áo,<br/>ảnh thu nhỏ, đoạn ghép áo<br/>trong yêu cầu gửi Muse<br/>CON-46"]
@@ -98,7 +98,8 @@ flowchart LR
     class logo done
     class bang done
     class edit done
-    class quick,twoside todo
+    class quick done
+    class twoside todo
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -137,10 +138,12 @@ flowchart LR
 |---|---|---|---|---|---|
 | 15 | [CON-49](https://linear.app/conducdaudan/issue/CON-49) | Màn hình Bảng + một nút Tạo video (v1.2.0) | 🟩 Xong | [#17](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/17) | 28/10/2026 |
 | 16 | [CON-50](https://linear.app/conducdaudan/issue/CON-50) | Sửa ngay trên Bảng: prompt, link ảnh, dải prompt, thêm dòng (v1.3.0) | 🟩 Xong | [#18](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/18) | 28/10/2026 |
-| 17 | [CON-51](https://linear.app/conducdaudan/issue/CON-51) | Bắt đầu nhanh và hướng dẫn gọn (v1.4.0) | ⬜ Chưa làm | | |
+| 17 | [CON-51](https://linear.app/conducdaudan/issue/CON-51) | Bắt đầu nhanh và hướng dẫn gọn (v1.4.0) | 🟩 Xong | [#19](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/19) | 28/10/2026 |
 | 18 | [CON-52](https://linear.app/conducdaudan/issue/CON-52) | Áo hai mặt (chờ thử tay trên Muse) | ⬜ Chưa làm | | |
 
 ## Nhật ký cập nhật
+
+- **28/10/2026 · CON-51** (xong, đã duyệt và gộp vào main): **bắt đầu nhanh và hướng dẫn gọn** (spec v5.0 mục 16.5). Chưa kết nối sheet thì trang chủ là **4 bước có dấu ✅** (khoá Google · dán link sheet · đăng nhập Muse · thư mục Drive lưu video; bước 4 thêm theo yêu cầu người phụ trách); đủ bước thì Bảng không hiện gì, thiếu bước nào Bảng chỉ nhắc bước đó; mở lại được ở **⚙ Nâng cao → Các bước bắt đầu**. **Kết nối sheet một bước** (`/ket-noi`): dán link → tool kiểm tra quyền sửa, tự chọn tab (tab chưa kết nối đoán đủ 4 cột), tự đoán cột kèm tên tiêu đề → **Xác nhận** → về Bảng; đoán thiếu cột mới đưa sang chọn cột; **+ Thêm sheet** dùng luồng này. **Đăng nhập Muse**: Mở cửa sổ Muse → tự đăng nhập → Kiểm tra; tool nhớ lần thấy Muse sẵn sàng (cột mới `settings.museReadyAt`, migration chỉ thêm; cũng ghi khi gửi Muse thành công, xoá khi Muse đòi đăng nhập lại), không tự mở Chrome khi mở tool. **Thư mục Drive gốc** dán ngay ở bước 4, báo khi chưa có thư mục con "Video". Gợi ý tại chỗ: nút Tạo video, ô Lưu video vào, "Hôm nay x/5 · còn N", ô tích dòng không chọn được. **Hướng dẫn** gọn trong tool (`/huong-dan`, có bảng xử lý khi tạm dừng) thay trang giới thiệu cũ; **README** còn ~1 trang, bản cũ chuyển thành `HUONG-DAN-CHI-TIET.md`; `HUONG-DAN.txt` trong zip theo 4 bước. Đã chạy luồng như máy sạch (SQLite trống) với sheet + Drive thật, không bot, không ghi sheet: chưa có khoá → Cài khoá; dán link → tự chọn `Trang tính1`, đoán đúng 5 cột → Xác nhận → Bảng; dán thư mục → nhận thư mục con "Video"; chụp màn hình sáng/tối.
 
 - **28/10/2026 · CON-50** (xong, đã duyệt và gộp vào main): **sửa ngay trên Bảng** (spec v5.0 mục 16.3, D18). Nút **✎** (ô trống: **+**) ở prompt, ảnh người mẫu, ảnh áo → **Lưu lên sheet**. Trước khi ghi tool đọc lại ô: khác giá trị lúc bắt đầu sửa → không ghi, báo *"Ô này vừa được người khác sửa"* và hiện giá trị mới (bấm Lưu lần nữa để ghi đè có chủ ý); ô là công thức → không ghi. Link ảnh kiểm tra như F3 trước khi ghi. **+ Thêm dòng** ghi vào dòng trống đầu tiên sau dòng có dữ liệu cuối (ở bất kỳ cột nào), tab hết dòng thì thêm dòng trống vào cuối tab. **Dải prompt ▾**: áp cho các dòng (*3-6, 9*, sẵn các dòng đang tích) hoặc dải xuống tới dòng cuối; báo *"Sẽ thay prompt của N dòng"* để xác nhận; bỏ qua dòng đang tạo video / đã có video (trừ khi tích) / đã cùng prompt; dòng bị sửa giữa lúc xem trước và lúc ghi thì không ghi. Dòng đang trong lô khoá sửa (không có ✎). Ghi bằng một lệnh `values.batchUpdate` RAW, chỉ cột Prompt / Ảnh / Ảnh áo, Google phải xác nhận đúng từng ô; ô Video / Trạng thái bị chặn ngay trong `SheetsClient`. Mỗi ô ghi vào bảng SQLite mới `sheet_edits` (migration chỉ thêm) và hiện ở **Nhật ký → Ô đã sửa từ Bảng**. Bot khi so bản chụp tab bỏ qua ô tool vừa ghi theo yêu cầu người dùng (nếu ô còn đúng giá trị đó), nên sửa dòng khác trên Bảng lúc lô chạy không làm lô dừng nhầm vì "Muse sửa ô khác". CLAUDE.md cập nhật quy tắc ghi sheet theo D18. Đã thử với sheet thật trên tab thử **"Thử CON-50"** (người phụ trách cho phép tool tạo): thêm 2 dòng, sửa prompt, xung đột, link sai, dải prompt; tab `Trang tính1` không bị ghi; chụp màn hình sáng/tối.
 

@@ -12,14 +12,27 @@ export interface Settings {
   requestTemplate: string | null;
   /** Đoạn ghép áo (v4.4); null = dùng đoạn mặc định §8.2. */
   shirtTemplate: string | null;
+  /** Lần gần nhất thấy Muse đã đăng nhập (CON-51); null = chưa biết hoặc vừa cần đăng nhập lại. */
+  museReadyAt: string | null;
 }
 
 export function getSettings(db: DB): Settings {
   return db
     .prepare(
-      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate FROM settings WHERE id = 1",
+      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt FROM settings WHERE id = 1",
     )
     .get() as Settings;
+}
+
+/** Ghi nhớ Muse đã đăng nhập (lúc `at`), hoặc quên đi (null) khi Muse đòi đăng nhập lại. */
+export function setMuseReady(db: DB, at: string | null): void {
+  db.prepare("UPDATE settings SET museReadyAt = ? WHERE id = 1").run(at);
+}
+
+/** Sau một lần xem trang Muse: sẵn sàng thì nhớ, cần đăng nhập / kiểm tra bảo mật thì quên; trạng thái khác giữ nguyên. */
+export function rememberMuseCheck(db: DB, state: string): void {
+  if (state === "ready") setMuseReady(db, new Date().toISOString());
+  else if (state === "login" || state === "challenge") setMuseReady(db, null);
 }
 
 export function setDriveRootFolder(db: DB, folderId: string | null): void {

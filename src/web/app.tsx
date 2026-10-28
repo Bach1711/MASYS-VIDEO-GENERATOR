@@ -1,4 +1,4 @@
-import { Hono, type Context } from "hono";
+import { Hono } from "hono";
 import type { AppConfig } from "../config.js";
 import type { DB } from "../db/index.js";
 import type { DriveClient } from "../google/drive.js";
@@ -13,7 +13,8 @@ import { registerBatchRoutes } from "./batch.js";
 import { registerBatchRunRoutes } from "./batchRun.js";
 import { registerBotRoutes } from "./bot.js";
 import { registerHistoryRoutes, StatusBanner } from "./history.js";
-import { HomePage } from "./home.js";
+import { registerGuideRoutes } from "./guide.js";
+import { registerStartRoutes } from "./start.js";
 import { LOGO_PREFIX, registerLogoRoutes } from "./logo.js";
 import { setStatusBanner, setUpdateBanner } from "./layout.js";
 import { registerScanRoutes } from "./scan.js";
@@ -51,16 +52,10 @@ export function createApp(config: AppConfig, db: DB, deps: AppDeps = {}) {
   });
   registerLogoRoutes(app);
 
-  const homePage = (c: Context) => {
-    const { dailyVideoLimit } = db.prepare("SELECT dailyVideoLimit FROM settings WHERE id = 1").get() as {
-      dailyVideoLimit: number;
-    };
-    return c.html(
-      "<!doctype html>" + <HomePage serviceAccount={config.serviceAccount} dailyVideoLimit={dailyVideoLimit} />,
-    );
-  };
-  registerTableRoutes(app, { config, db, ...deps }, homePage);
-  app.get("/gioi-thieu", homePage);
+  // Chưa kết nối sheet nào: trang chủ là các bước bắt đầu (CON-51).
+  const { startPage } = registerStartRoutes(app, { config, db, ...deps });
+  registerTableRoutes(app, { config, db, ...deps }, startPage);
+  registerGuideRoutes(app);
 
   registerSheetRoutes(app, { config, db, sheets: deps.sheets });
   registerScanRoutes(app, { config, db, ...deps });

@@ -131,6 +131,17 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
           .add-row { align-items:center; margin:10px 0 16px; }
           input.wide { width:100%; box-sizing:border-box; }
           #fillRows { min-width:240px; }
+          .small-hero img { width:120px; height:120px; }
+          ol.steps { list-style:none; margin:0; padding:0; }
+          li.step { display:flex; gap:12px; padding:12px 0; border-top:1px solid var(--border); }
+          li.step:first-child { border-top:none; padding-top:4px; }
+          .step-mark { font-size:1.3rem; line-height:1.3; }
+          .step-body { flex:1 1 auto; display:flex; flex-direction:column; gap:6px; }
+          li.step.done strong { color:var(--muted); }
+          .step-form .row { align-items:center; }
+          .step-form input { flex:1 1 320px; }
+          ul.mapping { margin:10px 0 14px; padding-left:20px; }
+          .hint { margin-top:4px; }
           footer { max-width:1100px; margin:0 auto; padding:8px 16px 24px; color:var(--muted); font-size:.85rem; }
           @media (prefers-color-scheme: dark) { :root { --info-bg:#1b2a47; --info-fg:#a9c6ff; --bad-bg:#3d1b1b; --bad-fg:#ffb3b3; } }
         `}</style>
@@ -152,7 +163,8 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
                 <a href="/logs">Nhật ký</a>
                 <a href="/bot">Bot Muse</a>
                 <a href="/settings">Cài đặt</a>
-                <a href="/gioi-thieu">Hướng dẫn nhanh</a>
+                <a href="/bat-dau">Các bước bắt đầu</a>
+                <a href="/huong-dan">Hướng dẫn</a>
               </div>
             </details>
           </div>

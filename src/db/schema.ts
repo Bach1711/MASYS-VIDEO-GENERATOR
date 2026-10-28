@@ -101,4 +101,8 @@ export const MIGRATIONS: string[] = [
   );
   CREATE INDEX sheet_edits_tab ON sheet_edits(spreadsheetId, tab, at);
   `,
+  // 7: bắt đầu nhanh (CON-51). Lần gần nhất thấy Muse đã đăng nhập (kiểm tra hoặc gửi thành công); NULL = chưa biết.
+  `
+  ALTER TABLE settings ADD COLUMN museReadyAt TEXT;
+  `,
 ];
