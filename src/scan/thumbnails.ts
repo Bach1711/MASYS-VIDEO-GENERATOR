@@ -8,6 +8,7 @@ import type { Bytes } from "../google/http.js";
 export class ThumbnailCache {
   private readonly known = new Map<string, DriveFile>();
   private readonly cache = new Map<string, { at: number; bytes: Bytes }>();
+  private readonly pending = new Map<string, Promise<Bytes>>();
 
   constructor(
     private readonly drive: DriveClient,
@@ -29,7 +30,12 @@ export class ThumbnailCache {
     const hit = this.cache.get(fileId);
     if (hit && Date.now() - hit.at < this.ttlMs) return hit.bytes;
 
-    const bytes = await this.drive.thumbnail(file);
+    // Nhiều dòng dùng chung một ảnh (Bảng tải cùng lúc): chỉ tải từ Drive một lần.
+    const pending = this.pending.get(fileId);
+    if (pending) return pending;
+    const p = this.drive.thumbnail(file).finally(() => this.pending.delete(fileId));
+    this.pending.set(fileId, p);
+    const bytes = await p;
     if (this.cache.size >= this.maxEntries) {
       const oldest = this.cache.keys().next().value;
       if (oldest !== undefined) this.cache.delete(oldest);

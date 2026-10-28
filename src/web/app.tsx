@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import type { AppConfig } from "../config.js";
 import type { DB } from "../db/index.js";
 import type { DriveClient } from "../google/drive.js";
@@ -22,6 +22,7 @@ import { needsKeySetup, registerSetupRoutes } from "./setup.js";
 import { registerUpdateRoutes, UpdateBanner } from "./update.js";
 import type { Updater } from "../update/updater.js";
 import { registerSheetRoutes } from "./sheets.js";
+import { registerTableRoutes } from "./table.js";
 
 export interface AppDeps {
   sheets?: SheetsClient;
@@ -50,14 +51,16 @@ export function createApp(config: AppConfig, db: DB, deps: AppDeps = {}) {
   });
   registerLogoRoutes(app);
 
-  app.get("/", (c) => {
+  const homePage = (c: Context) => {
     const { dailyVideoLimit } = db.prepare("SELECT dailyVideoLimit FROM settings WHERE id = 1").get() as {
       dailyVideoLimit: number;
     };
     return c.html(
       "<!doctype html>" + <HomePage serviceAccount={config.serviceAccount} dailyVideoLimit={dailyVideoLimit} />,
     );
-  });
+  };
+  registerTableRoutes(app, { config, db, ...deps }, homePage);
+  app.get("/gioi-thieu", homePage);
 
   registerSheetRoutes(app, { config, db, sheets: deps.sheets });
   registerScanRoutes(app, { config, db, ...deps });

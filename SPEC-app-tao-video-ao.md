@@ -1,6 +1,6 @@
 # MASYS Video Generator — Đặc tả sản phẩm (MVP)
 
-> Phiên bản 4.4 · 28/10/2026 · Trạng thái: **GĐ1 xong (CON-35…42); GĐ2 xong (CON-43…45, bản v1.0.2); GĐ3: ghép ảnh áo (CON-46) chờ duyệt**. 4.4: thêm cột tuỳ chọn **Ảnh áo**; dòng có ảnh áo thì yêu cầu gửi Muse có thêm **đoạn ghép áo** (Muse ghép áo vào ảnh người mẫu rồi tạo video trong cùng một lượt, đã thử tay 28/10/2026), không lưu ảnh ghép. 4.3: thêm D16 (kiểm tra và cập nhật phiên bản ngay trong tool qua GitHub Releases của repo công khai). 4.2: thêm D15 (đóng gói zip cho người trong đội, khoá Google chọn từ file lần đầu và mã hoá trong máy). 4.1: chốt D5 (service account), ảnh gửi Muse bằng link Drive, giới hạn 5 video/ngày (D13), số liệu GĐ0.
+> Phiên bản 5.0 · 28/10/2026 · Trạng thái: **GĐ1 xong (CON-35…42); GĐ2 xong (CON-43…45); GĐ3 xong (CON-46…48, bản v1.1.2); GĐ4 "một màn hình" chờ duyệt (mục 16)**. 5.0: theo góp ý của đội (giao diện nhiều nút, hướng dẫn dài) → **màn hình chính là một bảng** đồng bộ hai chiều với sheet, chọn dòng rồi **một nút Tạo video**; sửa prompt / dán link / dải prompt / thêm dòng ngay trong app (tool được ghi thêm các ô dữ liệu, D18); áo **hai mặt** (cột Ảnh áo sau, D20); thêm D17–D20, chi tiết ở **mục 16**. 4.4: thêm cột tuỳ chọn **Ảnh áo**; dòng có ảnh áo thì yêu cầu gửi Muse có thêm **đoạn ghép áo** (Muse ghép áo vào ảnh người mẫu rồi tạo video trong cùng một lượt, đã thử tay 28/10/2026), không lưu ảnh ghép. 4.3: thêm D16 (kiểm tra và cập nhật phiên bản ngay trong tool qua GitHub Releases của repo công khai). 4.2: thêm D15 (đóng gói zip cho người trong đội, khoá Google chọn từ file lần đầu và mã hoá trong máy). 4.1: chốt D5 (service account), ảnh gửi Muse bằng link Drive, giới hạn 5 video/ngày (D13), số liệu GĐ0.
 > **Thay đổi so với 3.0: bỏ toàn bộ hướng gọi API video (Gemini, Max-Studio, Flow) và web app có server.** App mới là **tool chạy trên một máy**: đọc Google Sheet, cho chọn dòng và chỉnh prompt, rồi **điều khiển trình duyệt** để gửi yêu cầu cho **Meta Muse AI** (tài khoản có 1 tỷ token). Muse tự tạo video, tự lưu lên Drive và tự ghi link vào sheet qua **MCP Google Sheets/Drive đã nối sẵn trong Muse**. App chỉ **điều phối, theo dõi và kiểm tra lại**.
 > Lịch sử v2.x–3.0 xem trong git.
 > Tài liệu này viết để một người hoặc agent mới đọc **một lần là nắm được toàn bộ dự án**.
@@ -15,6 +15,7 @@
 - **Yêu cầu cốt lõi:** **lấy input dòng N thì link video về đúng ô Video dòng N.**
 - **Chạy ở đâu:** **một máy Windows** có Chrome (bot cần trình duyệt thật và phiên đăng nhập Muse). Giao diện tool mở trên `localhost`.
 - **Không làm:** caption, nhạc, edit video, tự đăng TikTok, tự tạo ảnh người mẫu, vượt captcha/2FA.
+- **Từ v5.0 (mục 16):** người dùng chỉ cần **một màn hình bảng** trong app: thấy ảnh, prompt, video, trạng thái như trên sheet; sửa ngay trong bảng (tool ghi lên sheet); tích chọn dòng → bấm **Tạo video**. Không cần mở sheet hay Drive.
 
 ---
 
@@ -46,6 +47,9 @@ Mẫu: TikTok [@scarletthayes40](https://www.tiktok.com/@scarletthayes40), [@chl
 | **Dòng N** | Số dòng **đúng như hiển thị trong Google Sheet** (dòng 1 thường là tiêu đề) |
 | **Ánh xạ cột** | Cấu hình cho biết cột nào là Ảnh, Prompt, Video, Trạng thái, và Ảnh áo nếu có. Lưu theo từng sheet và tab |
 | **Ảnh áo** | Ảnh thiết kế áo (link Drive) trong cột tuỳ chọn "Ảnh áo". Có thì Muse ghép áo này vào ảnh người mẫu trước khi tạo video |
+| **Bảng** (v5.0) | Màn hình chính của app: hiện nội dung tab sheet đã kết nối thành bảng (ảnh, prompt, video, trạng thái), sửa được, đồng bộ hai chiều với sheet (mục 16) |
+| **Ảnh áo sau** (v5.0) | Ảnh mặt sau của áo (link Drive) trong cột tuỳ chọn "Ảnh áo sau". Cột "Ảnh áo" hiện có được hiểu là **mặt trước** |
+| **Dải prompt** (v5.0) | Lấy prompt của một dòng chép xuống các dòng đã chọn hoặc các dòng bên dưới, ghi lên sheet |
 | **Đoạn ghép áo** | Đoạn chữ thêm vào yêu cầu gửi Muse cho dòng có ảnh áo (mục 8.2); dòng không có ảnh áo thì không có đoạn này |
 | **Ô Video** | Ô `[cột Video][dòng N]`, nơi Muse dán link Drive |
 | **Lượt (run)** | Việc tạo video cho **một dòng**: gửi yêu cầu cho Muse → chờ → kiểm tra → kết thúc |
@@ -79,6 +83,10 @@ Mẫu: TikTok [@scarletthayes40](https://www.tiktok.com/@scarletthayes40), [@chl
 | D14 | **Ảnh gửi Muse bằng link Drive** ghi trong yêu cầu; Muse tự đọc qua MCP Drive. Bot không tải ảnh lên khung chat | Đúng cách đã kiểm chứng ở GĐ0; bot đơn giản | Bot tải file ảnh lên Muse |
 | D15 | **Phát hành cho người trong đội bằng một file zip** (`MASYS-Video-vX.Y.Z-win64.zip`, gồm Node chạy liền + tool đã dựng + `Mo-MASYS.bat`); giải nén, bấm đúp là dùng, máy chỉ cần Google Chrome. **Khoá Google trên máy người dùng:** lần đầu mở tool, người dùng chọn file khoá `.json` do người phụ trách gửi riêng; tool kiểm tra, mã hoá bằng Windows DPAPI (gắn với tài khoản Windows đó) rồi lưu ở `%LOCALAPPDATA%\masys-video\google-key.dpapi`. Biến `GOOGLE_SERVICE_ACCOUNT_JSON` (máy phát triển chạy `op run`) luôn được ưu tiên | Người dùng là người trong đội, không rành kỹ thuật, không có 1Password; không cần cài gì thêm | Bộ cài .exe; bắt người dùng cài Node/1Password; nhúng khoá vào zip |
 | D16 | **Cập nhật ngay trong tool, chỉ khi người dùng bấm.** Bản mới phát hành trên **GitHub Releases của repo `Bach1711/MASYS-VIDEO-GENERATOR` (công khai)**, kèm file SHA-256 và ghi chú tiếng Việt; tool chỉ tải đúng file zip của repo đó, không cần token. Mỗi lần mở tool, tool hỏi bản mới nhất một lần và chỉ hiện dải báo. Cập nhật: tải → so SHA-256 → sao lưu `data.db` (giữ 3 bản) → giải nén vào `phien-ban\<bản mới>` cạnh bản cũ → khởi động lại; bản mới không lên được trong 60 giây thì tự quay về bản cũ. Giữ một bản trước để bấm **Quay về**. Không cho cập nhật khi đang có lô chạy hoặc có dòng đang gửi / chờ Muse / kiểm tra (D9). Migration chỉ được **thêm** (bảng, cột) để bản cũ vẫn mở được dữ liệu khi quay về | Người trong đội không phải tải và giải nén lại; bản lỗi không làm hỏng máy người dùng | Tự cập nhật ngầm; repo riêng tư + token trong zip; kho phát hành riêng |
+| D17 | **Màn hình chính là Bảng, Google Sheet vẫn là nơi lưu** (v5.0). Bảng hiện đúng nội dung tab sheet; sửa trong app thì ghi lên sheet, sửa trên sheet thì app tự đọc lại. Các trang Kết nối sheet, Lịch sử lô, Nhật ký, Bot Muse, Cài đặt gom vào nút **⚙ Nâng cao** | Muse chỉ ghi link video vào sheet (D2, D3) nên sheet phải còn là nơi lưu; cả đội vẫn dùng chung dữ liệu; không cần server | Supabase / database riêng làm nơi lưu (Muse không ghi vào được, phải dựng server, trái D4); giữ nhiều trang như v4 |
+| D18 | **Tool được ghi các ô dữ liệu khi người dùng sửa trong bảng** (v5.0): Prompt, Ảnh người mẫu, Ảnh áo, Ảnh áo sau, và thêm dòng mới ở cuối. **Không bao giờ ghi ô Video** (chỉ Muse ghi). Bot khi chạy vẫn chỉ ghi ô Trạng thái. Trước khi ghi, tool đọc lại ô: giá trị khác lúc người dùng bắt đầu sửa → **không ghi**, báo *"Ô này vừa được người khác sửa"*. Không sửa được dòng đang chạy. **Không xoá dòng, không chèn dòng giữa bảng** từ app | Người dùng không phải mở sheet; tránh đè chữ của người khác; giữ "dòng N" ổn định cho bot | Chỉ sửa bản gửi Muse (v4, F4); cho xoá / chèn / sắp xếp dòng trong app |
+| D19 | **Một nút Tạo video** (v5.0): tích chọn dòng → bấm **Tạo video (N dòng)** là tạo lô với cài đặt mặc định (thư mục Drive gốc, mẫu yêu cầu trong Cài đặt) và chạy luôn; trạng thái và video hiện ngay trên từng dòng của bảng. Xem trước yêu cầu gửi Muse là tuỳ chọn (mở từng dòng). Mọi lớp an toàn giữ nguyên (D6, D9–D13, mục 7). Muse chưa đăng nhập → tự mở cửa sổ bot, báo *"Hãy đăng nhập Muse rồi bấm Tiếp tục"* | Bớt bước: góp ý "quá nhiều nút" | Giữ các bước Tạo lô → Xem trước → Bắt đầu |
+| D20 | **Áo hai mặt** (v5.0): cột tuỳ chọn **Ảnh áo sau**. Dòng có cả hai mặt dùng **đoạn ghép áo hai mặt** (mẫu riêng trong Cài đặt) để Muse tạo **một video** thấy cả mặt trước và mặt sau; dòng chỉ có mặt trước dùng đoạn ghép áo như v4.4. **Chỉ làm sau khi người phụ trách thử tay trên Muse đạt**; không đạt thì phương án dự phòng là mỗi mặt một video (cần chốt lại) | Góp ý của đội: một mẫu có cả mặt trước và mặt sau | Luôn hai video mỗi dòng; ghép hai mặt thành một ảnh trước khi gửi |
 
 ---
 
@@ -157,7 +165,7 @@ Nguyên tắc:
 - Mỗi dòng có ô sửa prompt (mặc định = prompt trong sheet) và ô **Yêu cầu thêm**. Có ô **Yêu cầu thêm chung cho cả lô**.
 - Chọn **thư mục Drive** cho lô: chọn từ thư mục gốc (tool liệt kê thư mục con bằng service account) hoặc dán link thư mục.
 - Xem trước **yêu cầu gửi Muse** đầy đủ trước khi chạy (dòng có ảnh áo: gồm cả đoạn ghép áo). Mẫu chính thiếu chỗ `{doan_ghep_ao}` mà lô có dòng có ảnh áo → trang Xem trước cảnh báo "dòng có ảnh áo sẽ không được ghép".
-- Bản chỉnh sửa **không ghi ngược vào sheet**; lưu trong lịch sử lô.
+- Bản chỉnh sửa **không ghi ngược vào sheet**; lưu trong lịch sử lô. *(v5.0: trên Bảng, sửa prompt là sửa thẳng ô Prompt trên sheet (D18); trang chỉnh yêu cầu kiểu v4 chỉ còn trong ⚙ Nâng cao.)*
 
 **F5. Chạy một lượt (MuseBot)**
 1. Đọc lại dòng N: còn đúng ảnh/ảnh áo/prompt lúc chọn không, ô Video còn trống không (trừ Ghi đè).
@@ -296,7 +304,10 @@ File SQLite và ảnh chụp màn hình nằm ngoài repo (cùng thư mục vớ
 - Web app trên server, nhiều máy cùng chạy bot, nhiều tài khoản Muse.
 - Bot tự đăng nhập, vượt captcha/2FA.
 - Caption, nhạc, edit video, bỏ âm thanh, tự đăng TikTok, tự tạo ảnh người mẫu.
-- Ghi prompt đã chỉnh ngược vào sheet.
+- ~~Ghi prompt đã chỉnh ngược vào sheet.~~ v5.0 cho phép khi sửa trên Bảng (D18).
+- Supabase hoặc database riêng làm nơi lưu dữ liệu (D17).
+- Tải ảnh từ máy lên Drive trong app (v5.0): khoá service account không có dung lượng Drive riêng; chỉ làm được khi có **Shared Drive** (Google Workspace). Đợt đầu người dùng dán link Drive vào bảng.
+- Xoá, chèn giữa, sắp xếp dòng từ app (D18).
 
 ---
 
@@ -381,4 +392,68 @@ Sheet thật "MASYS Video – Danh sách" → Trang tính1 (20 dòng), Drive th�
 
 ### Giai đoạn 3 — Theo góp ý của đội
 12. **Ghép ảnh áo** (v4.4, CON-46, v1.1.0): cột tuỳ chọn Ảnh áo (F2), ảnh thu nhỏ và kiểm tra link ảnh áo (F3), đoạn ghép áo trong yêu cầu gửi Muse và trong Cài đặt (§8.2, F7), xem trước (F4). Migration chỉ thêm cột (`sheet_configs.colShirt`, `settings.shirtTemplate`).
+13. **Sửa lỗi cập nhật EPERM** (CON-47, v1.1.1): chờ / sao chép khi phần mềm diệt virus giữ file bản mới.
+14. **Logo MASYS** (CON-48, v1.1.2): tab Chrome, thanh trên cùng, Trang chủ.
 - Góp ý khác ngày 28/10/2026: cần tới ~100 video/ngày. Người phụ trách chốt **chưa đổi D13 / giới hạn tối đa**: người làm video tự đặt 50 trong Cài đặt (giới hạn hiện cho 1–50) là đủ; nâng hơn 50 để sau.
+
+### Giai đoạn 4 — Một màn hình (v5.0, mục 16; mỗi bước một ticket, một bản phát hành)
+15. **Bảng + một nút Tạo video** (D17, D19): màn hình chính là bảng đọc từ sheet, chọn dòng / chọn tất cả, nút Tạo video, trạng thái và video trên từng dòng, ⚙ Nâng cao.
+16. **Sửa ngay trên bảng** (D18): sửa prompt và link, dải prompt, thêm dòng, kiểm tra xung đột trước khi ghi.
+17. **Bắt đầu nhanh, hướng dẫn gọn**: danh sách 3 bước lần đầu ngay trên màn hình, chữ gợi ý tại chỗ, kết nối sheet một bước, README ngắn.
+18. **Áo hai mặt** (D20): chỉ làm sau khi thử tay trên Muse đạt.
+
+---
+
+## 16. Bản 5.0 — Một màn hình (theo góp ý của đội, 28/10/2026)
+
+### 16.1 Vấn đề
+Đội nhận xét video đầu ra ổn nhưng **giao diện phức tạp**: phải qua Kết nối sheet → Quét → chọn → Chuẩn bị lô → Xem trước → Bắt đầu, lại phải mở sheet và Drive ở trình duyệt khác để xem và sửa dữ liệu; **hướng dẫn quá dài**. Mục tiêu: người dùng **nhìn một lần là biết dùng**, mỗi việc chỉ **1–2 lần bấm**.
+
+### 16.2 Màn hình chính (Bảng)
+```
+[Logo] MASYS Video   Sheet: Masys Video › Trang tính1 ▾      Muse: ✅ đã đăng nhập   Hôm nay 2/50   ⚙
+┌──┬───┬───────────┬──────────┬──────────┬──────────────────────┬─────────┬───────────┐
+│☐ │ # │ Người mẫu │ Áo trước │ Áo sau   │ Prompt               │ Video   │ Trạng thái│
+│☑ │ 2 │ [ảnh]     │ [ảnh]    │ [ảnh]    │ Người mẫu xoay…  ✎   │         │ Sẵn sàng  │
+│☑ │ 3 │ [ảnh]     │ [ảnh]    │  +       │ Người mẫu xoay…  ✎   │         │ Sẵn sàng  │
+│☐ │ 4 │ [ảnh]     │  +       │  +       │ …                ✎   │ [▶ Xem] │ Xong      │
+│  │ + │ Thêm dòng                                                                     │
+└──┴───┴───────────┴──────────┴──────────┴──────────────────────┴─────────┴───────────┘
+[☑ Chọn mọi dòng chưa có video]   [Dải prompt ▾]                     [▶ Tạo video (2 dòng)]
+```
+- **Đầu trang:** chọn sheet/tab (nhớ lần dùng trước), trạng thái đăng nhập Muse, số video hôm nay / giới hạn (D13), nút ⚙ Nâng cao.
+- **Mỗi dòng** = một dòng sheet, đúng số dòng N. Ảnh thu nhỏ (bấm để xem lớn), prompt (bấm ✎ để sửa), video (bấm ▶ để xem trên Drive), nhãn trạng thái như F3 (Sẵn sàng / Đã có video / Thiếu dữ liệu / Đang chạy / Xong / Lỗi / Cần xem).
+- **Chọn:** ô tích từng dòng, **Chọn mọi dòng chưa có video** (chỉ chọn dòng Sẵn sàng, không vượt số video còn lại hôm nay). Dòng Đã có video vẫn cần tích *Ghi đè* (D10).
+- **Tạo video (N dòng)** (D19): tạo lô + chạy ngay. Nút khoá khi: không chọn dòng nào, vượt giới hạn ngày, đang có lô chạy (khi đó nút thành **Tạm dừng / Tiếp tục**).
+- **Đang chạy:** dòng đang gửi sáng lên, nhãn đổi theo mục 7 (Đang gửi → Chờ Muse → Kiểm tra → Xong). Video xong hiện ngay ô Video. Bảng tự làm mới: ~5 giây khi có lô chạy, ~30 giây khi rảnh, và có nút 🔄.
+
+### 16.3 Đồng bộ với sheet (D17, D18)
+| Việc | Kết quả |
+|---|---|
+| Mở app / làm mới | Tool đọc tab sheet (service account) và vẽ lại bảng |
+| Sửa ô trong bảng (Prompt, Ảnh người mẫu, Ảnh áo, Ảnh áo sau) | Tool đọc lại ô; còn đúng giá trị lúc bắt đầu sửa thì ghi lên sheet, khác thì báo *"Ô này vừa được người khác sửa"* và hiện giá trị mới |
+| Dán link ảnh | Kiểm tra như F3 (link Drive, đọc được bằng service account) rồi mới ghi; sai thì báo ngay tại ô |
+| **Thêm dòng** | Ghi vào dòng trống đầu tiên **sau dòng dữ liệu cuối** (không chèn giữa) |
+| **Dải prompt** | Chọn dòng nguồn → *Áp cho các dòng đã chọn* hoặc *Dải xuống tới dòng cuối*; trước khi ghi hiện *"Sẽ thay prompt của N dòng"* để xác nhận; bỏ qua dòng Đang chạy / Đã có video (trừ khi tích) |
+| Người khác sửa trực tiếp trên sheet | Lần làm mới sau bảng hiện giá trị mới |
+| Muse ghi link video | Bảng hiện video ở dòng đó (như F5) |
+- Mỗi lần ghi chỉ ghi **đúng các ô người dùng sửa**, mỗi ô ghi một lần; ghi vào nhật ký (ô, giá trị cũ, giá trị mới, giờ).
+- Tool **không bao giờ** ghi ô Video; không xoá / chèn / sắp xếp dòng (D18).
+- Dòng đang trong lô (từ lúc bấm Tạo video tới khi xong) **khoá sửa**; F5 bước 1 vẫn đọc lại dòng trước khi gửi.
+
+### 16.4 Áo hai mặt (D20)
+- Cột **Ảnh áo** hiện có = mặt trước; thêm cột tuỳ chọn **Ảnh áo sau** (tự đoán tiêu đề "Ảnh áo sau", "Mặt sau"…).
+- Có mặt sau mà không có mặt trước → Thiếu dữ liệu.
+- **Đoạn ghép áo hai mặt** (mẫu riêng, sửa trong Cài đặt), có `{link_anh_ao}` và `{link_anh_ao_sau}`. Câu mặc định (chốt sau khi thử tay): *"Ảnh áo: {link_anh_ao} (mặt trước). Ảnh áo mặt sau: {link_anh_ao_sau}. Hãy ghép áo này vào người mẫu ở trên, rồi dựa theo prompt dưới đây tạo một video người mẫu xoay người để thấy cả mặt trước và mặt sau áo. Giữ nguyên khuôn mặt người mẫu và hình in từng mặt. Không cần lưu ảnh vừa ghép."*
+- Trước khi code: người phụ trách **thử tay trên Muse** với một dòng có hai mặt. Không đạt → chốt lại phương án (mỗi mặt một video).
+
+### 16.5 Bắt đầu nhanh, hướng dẫn gọn
+- Lần đầu mở (hoặc khi thiếu bước), trên Bảng hiện **3 bước** có dấu ✅: *1. Chọn file khoá Google* (đã có, D15) · *2. Dán link sheet* (tool tự đoán cột, bấm **Xác nhận** một lần; chỉ hiện chọn cột khi đoán không ra) · *3. Đăng nhập Muse* (nút mở cửa sổ bot).
+- Chữ gợi ý ngắn ngay chỗ cần (ví dụ cạnh ô link: *"Dán link Drive của ảnh, chế độ 'Bất kỳ ai có đường liên kết'"*).
+- README rút còn ~1 trang: cài, mở, 3 bước, chỗ hỏi khi lỗi. Hướng dẫn chi tiết cũ chuyển vào phần Nâng cao.
+
+### 16.6 Giữ nguyên
+- Kiến trúc (D1–D4), service account (D5), đăng nhập tay (D6), tuần tự + cuộc trò chuyện mới (D7–D8), không tự gửi lại (D9), kiểm tra sau khi Muse xong (D12), giới hạn ngày (D13), ảnh bằng link Drive (D14), phát hành và cập nhật (D15–D16).
+- Các trang v4 vẫn còn trong **⚙ Nâng cao** cho người phụ trách (ánh xạ cột thủ công, mẫu yêu cầu, lịch sử lô, nhật ký, phiên bản).
+- Migration SQLite chỉ thêm (D16).
+

@@ -10,6 +10,8 @@ export interface ScanResult {
   rows: ScannedRow[];
   /** File ảnh đã kiểm tra được, để phục vụ ảnh thu nhỏ. */
   images: DriveFile[];
+  /** Toàn bộ giá trị tab vừa đọc (Bảng dùng để biết sheet có đổi không). */
+  grid: string[][];
 }
 
 const CONCURRENCY = 5;
@@ -65,6 +67,6 @@ export async function scanTab(sheets: SheetsClient, drive: DriveClient, cfg: She
     }
   });
 
-  return { scannedAt: new Date().toISOString(), rows: labelRows(grid, cfg, checks), images };
+  return { scannedAt: new Date().toISOString(), rows: labelRows(grid, cfg, checks), images, grid };
 }
 

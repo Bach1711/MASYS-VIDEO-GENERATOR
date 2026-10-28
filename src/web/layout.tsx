@@ -14,7 +14,7 @@ export function setUpdateBanner(fn: (() => Child) | undefined) {
   updateBanner = fn;
 }
 
-export function Layout(props: { title: string; children: Child }) {
+export function Layout(props: { title: string; children: Child; /** Bảng tự hiện lô đang chạy nên không cần dải báo lô. */ hideStatus?: boolean }) {
   return (
     <html lang="vi">
       <head>
@@ -38,9 +38,9 @@ export function Layout(props: { title: string; children: Child }) {
           code { font-family: ui-monospace, Consolas, monospace; }
           h2 { font-size: 1.1rem; margin: 24px 0 8px; }
           nav { border-bottom:1px solid var(--border); background:var(--card); }
-          nav div { max-width:960px; margin:0 auto; padding:10px 16px; display:flex; gap:16px; flex-wrap:wrap; }
+          nav .nav-in { max-width:960px; margin:0 auto; padding:10px 16px; display:flex; gap:16px; flex-wrap:wrap; }
           a { color:var(--link); }
-          nav div { align-items:center; }
+          nav .nav-in { align-items:center; }
           nav a.brand { display:flex; align-items:center; gap:8px; font-weight:700; color:var(--fg); text-decoration:none; margin-right:8px; }
           nav a.brand img { width:28px; height:28px; }
           .hero { display:flex; justify-content:center; background:#0b0b12; border-radius:12px; padding:16px; margin-bottom:16px; }
@@ -57,7 +57,7 @@ export function Layout(props: { title: string; children: Child }) {
           th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--border); }
           .scroll { overflow-x:auto; }
           main { max-width: 1100px; }
-          nav div { max-width: 1100px; }
+          nav .nav-in { max-width: 1100px; }
           button:disabled { opacity:.45; cursor:not-allowed; }
           button.secondary, a.button.secondary { background:var(--card); color:var(--fg); border-color:var(--border); }
           a.button { display:inline-block; padding:6px 10px; border-radius:6px; background:var(--accent); color:#fff; text-decoration:none; border:1px solid var(--accent); }
@@ -98,29 +98,53 @@ export function Layout(props: { title: string; children: Child }) {
           .update-box { border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:8px 0 4px; margin-bottom:12px; }
           .banner.ok { background:var(--ok-bg); color:var(--ok-fg); border-color:transparent; }
           .banner.warn { background:var(--warn-bg); color:var(--warn-fg); border-color:transparent; }
+          details.menu { position:relative; margin-left:auto; }
+          details.menu summary { cursor:pointer; list-style:none; color:var(--link); padding:4px 8px; border:1px solid var(--border); border-radius:6px; }
+          details.menu summary::-webkit-details-marker { display:none; }
+          details.menu .menu-items { position:absolute; right:0; top:calc(100% + 6px); z-index:10; background:var(--card); border:1px solid var(--border); border-radius:8px; padding:6px 0; min-width:240px; box-shadow:0 6px 20px rgba(0,0,0,.15); display:flex; flex-direction:column; }
+          details.menu .menu-items a { padding:8px 14px; text-decoration:none; }
+          details.menu .menu-items a:hover { background:var(--bg); }
+          .bang-head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+          .bang-head .row { align-items:center; }
+          .pill { display:inline-block; padding:4px 10px; border-radius:999px; background:var(--card); border:1px solid var(--border); }
+          .pill.bad { background:var(--bad-bg); color:var(--bad-fg); border-color:transparent; }
+          button.small { padding:4px 8px; font-size:.85rem; }
+          table.bang td.prompt { min-width:240px; max-width:420px; }
+          table.bang tr.live td { background:var(--warn-bg); }
+          table.bang label.inline { display:flex; gap:4px; align-items:center; font-weight:400; margin-top:6px; white-space:nowrap; }
+          .running-box { background:var(--info-bg); color:var(--info-fg); border-color:transparent; }
+          .actionbar { position:sticky; bottom:0; z-index:5; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin:16px 0 0; box-shadow:0 -4px 16px rgba(0,0,0,.08); }
+          .actionbar .run-right { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+          #runBtn { font-size:1.05rem; padding:8px 18px; font-weight:600; }
           footer { max-width:1100px; margin:0 auto; padding:8px 16px 24px; color:var(--muted); font-size:.85rem; }
           @media (prefers-color-scheme: dark) { :root { --info-bg:#1b2a47; --info-fg:#a9c6ff; --bad-bg:#3d1b1b; --bad-fg:#ffb3b3; } }
         `}</style>
       </head>
       <body>
         <nav>
-          <div>
+          <div class="nav-in">
             <a href="/" class="brand" title="MASYS Video Generator">
               <img src={logoUrl("icon-64.png")} alt="" />
               MASYS Video
             </a>
-            <a href="/">Trang chủ</a>
-            <a href="/sheets">Kết nối sheet</a>
-            <a href="/scan">Quét và chọn dòng</a>
-            <a href="/batches">Lịch sử lô</a>
-            <a href="/logs">Nhật ký</a>
-            <a href="/bot">Bot Muse</a>
-            <a href="/settings">Cài đặt</a>
+            <a href="/">Bảng</a>
+            <details class="menu">
+              <summary>⚙ Nâng cao</summary>
+              <div class="menu-items">
+                <a href="/sheets">Kết nối sheet</a>
+                <a href="/scan">Quét và chọn dòng (kiểu cũ)</a>
+                <a href="/batches">Lịch sử lô</a>
+                <a href="/logs">Nhật ký</a>
+                <a href="/bot">Bot Muse</a>
+                <a href="/settings">Cài đặt</a>
+                <a href="/gioi-thieu">Hướng dẫn nhanh</a>
+              </div>
+            </details>
           </div>
         </nav>
         <main>
           {updateBanner?.()}
-          {statusBanner?.()}
+          {!props.hideStatus && statusBanner?.()}
           {props.children}
         </main>
         <footer>
