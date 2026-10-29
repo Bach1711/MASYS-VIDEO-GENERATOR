@@ -179,6 +179,6 @@ describe("Hướng dẫn và gợi ý tại chỗ (CON-51)", () => {
     expect(bang).toContain('href="/huong-dan"');
     expect(bang).toContain("mỗi dòng khoảng 3–5 phút");
     expect(bang).toContain("Muse lưu video xong vào thư mục này.");
-    expect(bang).toContain("· còn 5");
+    expect(bang).toContain("· còn 100");
   });
 });

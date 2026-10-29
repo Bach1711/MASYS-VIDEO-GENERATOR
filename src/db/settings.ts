@@ -50,8 +50,11 @@ export function setShirtTemplate(db: DB, template: string | null): void {
 /** Các cài đặt chạy lô của trang Cài đặt (F7). */
 export type RunSettings = Pick<Settings, "timeoutMinutes" | "pauseMinSec" | "pauseMaxSec" | "dailyVideoLimit" | "museUrl">;
 
-/** Mức D13 khuyến nghị; đặt cao hơn thì trang Cài đặt nhắc rủi ro tài khoản. */
-export const RECOMMENDED_DAILY_LIMIT = 5;
+/** Giới hạn ngày mặc định (D25, v6.0; trước là 5 theo D13) và mức cao nhất cho đặt. */
+export const DEFAULT_DAILY_LIMIT = 100;
+export const MAX_DAILY_LIMIT = 150;
+/** Đặt cao hơn mức này thì trang Cài đặt nhắc rủi ro hạn mức / tài khoản Muse (17.9). */
+export const RECOMMENDED_DAILY_LIMIT = 50;
 
 const int = (v: unknown) => (typeof v === "string" && /^\s*\d+\s*$/.test(v) ? Number(v) : NaN);
 
@@ -66,7 +69,7 @@ export function parseRunSettings(form: Record<string, unknown>): { ok: true; val
   if (!(pauseMinSec >= 0 && pauseMinSec <= 600)) errors.push("Nghỉ ít nhất phải là số giây từ 0 đến 600.");
   if (!(pauseMaxSec >= 0 && pauseMaxSec <= 600)) errors.push("Nghỉ nhiều nhất phải là số giây từ 0 đến 600.");
   else if (pauseMaxSec < pauseMinSec) errors.push("Nghỉ nhiều nhất phải lớn hơn hoặc bằng nghỉ ít nhất.");
-  if (!(dailyVideoLimit >= 1 && dailyVideoLimit <= 50)) errors.push("Giới hạn video mỗi ngày phải là số từ 1 đến 50.");
+  if (!(dailyVideoLimit >= 1 && dailyVideoLimit <= MAX_DAILY_LIMIT)) errors.push(`Giới hạn video mỗi ngày phải là số từ 1 đến ${MAX_DAILY_LIMIT}.`);
 
   let museUrl: string | null = null;
   const rawUrl = String(form.museUrl ?? "").trim();

@@ -55,6 +55,11 @@ export class DriveClient {
     return this.http.bytes(`${DRIVE}/${enc(file.id)}?alt=media&supportsAllDrives=true`, MAX_ORIGINAL);
   }
 
+  /** File gốc (Nhập từ Google Sheet, spec v6.0 mục 17.6): tải ảnh về máy bằng quyền service account. */
+  download(fileId: string, maxBytes: number): Promise<Bytes> {
+    return this.http.bytes(`${DRIVE}/${enc(fileId)}?alt=media&supportsAllDrives=true`, maxBytes);
+  }
+
   /** Thư mục con trực tiếp (chưa xoá) của một thư mục, theo tên (F4). */
   async listFolders(parentId: string): Promise<DriveFolder[]> {
     const q = `'${parentId.replace(/['\\]/g, "\\$&")}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`;

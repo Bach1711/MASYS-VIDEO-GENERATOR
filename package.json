@@ -1,6 +1,6 @@
 {
   "name": "masys-video-generator",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "private": true,
   "description": "Tool cục bộ điều phối Meta Muse tạo video từ Google Sheet (spec v4.1)",
   "type": "module",

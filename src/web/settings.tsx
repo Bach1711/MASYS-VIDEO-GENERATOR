@@ -16,6 +16,8 @@ import { DEFAULT_MUSE_URL } from "../bot/museSelectors.js";
 import {
   getSettings,
   parseRunSettings,
+  DEFAULT_DAILY_LIMIT,
+  MAX_DAILY_LIMIT,
   RECOMMENDED_DAILY_LIMIT,
   saveRunSettings,
   setDriveRootFolder,
@@ -280,8 +282,8 @@ function RunSettingsCard(props: { s: Record<string, unknown>; errors?: string[] 
       )}
       {limit > RECOMMENDED_DAILY_LIMIT && (
         <Alert kind="warn">
-          Giới hạn đang cao hơn mức khuyến nghị {RECOMMENDED_DAILY_LIMIT} video/ngày. Tạo nhiều video tự động mỗi ngày làm tăng rủi ro tài
-          khoản Meta bị hạn chế (D13).
+          Giới hạn đang cao hơn {RECOMMENDED_DAILY_LIMIT} video/ngày. Hãy chắc hạn mức Muse của bạn đủ cho số video này; tạo rất nhiều
+          video tự động mỗi ngày cũng làm tăng rủi ro tài khoản Meta bị hạn chế.
         </Alert>
       )}
       <form method="post" action="/settings/run">
@@ -301,8 +303,8 @@ function RunSettingsCard(props: { s: Record<string, unknown>; errors?: string[] 
         </div>
         <div class="field">
           <label for="dailyVideoLimit">Giới hạn video mỗi ngày</label>
-          <input id="dailyVideoLimit" name="dailyVideoLimit" type="number" min="1" max="50" required value={v("dailyVideoLimit")} />
-          <div class="muted small">Đủ số này thì lô tự tạm dừng đến hôm sau. Mặc định {RECOMMENDED_DAILY_LIMIT} (D13).</div>
+          <input id="dailyVideoLimit" name="dailyVideoLimit" type="number" min="1" max={String(MAX_DAILY_LIMIT)} required value={v("dailyVideoLimit")} />
+          <div class="muted small">Đủ số này thì lô tự tạm dừng đến hôm sau. Mặc định {DEFAULT_DAILY_LIMIT}, cao nhất {MAX_DAILY_LIMIT}.</div>
         </div>
         <div class="field">
           <label for="museUrl">Địa chỉ trang Muse</label>

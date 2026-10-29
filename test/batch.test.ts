@@ -130,6 +130,8 @@ function setup(opts: { sentToday?: number; root?: string | null } = {}) {
     GOOGLE_SERVICE_ACCOUNT_JSON: JSON.stringify({ type: "service_account", client_email: "bot@x.iam.gserviceaccount.com", private_key: "PK" }),
   });
   const db = openDatabase(":memory:");
+
+  db.prepare("UPDATE settings SET dailyVideoLimit = 5").run(); // các ca giới hạn ngày viết theo mức 5 cũ (D13)
   saveSheetConfig(db, { ...CFG, spreadsheetTitle: "MASYS Video – Danh sách" });
   if (opts.root !== null) setDriveRootFolder(db, opts.root ?? ROOT);
   if (opts.sentToday) {

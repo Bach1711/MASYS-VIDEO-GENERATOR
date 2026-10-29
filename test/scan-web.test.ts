@@ -53,6 +53,8 @@ function setup(opts: { grid?: Grid; sentToday?: number } = {}) {
     GOOGLE_SERVICE_ACCOUNT_JSON: JSON.stringify({ type: "service_account", client_email: "bot@x.iam.gserviceaccount.com", private_key: "PK" }),
   });
   const db = openDatabase(":memory:");
+
+  db.prepare("UPDATE settings SET dailyVideoLimit = 5").run(); // các ca giới hạn ngày viết theo mức 5 cũ (D13)
   saveSheetConfig(db, CFG);
   if (opts.sentToday) {
     db.prepare("INSERT INTO batches (id, spreadsheetId, tab, driveFolderId, status) VALUES (1, ?, ?, 'F', 'done')").run(ID, TAB);
