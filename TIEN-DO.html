@@ -34,14 +34,14 @@
 </main>
 <script type="text/plain" id="source"># Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **29/10/2026**, CON-70 chờ duyệt — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **29/10/2026**, sau CON-70 — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v6.0 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 17/21 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 0/4
+**Tổng quan:** 18/21 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 1/4
 
 ```
-[■■■■■■■■□□]  17/21 — xong CON-35…CON-51 · CON-70 chờ duyệt · CON-71, CON-52, CON-72 chưa làm
+[■■■■■■■■■□]  18/21 — xong CON-35…CON-51, CON-70 · CON-71, CON-52, CON-72 chưa làm
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -140,7 +140,7 @@ flowchart LR
     class bang done
     class edit done
     class quick done
-    class keepbg review
+    class keepbg done
     class localtable,twoside,videodl todo
     class gsheets,gdrive,chrome,muse,op ext
 ```
@@ -188,14 +188,14 @@ flowchart LR
 
 | # | Ticket | Nội dung | Trạng thái | PR | Hoàn thành |
 |---|---|---|---|---|---|
-| 18 | [CON-70](https://linear.app/conducdaudan/issue/CON-70) | Prompt giữ nguyên bối cảnh và nền (v1.4.1) | 🟦 Chờ duyệt | [#20](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/20) | |
+| 18 | [CON-70](https://linear.app/conducdaudan/issue/CON-70) | Prompt giữ nguyên bối cảnh và nền (v1.4.1) | 🟩 Xong | [#20](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/20) | 29/10/2026 |
 | 19 | [CON-71](https://linear.app/conducdaudan/issue/CON-71) | Bảng cục bộ + ảnh chọn từ máy + nhập từ sheet (v1.5.0) | ⬜ Chưa làm | | |
 | 20 | [CON-52](https://linear.app/conducdaudan/issue/CON-52) | Bot đính kèm ảnh vào Muse + áo hai mặt (v1.6.0) | ⬜ Chưa làm | | |
 | 21 | [CON-72](https://linear.app/conducdaudan/issue/CON-72) | Tải video về máy, xem / tải / xoá / dọn; Bảng mới thành màn hình chính (v2.0.0) | ⬜ Chưa làm | | |
 
 ## Nhật ký cập nhật
 
-- **29/10/2026 · CON-70** (chờ duyệt): theo góp ý của đội ngày 29/10 (Google Doc "Tool tạo video", thẻ Take note), **spec v6.0** (mục 17, D21–D27): ảnh chọn từ máy và bot đính kèm vào Muse, video tải về máy và xem / tải / xoá trên Bảng, bỏ Google Sheet và Drive (chỉ giữ nút nhập từ sheet), áo hai mặt = 4 ảnh ghép trước–trước / sau–sau ra một video, giới hạn ngày mặc định 100; tạo CON-71, CON-72, sửa CON-52 theo v6.0. **v1.4.1** (D27): mẫu yêu cầu gửi Muse thêm *"Giữ nguyên nền, bối cảnh và ánh sáng của ảnh người mẫu…"* và *"Từ prompt dưới đây chỉ lấy động tác, biểu cảm và cách quay; bỏ qua mọi mô tả bối cảnh…"*; đoạn ghép áo đổi thành *"chỉ thay chiếc áo, giữ nguyên khuôn mặt, tóc, dáng, tư thế, nền, bối cảnh và ánh sáng…"*. Máy dùng mẫu gốc tự nhận câu mới, máy đã sửa mẫu giữ bản của mình. Test cập nhật + test mới cho D27.
+- **29/10/2026 · CON-70** (xong, đã duyệt và gộp vào main): theo góp ý của đội ngày 29/10 (Google Doc "Tool tạo video", thẻ Take note), **spec v6.0** (mục 17, D21–D27): ảnh chọn từ máy và bot đính kèm vào Muse, video tải về máy và xem / tải / xoá trên Bảng, bỏ Google Sheet và Drive (chỉ giữ nút nhập từ sheet), áo hai mặt = 4 ảnh ghép trước–trước / sau–sau ra một video, giới hạn ngày mặc định 100; tạo CON-71, CON-72, sửa CON-52 theo v6.0. **v1.4.1** (D27): mẫu yêu cầu gửi Muse thêm *"Giữ nguyên nền, bối cảnh và ánh sáng của ảnh người mẫu…"* và *"Từ prompt dưới đây chỉ lấy động tác, biểu cảm và cách quay; bỏ qua mọi mô tả bối cảnh…"*; đoạn ghép áo đổi thành *"chỉ thay chiếc áo, giữ nguyên khuôn mặt, tóc, dáng, tư thế, nền, bối cảnh và ánh sáng…"*. Máy dùng mẫu gốc tự nhận câu mới, máy đã sửa mẫu giữ bản của mình. Test cập nhật + test mới cho D27.
 
 - **28/10/2026 · CON-51** (xong, đã duyệt và gộp vào main): **bắt đầu nhanh và hướng dẫn gọn** (spec v5.0 mục 16.5). Chưa kết nối sheet thì trang chủ là **4 bước có dấu ✅** (khoá Google · dán link sheet · đăng nhập Muse · thư mục Drive lưu video; bước 4 thêm theo yêu cầu người phụ trách); đủ bước thì Bảng không hiện gì, thiếu bước nào Bảng chỉ nhắc bước đó; mở lại được ở **⚙ Nâng cao → Các bước bắt đầu**. **Kết nối sheet một bước** (`/ket-noi`): dán link → tool kiểm tra quyền sửa, tự chọn tab (tab chưa kết nối đoán đủ 4 cột), tự đoán cột kèm tên tiêu đề → **Xác nhận** → về Bảng; đoán thiếu cột mới đưa sang chọn cột; **+ Thêm sheet** dùng luồng này. **Đăng nhập Muse**: Mở cửa sổ Muse → tự đăng nhập → Kiểm tra; tool nhớ lần thấy Muse sẵn sàng (cột mới `settings.museReadyAt`, migration chỉ thêm; cũng ghi khi gửi Muse thành công, xoá khi Muse đòi đăng nhập lại), không tự mở Chrome khi mở tool. **Thư mục Drive gốc** dán ngay ở bước 4, báo khi chưa có thư mục con "Video". Gợi ý tại chỗ: nút Tạo video, ô Lưu video vào, "Hôm nay x/5 · còn N", ô tích dòng không chọn được. **Hướng dẫn** gọn trong tool (`/huong-dan`, có bảng xử lý khi tạm dừng) thay trang giới thiệu cũ; **README** còn ~1 trang, bản cũ chuyển thành `HUONG-DAN-CHI-TIET.md`; `HUONG-DAN.txt` trong zip theo 4 bước. Đã chạy luồng như máy sạch (SQLite trống) với sheet + Drive thật, không bot, không ghi sheet: chưa có khoá → Cài khoá; dán link → tự chọn `Trang tính1`, đoán đúng 5 cột → Xác nhận → Bảng; dán thư mục → nhận thư mục con "Video"; chụp màn hình sáng/tối.
 
