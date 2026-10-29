@@ -129,4 +129,13 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE settings ADD COLUMN twoSidedTemplate TEXT;
   UPDATE settings SET dailyVideoLimit = 100 WHERE id = 1 AND dailyVideoLimit = 5;
   `,
+  // 9: Bảng mới tạo video (CON-52, spec v6.0 mục 17.4, 17.5). Lô của Bảng mới có source = 'bang'
+  // (không có sheet / thư mục Drive: spreadsheetId, driveFolderId để rỗng). Mẫu yêu cầu riêng của Bảng mới;
+  // NULL = dùng mẫu mặc định 17.4.
+  `
+  ALTER TABLE batches ADD COLUMN source TEXT NOT NULL DEFAULT 'sheet';
+  ALTER TABLE settings ADD COLUMN bangTemplate TEXT;
+  ALTER TABLE settings ADD COLUMN bangShirtTemplate TEXT;
+  CREATE INDEX runs_bangRow ON runs(bangRowId);
+  `,
 ];

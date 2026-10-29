@@ -37,7 +37,7 @@ afterEach(() => {
 });
 
 const row = (o: Partial<Parameters<typeof labelOf>[0]> = {}) => ({
-  id: 1, createdAt: "", prompt: "", modelFront: null, shirtFront: null, modelBack: null, shirtBack: null, videoFile: null, videoBytes: null, videoAt: null, importedFrom: null, ...o,
+  id: 1, createdAt: "", prompt: "", modelFront: null, shirtFront: null, modelBack: null, shirtBack: null, videoFile: null, videoBytes: null, videoAt: null, importedFrom: null, runState: null as string | null, ...o,
 });
 
 describe("ảnh chọn từ máy (17.2, 17.3)", () => {
@@ -70,7 +70,7 @@ describe("nhãn và bộ lọc (17.4)", () => {
     expect(back.label).toBe("missing_data");
     expect(back.problems[0]).toContain("Áo trước, Áo sau");
     expect(labelOf(row({ modelFront: "a", shirtFront: "b", modelBack: "c", shirtBack: "d", prompt: "x" })).label).toBe("ready");
-    expect(labelOf(row({ modelFront: "a", prompt: "x", videoFile: "v.mp4" })).label).toBe("has_video");
+    expect(labelOf(row({ modelFront: "a", prompt: "x", videoFile: "v.mp4" })).label).toBe("done");
   });
 
   it("đếm theo bộ lọc khớp nhãn; tìm theo số dòng hoặc chữ; 50 dòng một trang, mới nhất trước", () => {
@@ -80,7 +80,7 @@ describe("nhãn và bộ lọc (17.4)", () => {
     addRow(db, { prompt: "cười 100%", modelFront: "a.png", modelBack: "b.png" }); // 3 thiếu mặt sau
     const id4 = addRow(db, { prompt: "vẫy tay", modelFront: "a.png" });
     db.prepare("UPDATE bang_rows SET videoFile = 'v.mp4' WHERE id = ?").run(id4);
-    expect(countByFilter(db)).toEqual({ all: 4, today: 4, todo: 1, missing: 2, video: 1 });
+    expect(countByFilter(db)).toEqual({ all: 4, today: 4, todo: 1, missing: 2, running: 0, done: 1, review: 0 });
     expect(listRows(db, { filter: "missing" }).rows.map((r) => r.id)).toEqual([3, 2]);
     expect(listRows(db, { q: "vẫy" }).rows.map((r) => r.id)).toEqual([4, 1]);
     expect(listRows(db, { q: "2" }).rows.map((r) => r.id)).toEqual([2]);
@@ -195,7 +195,7 @@ describe("trang Bảng mới", () => {
     expect(html).toContain("Chưa có dòng nào");
     expect(html).toContain("Hôm nay 0/100");
     expect(html).toMatch(/<button type="button" id="runBtn" disabled/);
-    expect(html).toContain("có ở bản tiếp theo");
+    expect(html).toContain("Tích các dòng cần tạo video.");
   });
 
   it("thêm dòng từ nhiều ảnh, đặt / bỏ ảnh từng ô, sửa prompt; yêu cầu thiếu header riêng bị chặn", async () => {

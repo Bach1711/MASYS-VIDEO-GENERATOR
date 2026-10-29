@@ -35,6 +35,24 @@ export const chat = {
   newThreadUrl: /\/thread\/new\b/,
   /** URL một side chat đã có (sau khi gửi) để lưu lại. */
   threadUrl: /\/thread\/(?!new\b)[A-Za-z0-9_-]{4,}/,
+  /**
+   * Đính kèm ảnh (ghi nhận 29/10/2026, spec 8.3): ô chat có `input[type=file]` (multiple) cạnh nút "Attach file";
+   * mỗi ảnh đã nhận hiện một nút "Remove attachment" — đếm nút này để biết Muse đã nhận đủ ảnh.
+   */
+  fileInput: (p: Page): Locator => p.locator("input[type=file]").first(),
+  removeAttachment: (p: Page): Locator => p.getByRole("button", { name: /^(remove attachment|xoá tệp đính kèm|xóa tệp đính kèm)$/i }),
+  /**
+   * Số video kết quả trong khung chat (ghi nhận 29/10/2026): thẻ <video> nguồn blob, 720×1280, rộng 280 px.
+   * Ảnh đại diện động của trợ lý cũng là <video> nhưng chỉ rộng 48–128 px: bỏ mọi <video> nhỏ hơn 150 px.
+   */
+  resultVideoCount: (p: Page): Promise<number> =>
+    p.locator("video").evaluateAll(
+      (els) =>
+        els.filter((el) => {
+          const r = (el as unknown as { getBoundingClientRect(): { width: number; height: number } }).getBoundingClientRect();
+          return r.width > 150 || r.height > 150;
+        }).length,
+    ),
 };
 
 /**
@@ -54,4 +72,6 @@ export const notices = {
   quota: /out of (free )?(credits|tokens|messages)|usage limit|reached (your|the) (weekly |daily )?limit|limit reached|upgrade to continue|hết lượt|hết (token|hạn mức)/i,
   rejected: /can'?t help with (that|this)|i'?m (not able|unable) to help|violates? (our|the) (policies|policy|community standards)|không thể giúp/i,
   error: /something went wrong|an error occurred|try again later|network error|đã xảy ra lỗi|có lỗi xảy ra/i,
+  /** Muse báo đã làm xong nhưng ô video trong chat không mở được (ghi nhận 29/10/2026; tải lại trang cũng không có). */
+  videoMissing: /video not found|không tìm thấy video/i,
 };

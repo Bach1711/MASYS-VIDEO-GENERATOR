@@ -48,8 +48,9 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
     const id = Number(c.req.param("id"));
     const b = Number.isInteger(id) ? getBatch(db, id) : undefined;
     if (!b) return c.notFound();
-    const cfg = getSheetConfig(db, b.spreadsheetId, b.tab);
-    const name = cfg ? sheetName(cfg) : b.spreadsheetId;
+    const bang = b.source === "bang";
+    const cfg = bang ? undefined : getSheetConfig(db, b.spreadsheetId, b.tab);
+    const name = bang ? "Bảng mới" : cfg ? sheetName(cfg) : b.spreadsheetId;
     const live = runner?.runningBatchId === b.id;
     const notice = runner?.notices.get(b.id);
     const msg = c.req.query("msg");
@@ -63,7 +64,8 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
           <Layout title={`Lô #${b.id}`}>
             {live && <meta http-equiv="refresh" content="5" />}
             <h1>
-              Lô #{b.id} · {name} → {b.tab}
+              Lô #{b.id} · {name}
+              {!bang && <> → {b.tab}</>}
             </h1>
             {c.req.query("created") && (
               <Alert kind="ok">
@@ -91,10 +93,15 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
                   {live && <span class="muted small"> · trang tự cập nhật 5 giây một lần</span>}
                 </div>
                 <div class="muted small">
-                  Tạo lúc {new Date(b.createdAt).toLocaleString("vi-VN")} ·{" "}
-                  <a href={folderLink(b.driveFolderId)} target="_blank" rel="noreferrer">
-                    thư mục lưu video ↗
-                  </a>
+                  Tạo lúc {new Date(b.createdAt).toLocaleString("vi-VN")}
+                  {b.driveFolderId && (
+                    <>
+                      {" · "}
+                      <a href={folderLink(b.driveFolderId)} target="_blank" rel="noreferrer">
+                        thư mục lưu video ↗
+                      </a>
+                    </>
+                  )}
                   {b.extraRequest && <> · Yêu cầu thêm chung: {b.extraRequest}</>}
                 </div>
               </div>
@@ -130,7 +137,7 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
               <table class="scan">
                 <thead>
                   <tr>
-                    <th>Dòng</th>
+                    <th>{bang ? "Dòng (Bảng mới)" : "Dòng"}</th>
                     <th>Trạng thái</th>
                     <th>Kết quả</th>
                     <th>Yêu cầu gửi Muse</th>
@@ -179,6 +186,7 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
               </table>
             </div>
             <p class="row">
+              {bang && <a href="/bang-moi">← Quay lại Bảng mới</a>}
               {cfg && <a href={scanUrl(cfg.spreadsheetId, cfg.tab)}>← Quay lại bảng quét</a>}
               <a href={`/logs?all=1&batch=${b.id}`}>Nhật ký của lô này</a>
               <a href="/batches">Lịch sử lô</a>

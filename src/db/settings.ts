@@ -14,12 +14,16 @@ export interface Settings {
   shirtTemplate: string | null;
   /** Lần gần nhất thấy Muse đã đăng nhập (CON-51); null = chưa biết hoặc vừa cần đăng nhập lại. */
   museReadyAt: string | null;
+  /** Mẫu yêu cầu của Bảng mới (spec v6.0 mục 17.4): thường, đoạn ghép áo, hai mặt; null = mặc định. */
+  bangTemplate: string | null;
+  bangShirtTemplate: string | null;
+  twoSidedTemplate: string | null;
 }
 
 export function getSettings(db: DB): Settings {
   return db
     .prepare(
-      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt FROM settings WHERE id = 1",
+      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt, bangTemplate, bangShirtTemplate, twoSidedTemplate FROM settings WHERE id = 1",
     )
     .get() as Settings;
 }
@@ -45,6 +49,12 @@ export function setRequestTemplate(db: DB, template: string | null): void {
 
 export function setShirtTemplate(db: DB, template: string | null): void {
   db.prepare("UPDATE settings SET shirtTemplate = ? WHERE id = 1").run(template);
+}
+
+export type BangTemplateKind = "bangTemplate" | "bangShirtTemplate" | "twoSidedTemplate";
+
+export function setBangTemplate(db: DB, kind: BangTemplateKind, template: string | null): void {
+  db.prepare(`UPDATE settings SET ${kind} = ? WHERE id = 1`).run(template);
 }
 
 /** Các cài đặt chạy lô của trang Cài đặt (F7). */

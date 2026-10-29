@@ -23,13 +23,31 @@ export interface BangRow {
   videoBytes: number | null;
   videoAt: string | null;
   importedFrom: string | null;
+  /** Lượt tạo video gần nhất của dòng (CON-52); null = chưa chạy lần nào. */
+  runState: string | null;
+  runError?: string | null;
+  museChatUrl?: string | null;
 }
 
-export type BangLabel = "ready" | "missing_data" | "has_video";
-export const BANG_LABEL_TEXT: Record<BangLabel, string> = { ready: "Sẵn sàng", missing_data: "Thiếu dữ liệu", has_video: "Đã có video" };
+export type BangLabel = "ready" | "missing_data" | "running" | "done" | "review";
+export const BANG_LABEL_TEXT: Record<BangLabel, string> = {
+  ready: "Sẵn sàng",
+  missing_data: "Thiếu dữ liệu",
+  running: "Đang chạy",
+  done: "Xong",
+  review: "Cần xem",
+};
 
-/** Nhãn theo bảng 17.4: cần mẫu trước + prompt; có mặt sau thì cần đủ 4 ảnh. */
+const FINAL = new Set<string>(FINAL_RUN_STATES);
+const REVIEW_STATES = ["failed", "needs_review"];
+
+/**
+ * Nhãn theo bảng 17.4 và lượt gần nhất: đang chạy → xong → thiếu dữ liệu → cần xem → sẵn sàng.
+ * Thiếu dữ liệu: cần mẫu trước + prompt; có mặt sau thì cần đủ 4 ảnh.
+ */
 export function labelOf(r: BangRow): { label: BangLabel; problems: string[] } {
+  if (r.runState && !FINAL.has(r.runState)) return { label: "running", problems: [] };
+  if (r.videoFile || r.runState === "done") return { label: "done", problems: [] };
   const problems: string[] = [];
   if (!r.modelFront) problems.push("Thiếu ảnh người mẫu mặt trước");
   if (!r.prompt.trim()) problems.push("Thiếu prompt");
@@ -38,16 +56,35 @@ export function labelOf(r: BangRow): { label: BangLabel; problems: string[] } {
     if (missing.length) problems.push(`Có mặt sau nên cần đủ 4 ảnh, còn thiếu: ${missing.join(", ")}`);
   }
   if (problems.length) return { label: "missing_data", problems };
-  return { label: r.videoFile ? "has_video" : "ready", problems };
+  if (r.runState && REVIEW_STATES.includes(r.runState)) return { label: "review", problems: r.runError ? [r.runError] : [] };
+  return { label: "ready", problems };
 }
 
-/** Điều kiện "Thiếu dữ liệu" viết bằng SQL, khớp với labelOf, để lọc và đếm cả bảng. */
-const MISSING_SQL = `(modelFront IS NULL OR trim(prompt) = '' OR
-  ((modelBack IS NOT NULL OR shirtBack IS NOT NULL) AND (shirtFront IS NULL OR modelBack IS NULL OR shirtBack IS NULL)))`;
+/** Một cột của lượt gần nhất của dòng (lượt của Bảng mới gắn qua runs.bangRowId). */
+const lastRun = (col: string) => `(SELECT ${col} FROM runs WHERE runs.bangRowId = bang_rows.id ORDER BY runs.id DESC LIMIT 1)`;
+const LAST_STATE = lastRun("state");
+const FINAL_SQL = FINAL_RUN_STATES.map((s) => `'${s}'`).join(", ");
+const RUNNING_SQL = `(${LAST_STATE} IS NOT NULL AND ${LAST_STATE} NOT IN (${FINAL_SQL}))`;
+const DONE_SQL = `(videoFile IS NOT NULL OR coalesce(${LAST_STATE}, '') = 'done')`;
 
-export const FILTERS = ["all", "today", "todo", "missing", "video"] as const;
+/** Điều kiện "Thiếu dữ liệu" viết bằng SQL, khớp với labelOf, để lọc và đếm cả bảng. */
+const MISSING_DATA_SQL = `(modelFront IS NULL OR trim(prompt) = '' OR
+  ((modelBack IS NOT NULL OR shirtBack IS NOT NULL) AND (shirtFront IS NULL OR modelBack IS NULL OR shirtBack IS NULL)))`;
+const MISSING_SQL = `(${MISSING_DATA_SQL} AND NOT ${RUNNING_SQL} AND NOT ${DONE_SQL})`;
+const REVIEW_SQL = `(${LAST_STATE} IN ('failed', 'needs_review') AND videoFile IS NULL AND NOT ${MISSING_DATA_SQL})`;
+const TODO_SQL = `(NOT ${RUNNING_SQL} AND NOT ${DONE_SQL} AND NOT ${MISSING_DATA_SQL})`;
+
+export const FILTERS = ["all", "today", "todo", "missing", "running", "done", "review"] as const;
 export type BangFilter = (typeof FILTERS)[number];
-export const FILTER_TEXT: Record<BangFilter, string> = { all: "Tất cả", today: "Hôm nay", todo: "Chưa tạo", missing: "Thiếu dữ liệu", video: "Đã có video" };
+export const FILTER_TEXT: Record<BangFilter, string> = {
+  all: "Tất cả",
+  today: "Hôm nay",
+  todo: "Chưa tạo",
+  missing: "Thiếu dữ liệu",
+  running: "Đang chạy",
+  done: "Xong",
+  review: "Cần xem",
+};
 export const isFilter = (s: unknown): s is BangFilter => FILTERS.includes(s as BangFilter);
 
 export const PER_PAGE = 50;
@@ -59,15 +96,21 @@ export function startOfToday(now = new Date()): string {
   return d.toISOString();
 }
 
+const FILTER_SQL: Record<Exclude<BangFilter, "all" | "today">, string> = {
+  todo: TODO_SQL,
+  missing: MISSING_SQL,
+  running: RUNNING_SQL,
+  done: DONE_SQL,
+  review: REVIEW_SQL,
+};
+
 function where(filter: BangFilter, q: string, now: Date): { sql: string; args: unknown[] } {
   const parts = ["deletedAt IS NULL"];
   const args: unknown[] = [];
   if (filter === "today") {
     parts.push("createdAt >= ?");
     args.push(startOfToday(now));
-  } else if (filter === "todo") parts.push(`videoFile IS NULL AND NOT ${MISSING_SQL}`);
-  else if (filter === "missing") parts.push(MISSING_SQL);
-  else if (filter === "video") parts.push("videoFile IS NOT NULL");
+  } else if (filter !== "all") parts.push(FILTER_SQL[filter]);
   const term = q.trim();
   if (term) {
     if (/^\d+$/.test(term)) {
@@ -83,7 +126,8 @@ function where(filter: BangFilter, q: string, now: Date): { sql: string; args: u
 
 const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
-const COLS = "id, createdAt, prompt, modelFront, shirtFront, modelBack, shirtBack, videoFile, videoBytes, videoAt, importedFrom";
+const COLS = `id, createdAt, prompt, modelFront, shirtFront, modelBack, shirtBack, videoFile, videoBytes, videoAt, importedFrom,
+  ${LAST_STATE} AS runState, ${lastRun("error")} AS runError, ${lastRun("museChatUrl")} AS museChatUrl`;
 
 /** Một trang của Bảng, dòng mới nhất trước. */
 export function listRows(db: DB, o: { filter?: BangFilter; q?: string; page?: number; now?: Date } = {}) {
@@ -169,7 +213,7 @@ export function planBangFill(db: DB, source: number, ids: number[], includeVideo
     const r = getRow(db, id);
     if (!r) skipped.push({ id, why: "không có dòng này" });
     else if (locked.has(id)) skipped.push({ id, why: "đang tạo video" });
-    else if (r.videoFile && !includeVideo) skipped.push({ id, why: "đã có video" });
+    else if (labelOf(r).label === "done" && !includeVideo) skipped.push({ id, why: "đã có video" });
     else if (r.prompt === src.prompt) skipped.push({ id, why: "đã cùng prompt" });
     else targets.push(id);
   }

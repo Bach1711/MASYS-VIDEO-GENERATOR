@@ -1,9 +1,14 @@
 import fs from "node:fs";
 import type { Context, Hono } from "hono";
 import type { Child } from "hono/jsx";
-import { importedKeys, isFilter, isSlot, labelOf, listRows, countByFilter, getRow, addRow, setPrompt, setSlot, lockedBangRows, planBangFill, applyBangFill, allRowIds, SLOTS, SLOT_TAG, SLOT_TEXT, FILTERS, FILTER_TEXT, BANG_LABEL_TEXT, type BangFilter, type BangRow, type Slot } from "../bang/rows.js";
+import { importedKeys, isFilter, isSlot, labelOf, listRows, countByFilter, getRow, addRow, setPrompt, setSlot, lockedBangRows, planBangFill, applyBangFill, allRowIds, SLOTS, SLOT_TAG, SLOT_TEXT, FILTERS, FILTER_TEXT, BANG_LABEL_TEXT, type BangFilter, type BangLabel, type BangRow, type Slot } from "../bang/rows.js";
 import { BangFiles, formatBytes, imageProblem, typeOf } from "../bang/files.js";
 import { planImport, runImport, type ImportPlan } from "../bang/importSheet.js";
+import { attachmentText, BANG_KIND_TEXT } from "../bang/request.js";
+import { insertBangBatch, planBangBatch } from "../bang/run.js";
+import { activeBatch } from "../db/history.js";
+import { getSettings } from "../db/settings.js";
+import type { BatchRunner } from "../queue/runner.js";
 import type { AppConfig } from "../config.js";
 import type { DB } from "../db/index.js";
 import { getDailyQuota } from "../db/quota.js";
@@ -17,14 +22,18 @@ import { Alert, Hidden, truncate } from "./components.js";
 import { Layout } from "./layout.js";
 
 // Bảng mới (spec v6.0 mục 17.2, 17.6, 17.9; D21, D22): dữ liệu nằm trong tool, ảnh chọn từ máy.
-// v1.5.0: mở ở ⚙ Nâng cao → "Bảng mới (đang thử)"; tạo video từ Bảng mới có ở v1.6.0 (CON-52).
+// v1.5.0: mở ở ⚙ Nâng cao → "Bảng mới (đang thử)". v1.6.0 (CON-52): Tạo video, ảnh đính kèm thẳng vào Muse (17.4, 17.5).
 
 export interface BangMoiDeps {
   config: AppConfig;
   db: DB;
   sheets?: SheetsClient;
   drive?: DriveClient;
+  runner?: BatchRunner;
 }
+
+const BADGE: Record<BangLabel, string> = { ready: "b-ready", missing_data: "b-missing_data", running: "b-running", done: "b-has_video", review: "b-missing_data" };
+const parseIds = (v: string) => v.split(/[,\s]+/).map(Number).filter((n) => Number.isInteger(n) && n > 0);
 
 const BASE = "/bang-moi";
 const bangUrl = (o: { filter?: BangFilter; q?: string; page?: number; ok?: string } = {}) => {
@@ -76,7 +85,8 @@ function ImageCell(props: { row: BangRow; slot: Slot; locked: boolean }) {
 
 function RowView(props: { row: BangRow; locked: boolean }) {
   const r = props.row;
-  const { label, problems } = labelOf(r);
+  const own = labelOf(r);
+  const { label, problems } = props.locked && own.label !== "running" ? { label: "running" as const, problems: [] } : own;
   return (
     <tr data-row={r.id} data-label={label}>
       <td>
@@ -96,9 +106,17 @@ function RowView(props: { row: BangRow; locked: boolean }) {
           )}
         </div>
       </td>
-      <td>{r.videoFile ? <span class="muted small">Có ở bản tiếp theo</span> : <span class="muted">—</span>}</td>
       <td>
-        <span class={`badge b-${label}`}>{props.locked ? "Đang chạy" : BANG_LABEL_TEXT[label]}</span>
+        {r.museChatUrl ? (
+          <a href={r.museChatUrl} target="_blank" rel="noreferrer" title="Video nằm trong cuộc trò chuyện Muse; bấm để xem và tải">
+            {label === "done" ? "Mở trong Muse ↗" : "Cuộc trò chuyện ↗"}
+          </a>
+        ) : (
+          <span class="muted">—</span>
+        )}
+      </td>
+      <td>
+        <span class={`badge ${BADGE[label]}`}>{BANG_LABEL_TEXT[label]}</span>
         {problems.length > 0 && (
           <ul class="problems">
             {problems.map((p) => (
@@ -124,7 +142,11 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
     const locked = lockedBangRows(db);
     const quota = getDailyQuota(db);
     const ok = c.req.query("ok");
+    const err = c.req.query("loi");
     const readyIds = list.rows.filter((r) => labelOf(r).label === "ready" && !locked.has(r.id)).map((r) => r.id);
+    const active = activeBatch(db);
+    const blocked = active ? `Lô #${active.id} chưa xong. Đợi xong (hoặc Tiếp tục / Huỷ lô đang tạm dừng) rồi tạo video tiếp.` : "";
+    const live = !!active && deps.runner?.runningBatchId === active.id && locked.size > 0;
     return c.html(
       page(
         "Bảng mới",
@@ -142,10 +164,12 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
           </div>
           <Alert kind="ok">
             Ảnh chọn thẳng từ máy, không cần Google Drive hay Google Sheet. Bấm <strong>+</strong> ở ô ảnh hoặc kéo ảnh vào ô.
-            Kéo nhiều ảnh vào khung <em>Thêm dòng</em> thì mỗi ảnh thành một dòng mới (ảnh người mẫu mặt trước). Nút{" "}
-            <strong>Tạo video</strong> của Bảng mới có ở bản tiếp theo; muốn tạo video bây giờ hãy dùng Bảng theo sheet.
+            Kéo nhiều ảnh vào khung <em>Thêm dòng</em> thì mỗi ảnh thành một dòng mới (ảnh người mẫu mặt trước). Tích các dòng rồi bấm{" "}
+            <strong>Tạo video</strong>: bot gửi ảnh thẳng cho Muse, video nằm trong cuộc trò chuyện Muse (bấm <em>Mở trong Muse</em> để xem và
+            tải).
           </Alert>
           {ok && <Alert kind="ok">{ok}</Alert>}
+          {err && <Alert kind="warn">{err}</Alert>}
 
           <div class="row-between">
             <div class="filters row">
@@ -218,6 +242,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
             id="bangmoi"
             data-ready={readyIds.join(",")}
             data-self={bangUrl({ filter, q, page: list.page })}
+            data-live={live ? "1" : ""}
           >
             {list.total === 0 ? (
               <div class="card muted">{q || filter !== "all" ? "Không có dòng nào khớp." : "Chưa có dòng nào. Bấm + Thêm dòng hoặc kéo ảnh vào khung trên."}</div>
@@ -273,8 +298,8 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
               </button>
             </div>
             <div class="run-right">
-              <span class="muted small">Tạo video từ Bảng mới: có ở bản tiếp theo.</span>
-              <button type="button" id="runBtn" disabled>
+              <span id="runHint" class={`small ${blocked ? "warn-text" : "muted"}`}>{blocked || "Tích các dòng cần tạo video."}</span>
+              <button type="button" id="runBtn" disabled data-blocked={blocked ? "1" : ""}>
                 ▶ Tạo video
               </button>
             </div>
@@ -410,6 +435,120 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
     if ("error" in plan) return c.json({ ok: false, message: plan.error });
     applyBangFill(db, plan);
     return c.json({ ok: true, message: `Đã thay prompt của ${plan.targets.length} dòng.` });
+  });
+
+  // ---------- Tạo video (CON-52, spec 17.4, 17.5) ----------
+  app.get(`${BASE}/chuan-bi`, (c) => {
+    const ids = parseIds(c.req.query("ids") ?? "");
+    const extra = c.req.query("extra") ?? "";
+    const plan = planBangBatch(db, ids, getSettings(db), extra);
+    const quota = getDailyQuota(db);
+    const active = activeBatch(db);
+    const over = plan.runs.length > quota.remaining;
+    const can = plan.runs.length > 0 && !active && !over;
+    return c.html(
+      page(
+        "Tạo video",
+        <>
+          <h1>Tạo video · {plan.runs.length} dòng</h1>
+          <p class="muted">
+            Bot gửi lần lượt từng dòng cho Muse, mỗi dòng một cuộc trò chuyện mới, ảnh đính kèm theo đúng thứ tự bên dưới. Video nằm trong cuộc
+            trò chuyện Muse của dòng đó.
+          </p>
+          {active && <Alert kind="warn">Lô #{active.id} chưa xong. Đợi xong (hoặc Tiếp tục / Huỷ lô đang tạm dừng) rồi tạo video tiếp.</Alert>}
+          {over && (
+            <Alert kind="warn">
+              Hôm nay còn {quota.remaining} lượt (đã tạo {quota.used}/{quota.limit}) nhưng đang chọn {plan.runs.length} dòng. Bỏ bớt dòng, hoặc nâng
+              giới hạn ở <a href="/settings">Cài đặt</a>.
+            </Alert>
+          )}
+          {plan.rejected.length > 0 && (
+            <Alert kind="warn">
+              Không tạo được:
+              <ul>
+                {plan.rejected.map((r) => (
+                  <li>
+                    Dòng {r.id}: {r.why}
+                  </li>
+                ))}
+              </ul>
+            </Alert>
+          )}
+          <form method="get" action={`${BASE}/chuan-bi`} class="card">
+            <Hidden name="ids" value={plan.runs.map((r) => r.row.id).join(",")} />
+            <label for="extra">Yêu cầu thêm chung (không bắt buộc)</label>
+            <textarea id="extra" name="extra" rows={2} placeholder="Ví dụ: chuyển động chậm, ánh sáng giữ như ảnh">
+              {extra}
+            </textarea>
+            <div class="row" style="margin-top:8px">
+              <button type="submit" class="secondary small">
+                Cập nhật xem trước
+              </button>
+            </div>
+          </form>
+          {plan.runs.map((r) => (
+            <div class="card">
+              <div class="row-between" style="margin-bottom:8px">
+                <strong>
+                  Dòng {r.row.id} · {BANG_KIND_TEXT[r.request.kind]}
+                  {r.overwrite && <span class="muted small"> · đã có video, tạo lại</span>}
+                </strong>
+              </div>
+              <div class="row" style="margin-bottom:8px">
+                {r.request.attachments.map((a, i) => (
+                  <figure style="margin:0;text-align:center">
+                    <img class="thumb" src={imageUrl(a.name)} alt={attachmentText(i, a.slot)} loading="lazy" width="64" height="64" />
+                    <figcaption class="small muted">{attachmentText(i, a.slot)}</figcaption>
+                  </figure>
+                ))}
+              </div>
+              <details>
+                <summary>Yêu cầu gửi Muse</summary>
+                <pre class="request">{r.request.text}</pre>
+              </details>
+            </div>
+          ))}
+          <form method="post" action={`${BASE}/chay`} class="card actionbar">
+            <Hidden name="ids" value={plan.runs.map((r) => r.row.id).join(",")} />
+            <Hidden name="extra" value={extra} />
+            <span class="muted small">
+              Hôm nay {quota.used}/{quota.limit} video · mỗi dòng khoảng 3–5 phút
+            </span>
+            <div class="row">
+              <a class="button secondary" href={BASE}>
+                Quay lại
+              </a>
+              <button type="submit" disabled={!can}>
+                ▶ Bắt đầu tạo {plan.runs.length} video
+              </button>
+            </div>
+          </form>
+        </>,
+      ),
+    );
+  });
+
+  app.post(`${BASE}/chay`, async (c) => {
+    // Chỉ nhận từ chính trang của tool: trình duyệt gắn Sec-Fetch-Site cho mọi yêu cầu gửi form.
+    const site = c.req.header("sec-fetch-site");
+    if (site && site !== "same-origin" && site !== "none") return c.text("Yêu cầu không hợp lệ", 403);
+    const body = await c.req.parseBody();
+    const back = (key: "ok" | "msg", text: string) => c.redirect(`${BASE}?${key === "ok" ? "ok" : "loi"}=${encodeURIComponent(text)}`, 303);
+    const runner = deps.runner;
+    if (!runner) return back("msg", "Bot chưa sẵn sàng.");
+    const active = activeBatch(db);
+    if (active) return back("msg", `Lô #${active.id} chưa xong. Đợi xong (hoặc Tiếp tục / Huỷ lô đang tạm dừng) rồi tạo video tiếp.`);
+    const extra = String(body.extra ?? "");
+    const plan = planBangBatch(db, parseIds(String(body.ids ?? "")), getSettings(db), extra);
+    if (plan.runs.length === 0) return back("msg", "Không có dòng nào tạo video được.");
+    const quota = getDailyQuota(db);
+    if (plan.runs.length > quota.remaining) return back("msg", `Hôm nay chỉ còn ${quota.remaining} lượt.`);
+    const batchId = insertBangBatch(db, extra, plan.runs);
+    logger.info({ batchId, rows: plan.runs.map((r) => r.row.id) }, "Đã tạo lô từ Bảng mới");
+    const started = runner.start(batchId);
+    if (!started.ok) return back("msg", started.message);
+    const skipped = plan.rejected.length ? ` Bỏ qua: ${plan.rejected.map((r) => `dòng ${r.id} (${r.why})`).join("; ")}.` : "";
+    return back("ok", `Đang tạo video cho ${plan.runs.length} dòng (lô #${batchId}). Bot gửi lần lượt từng dòng cho Muse; bảng tự cập nhật.${skipped}`);
   });
 
   // ---------- Nhập từ Google Sheet (17.6) ----------
@@ -623,9 +762,24 @@ const CLIENT_JS = `
 
   // Chọn dòng.
   function checked() { return Array.prototype.map.call(document.querySelectorAll("input.pick-row:checked"), function (c) { return c.value; }); }
+  var runBtn = document.getElementById("runBtn"), runHint = document.getElementById("runHint");
+  function syncRun() {
+    if (runBtn.dataset.blocked) return;
+    var n = checked().length;
+    runBtn.disabled = n === 0;
+    runHint.textContent = n ? "\\u0110\\u00e3 ch\\u1ecdn " + n + " d\\u00f2ng." : "T\\u00edch c\\u00e1c d\\u00f2ng c\\u1ea7n t\\u1ea1o video.";
+  }
+  document.querySelectorAll("input.pick-row").forEach(function (c) { c.addEventListener("change", syncRun); });
+  runBtn.addEventListener("click", function () { location.href = "/bang-moi/chuan-bi?ids=" + checked().join(","); });
+  // Đang tạo video: tự tải lại 15 giây một lần, trừ khi đang sửa dở.
+  if (page.dataset.live) setInterval(function () {
+    if (document.querySelector(".editor") || !document.getElementById("fillBox").hidden || checked().length) return;
+    location.reload();
+  }, 15000);
   document.getElementById("selReady").addEventListener("click", function () {
     var ready = (page.dataset.ready || "").split(",");
     document.querySelectorAll("input.pick-row").forEach(function (c) { c.checked = ready.indexOf(c.value) >= 0; });
+    syncRun();
   });
 
   // Dải prompt.
