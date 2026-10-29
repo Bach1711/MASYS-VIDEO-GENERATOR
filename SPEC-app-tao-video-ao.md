@@ -282,6 +282,12 @@ Hãy ghép chiếc áo trong ảnh áo vào người mẫu trong ảnh người 
   - **Muse xin duyệt (Approvals)** trước một số thao tác (lưu Drive, sửa Sheet). Người dùng chọn *Always allow* trong Muse để lần sau không bị hỏi. Lượt sau mà Muse vẫn chờ duyệt thì ô Video sẽ trống tới hết thời gian chờ → CON-40 cần nhận ra trạng thái "đang chờ duyệt" và báo người dùng (đề xuất: bot không tự bấm duyệt; chốt khi làm CON-40).
   - **Đã chốt 27/10/2026 (CON-40): bot không bao giờ tự bấm duyệt.** Màn hình duyệt thật: thẻ *"Allow Như to create or upload files that may be shared in Google Drive?"* với nút *"Create"* / *"Always allow"* / *"Don't create"*, nhãn *"Needs approval"* ở đầu cuộc trò chuyện. Tool thấy thì đưa cửa sổ bot lên trước và hiện "Muse đang chờ bạn duyệt" trên trang lô; thời gian chờ vẫn tính.
   - **Chạy thật CON-40 (27/10/2026, lô #2 dòng 2 Ghi đè + dòng 3):** tắt tool đột ngột khi dòng 2 đang chờ → mở lại, lô Tạm dừng, dòng 2 không gửi lại, tool theo dõi tiếp và ghi Xong (§12.10). Đăng xuất Muse rồi Tiếp tục → lô tạm dừng "Cần đăng nhập lại Muse", dòng 3 chưa gửi, ô Trạng thái trả về trống; đăng nhập lại + Tiếp tục → dòng 3 Xong sau ≈2,5 phút (§12.6). Mỗi dòng được gửi Muse đúng một lần. "Always allow" chọn hôm trước không áp dụng cho lần này: Muse hỏi duyệt lại một lần khi tải lên Drive.
+  - **Dò khả năng cho v6.0 (29/10/2026, CON-71 bước đầu, 17.7):**
+    - **Đính kèm ảnh: đạt.** Ô chat có `input[type=file]` (`multiple`, không giới hạn `accept`), cạnh nút *"Attach file"* (dấu +). Đính kèm 4 ảnh một lần → Muse hiện 4 ảnh xem trước, mỗi ảnh một nút *"Remove attachment"*; nút *"Send"* hiện ra. Đếm nút *Remove attachment* để biết Muse đã nhận đủ ảnh.
+    - **Video trong cuộc trò chuyện: đạt.** Gửi thật một lần (người phụ trách đồng ý; ảnh dòng 2 đính kèm từ máy, yêu cầu theo 17.4, dặn không lưu Drive / không sửa sheet): Muse trả lời sau ≈4 phút, video **hiện ngay trong khung chat** dạng thẻ `<video>` (nguồn `blob:`), 720×1280, 10 giây; Muse tự xác nhận giữ nền và bối cảnh. Không có nút Download trên giao diện; bot **đọc blob ngay trong trang** (`fetch(blob)`) → file MP4 hợp lệ (`ftypisom`, ≈2 MB). Cuộc trò chuyện cũ được dặn lưu Drive thì chỉ có link Drive, không có video.
+    - Phân biệt video kết quả với **ảnh đại diện động của trợ lý** (cũng là `<video>` 720×720, ở bảng bên phải, rộng 128 px hoặc 48 px): chỉ lấy `<video>` trong khung chat (rộng > 150 px, nằm ở cột giữa).
+    - Đang làm thì có nút *"Stop task"* / *"Stop"*; đóng trình duyệt giữa chừng **không** dừng việc của Muse (Muse làm trên máy chủ), mở lại cuộc trò chuyện là thấy kết quả.
+    - Library → Videos có vài video cũ nhưng không đủ và tải chậm: không dùng.
   - Câu báo hết lượt / từ chối / lỗi của Muse: chưa gặp (đến 27/10/2026, xem §14.2); bot đang dò theo các câu phổ biến, gặp câu thật thì ghi bổ sung vào đây.
 
 ---
@@ -581,6 +587,8 @@ Trong hồ sơ bot đã đăng nhập Muse, dò (không gửi yêu cầu tạo v
 3. Ghi selector vào `museSelectors` và ghi kết quả vào 8.3.
 
 Không đạt mục 1 hoặc 2 → **dừng, báo người phụ trách**, chốt lại phương án trước khi làm tiếp. Một lượt gửi thật để thử (tốn hạn mức Muse) chỉ làm khi người phụ trách đồng ý.
+
+**Kết quả (29/10/2026): đạt cả hai mục**, chi tiết ở 8.3. Cuộc trò chuyện cũ chỉ có link Drive nên mục 2 được thử bằng **một lượt gửi thật** (người phụ trách đồng ý): video hiện ngay trong chat dạng `<video>` nguồn `blob:`, không có nút tải; bot đọc blob trong trang ra file MP4. CON-72 tải video theo cách này. Selector ghi vào `museSelectors` ở CON-52 (bước dùng tới).
 
 ### 17.8 Chuyển tiếp từ v1.4 sang v2.0
 - **v1.4.1:** sửa mẫu yêu cầu của luồng sheet hiện tại theo D27 (giữ bối cảnh, giữ nền). Người đã sửa mẫu trong Cài đặt thì giữ bản của họ; Cài đặt có sẵn *"Khôi phục mẫu gốc"*.

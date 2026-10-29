@@ -109,7 +109,7 @@ describe("Bảng (CON-49)", () => {
     expect(html).toContain("Thiếu dữ liệu");
     expect(html).toContain("⚙ Nâng cao");
     expect(html).toContain("☑ Chọn mọi dòng chưa có video (3)");
-    expect(html).toContain("Hôm nay <strong>0/5</strong> video");
+    expect(html).toContain("Hôm nay <strong>0/100</strong> video");
     // Dòng thiếu prompt và dòng đã có video không tích được; dòng đã có video có Ghi đè.
     expect(html).toMatch(/value="6" form="run" disabled=""/);
     expect(html).toMatch(/class="ow" name="overwrite" value="5"/);

@@ -2,6 +2,19 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v1.5.0
+
+**Mới (đang thử): Bảng mới, ảnh chọn thẳng từ máy, không cần Google Drive.**
+
+- Mở ở **⚙ Nâng cao → Bảng mới (đang thử)**. Bảng cũ theo Google Sheet vẫn là màn hình chính và tạo video như trước.
+- Mỗi dòng có 4 ô ảnh: **Mẫu trước, Áo trước, Mẫu sau, Áo sau**. Bấm **+** để chọn ảnh từ máy, hoặc kéo ảnh thả vào ô. Bấm ảnh để xem lớn, ✎ để đổi, ✕ để bỏ. Nhận JPG, PNG, WEBP, mỗi ảnh tối đa 20 MB. Tool tự chép ảnh vào máy, xoá ảnh gốc cũng không sao.
+- **Thêm dòng:** bấm **+ Thêm dòng**, hoặc chọn / kéo nhiều ảnh người mẫu cùng lúc: mỗi ảnh thành một dòng mới.
+- Sửa prompt ngay trên dòng (✎), **Dải prompt** sang nhiều dòng, **Chọn mọi dòng sẵn sàng**. Mỗi dòng có nhãn *Sẵn sàng* hoặc *Thiếu dữ liệu* kèm lý do (ví dụ có ảnh mặt sau thì cần đủ 4 ảnh).
+- Nhiều dòng vẫn dễ tìm: lọc **Tất cả / Hôm nay / Chưa tạo / Thiếu dữ liệu / Đã có video**, ô tìm theo số dòng hoặc chữ trong prompt, mỗi trang 50 dòng. Đầu trang hiện dung lượng ảnh đang dùng.
+- **Nhập từ Google Sheet:** tool chỉ đọc sheet đã kết nối, tải ảnh về máy và thêm thành dòng mới; hiện trước "Sẽ thêm N dòng" rồi mới nhập. Dòng đã có video hoặc đã nhập lần trước được bỏ qua. Không ghi gì lên sheet.
+- Nút **Tạo video** của Bảng mới có ở bản tiếp theo.
+- **Giới hạn video mỗi ngày** giờ mặc định **100**, đặt được tới 150. Máy đang để mức cũ 5 được tự nâng lên 100; máy đã tự đặt số khác thì giữ nguyên.
+
 ## v1.4.1
 
 **Video giữ nguyên bối cảnh, ghép áo không làm mất nền.**

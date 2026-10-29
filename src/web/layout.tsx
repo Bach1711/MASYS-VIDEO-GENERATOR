@@ -142,6 +142,16 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
           .step-form input { flex:1 1 320px; }
           ul.mapping { margin:10px 0 14px; padding-left:20px; }
           .hint { margin-top:4px; }
+          table.bang-moi td.slot { text-align:center; min-width:76px; }
+          .slot-img { display:flex; flex-direction:column; align-items:center; gap:2px; }
+          .slot-tools { display:flex; gap:2px; }
+          button.slot-add { width:64px; height:64px; font-size:1.4rem; background:none; color:var(--muted); border:1px dashed var(--border); }
+          button.slot-add:hover { color:var(--link); border-color:var(--link); }
+          td.slot.over, .dropzone.over { outline:2px dashed var(--link); outline-offset:-2px; }
+          td.slot.busy { opacity:.5; }
+          .dropzone { border-style:dashed; }
+          .filters { gap:6px; }
+          .pager { justify-content:center; align-items:center; margin-top:12px; }
           footer { max-width:1100px; margin:0 auto; padding:8px 16px 24px; color:var(--muted); font-size:.85rem; }
           @media (prefers-color-scheme: dark) { :root { --info-bg:#1b2a47; --info-fg:#a9c6ff; --bad-bg:#3d1b1b; --bad-fg:#ffb3b3; } }
         `}</style>
@@ -158,6 +168,7 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
               <summary>⚙ Nâng cao</summary>
               <div class="menu-items">
                 <a href="/sheets">Kết nối sheet</a>
+                <a href="/bang-moi">Bảng mới (đang thử)</a>
                 <a href="/scan">Quét và chọn dòng (kiểu cũ)</a>
                 <a href="/batches">Lịch sử lô</a>
                 <a href="/logs">Nhật ký</a>

@@ -9,6 +9,7 @@ import type { BatchRunner } from "../queue/runner.js";
 import type { KeyStore } from "../keyStore.js";
 import type { ServiceAccountCredentials } from "../config.js";
 import { APP_VERSION } from "../version.js";
+import { registerBangMoiRoutes } from "./bangMoi.js";
 import { registerBatchRoutes } from "./batch.js";
 import { registerBatchRunRoutes } from "./batchRun.js";
 import { registerBotRoutes } from "./bot.js";
@@ -56,6 +57,7 @@ export function createApp(config: AppConfig, db: DB, deps: AppDeps = {}) {
   const { startPage } = registerStartRoutes(app, { config, db, ...deps });
   registerTableRoutes(app, { config, db, ...deps }, startPage);
   registerGuideRoutes(app);
+  registerBangMoiRoutes(app, { config, db, ...deps });
 
   registerSheetRoutes(app, { config, db, sheets: deps.sheets });
   registerScanRoutes(app, { config, db, ...deps });

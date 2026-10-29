@@ -185,6 +185,8 @@ describe.skipIf(!hasChrome)("MuseBot với trang Muse giả lập", () => {
 
 function dbWithRun() {
   const db = openDatabase(":memory:");
+
+  db.prepare("UPDATE settings SET dailyVideoLimit = 5").run(); // các ca giới hạn ngày viết theo mức 5 cũ (D13)
   db.prepare("INSERT INTO batches (id, spreadsheetId, tab, driveFolderId, status) VALUES (1, 'S', 'Trang tính1', 'F', 'queued')").run();
   db.prepare("INSERT INTO runs (id, batchId, rowNumber, inputSnapshot, promptSent, requestText, state) VALUES (7, 1, 2, '{}', 'p', ?, 'queued')").run(REQUEST);
   return db;

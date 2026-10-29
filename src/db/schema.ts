@@ -105,4 +105,28 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE settings ADD COLUMN museReadyAt TEXT;
   `,
+  // 8: Bảng cục bộ (CON-71, spec v6.0 mục 17.3, D21, D22, D25). Mỗi dòng của Bảng mới; ảnh là đường dẫn
+  // tương đối trong thư mục dữ liệu (tep\anh). AUTOINCREMENT để số dòng không bao giờ bị dùng lại.
+  // importedFrom = "<spreadsheetId>|<tab>|<dòng>" khi nhập từ sheet (17.6).
+  // Giới hạn ngày: máy còn để mặc định 5 thì lên mặc định mới 100 (D25); máy đã tự đặt số khác giữ nguyên.
+  `
+  CREATE TABLE bang_rows (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    createdAt    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    prompt       TEXT NOT NULL DEFAULT '',
+    modelFront   TEXT,
+    shirtFront   TEXT,
+    modelBack    TEXT,
+    shirtBack    TEXT,
+    videoFile    TEXT,
+    videoBytes   INTEGER,
+    videoAt      TEXT,
+    deletedAt    TEXT,
+    importedFrom TEXT
+  );
+  CREATE UNIQUE INDEX bang_rows_imported ON bang_rows(importedFrom) WHERE importedFrom IS NOT NULL;
+  ALTER TABLE runs ADD COLUMN bangRowId INTEGER;
+  ALTER TABLE settings ADD COLUMN twoSidedTemplate TEXT;
+  UPDATE settings SET dailyVideoLimit = 100 WHERE id = 1 AND dailyVideoLimit = 5;
+  `,
 ];

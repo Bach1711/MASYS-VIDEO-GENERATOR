@@ -27,7 +27,7 @@ describe("Cài đặt chạy lô (F7)", () => {
     expect(parseRunSettings({ ...ok, timeoutMinutes: "2.5" }).ok).toBe(false);
   });
 
-  it("trang Cài đặt lưu được, báo lỗi khi sai, nhắc rủi ro khi giới hạn > 5, có nút Mở trình duyệt bot", async () => {
+  it("trang Cài đặt lưu được, báo lỗi khi sai, nhắc rủi ro khi giới hạn > 50, có nút Mở trình duyệt bot", async () => {
     const db = openDatabase(":memory:");
     const app = createApp(loadConfig(FAKE_KEY_ENV), db);
     const page = await (await app.request("/settings")).text();
@@ -41,10 +41,10 @@ describe("Cài đặt chạy lô (F7)", () => {
     expect(await bad.text()).toContain("Nghỉ nhiều nhất phải lớn hơn hoặc bằng nghỉ ít nhất.");
     expect(getSettings(db).pauseMaxSec).toBe(60);
 
-    const res = await post({ timeoutMinutes: "30", pauseMinSec: "10", pauseMaxSec: "40", dailyVideoLimit: "8", museUrl: "https://muse.ai/" });
+    const res = await post({ timeoutMinutes: "30", pauseMinSec: "10", pauseMaxSec: "40", dailyVideoLimit: "80", museUrl: "https://muse.ai/" });
     expect(res.status).toBe(303);
-    expect(getSettings(db)).toMatchObject({ timeoutMinutes: 30, pauseMinSec: 10, pauseMaxSec: 40, dailyVideoLimit: 8, museUrl: "https://muse.ai/" });
-    expect(await (await app.request("/settings?saved=run")).text()).toContain("rủi ro tài");
+    expect(getSettings(db)).toMatchObject({ timeoutMinutes: 30, pauseMinSec: 10, pauseMaxSec: 40, dailyVideoLimit: 80, museUrl: "https://muse.ai/" });
+    expect(await (await app.request("/settings?saved=run")).text()).toContain("hạn mức Muse");
   });
 });
 

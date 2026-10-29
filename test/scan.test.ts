@@ -127,6 +127,8 @@ describe("parseRowRanges", () => {
 describe("giới hạn ngày (D13)", () => {
   it("đếm các lượt đã gửi trong ngày theo giờ máy, kể cả lượt lỗi", () => {
     const db = openDatabase(":memory:");
+
+    db.prepare("UPDATE settings SET dailyVideoLimit = 5").run(); // các ca giới hạn ngày viết theo mức 5 cũ (D13)
     const now = new Date(2026, 9, 26, 15, 0, 0);
     const { start } = localDayBounds(now);
     db.prepare("INSERT INTO batches (id, spreadsheetId, tab, driveFolderId, status) VALUES (1, 'S', 'T', 'F', 'done')").run();
