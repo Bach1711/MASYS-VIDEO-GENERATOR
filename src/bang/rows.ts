@@ -174,6 +174,52 @@ export function setSlot(db: DB, id: number, slot: Slot, name: string | null): st
   return old;
 }
 
+/** Gắn video bot tải về vào dòng (17.5 bước 8); trả tên file video cũ (để xoá file). */
+export function setRowVideo(db: DB, id: number, name: string, bytes: number, at = new Date().toISOString()): string | null {
+  const old = (db.prepare("SELECT videoFile AS f FROM bang_rows WHERE id = ?").get(id) as { f: string | null } | undefined)?.f ?? null;
+  db.prepare("UPDATE bang_rows SET videoFile = ?, videoBytes = ?, videoAt = ? WHERE id = ?").run(name, bytes, at, id);
+  return old;
+}
+
+/** Bỏ video khỏi dòng (nút 🗑 trong ô Video); trả tên file để xoá. */
+export function clearRowVideo(db: DB, id: number): string | null {
+  const old = (db.prepare("SELECT videoFile AS f FROM bang_rows WHERE id = ? AND deletedAt IS NULL").get(id) as { f: string | null } | undefined)?.f ?? null;
+  db.prepare("UPDATE bang_rows SET videoFile = NULL, videoBytes = NULL, videoAt = NULL WHERE id = ?").run(id);
+  return old;
+}
+
+/** Các file (ảnh + video) của một dòng. */
+export function rowFiles(r: Pick<BangRow, Slot | "videoFile">): string[] {
+  return [...SLOTS.map((k) => r[k]), r.videoFile].filter((x): x is string => !!x);
+}
+
+/**
+ * Xoá dòng (D26): đánh dấu deletedAt, số dòng không dùng lại (D21). Trả các file cần xoá khỏi máy.
+ * Dòng đang trong lô không xoá được (người gọi kiểm tra bằng lockedBangRows).
+ */
+export function deleteRows(db: DB, ids: number[], at = new Date().toISOString()): string[] {
+  const files: string[] = [];
+  const stmt = db.prepare("UPDATE bang_rows SET deletedAt = ? WHERE id = ? AND deletedAt IS NULL");
+  db.transaction(() => {
+    for (const id of ids) {
+      const r = getRow(db, id);
+      if (!r) continue;
+      files.push(...rowFiles(r));
+      stmt.run(at, id);
+    }
+  })();
+  return files;
+}
+
+/** "Dọn tất cả" (17.9, D26): các dòng Xong (tích thêm: mọi dòng chưa có video); không bao giờ dòng đang chạy. */
+export function cleanupIds(db: DB, includeTodo: boolean): number[] {
+  const cond = includeTodo ? `NOT ${RUNNING_SQL}` : `${DONE_SQL} AND NOT ${RUNNING_SQL}`;
+  const locked = lockedBangRows(db);
+  return (db.prepare(`SELECT id FROM bang_rows WHERE deletedAt IS NULL AND ${cond} ORDER BY id`).all() as { id: number }[])
+    .map((r) => r.id)
+    .filter((id) => !locked.has(id));
+}
+
 export function importedKeys(db: DB, prefix: string): Set<string> {
   const rows = db.prepare("SELECT importedFrom AS k FROM bang_rows WHERE importedFrom LIKE ? ESCAPE '\\'").all(`${likeEscape(prefix)}%`) as { k: string }[];
   return new Set(rows.map((r) => r.k));

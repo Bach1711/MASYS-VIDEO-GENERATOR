@@ -25,6 +25,11 @@ export function sniffImage(data: Uint8Array): ImageExt | null {
 
 const ascii = (b: Uint8Array, from: number, to: number) => String.fromCharCode(...b.subarray(from, to));
 
+/** Video MP4 / MOV: hộp `ftyp` ở byte 4–8 (17.5 bước 7). */
+export function sniffVideo(data: Uint8Array): boolean {
+  return data.length >= 12 && ascii(data, 4, 8) === "ftyp";
+}
+
 /** Lý do không nhận ảnh; null = nhận được. */
 export function imageProblem(data: Uint8Array): string | null {
   if (data.length === 0) return "File trống.";
@@ -65,6 +70,34 @@ export class BangFiles {
   removeImage(name: string | null | undefined): void {
     if (!name || !isSafeName(name)) return;
     fs.rmSync(path.join(this.dataDir, IMAGE_DIR, name), { force: true });
+  }
+
+  /** Lưu video bot tải từ Muse (17.5 bước 6–7); trả tên file. Không phải video hoặc trống thì báo lỗi. */
+  saveVideo(rowId: number, data: Uint8Array, now = new Date()): string {
+    if (data.length === 0) throw new Error("file video trống");
+    if (!sniffVideo(data)) throw new Error("file tải về không phải video MP4");
+    const name = `${rowId}-video-${now.getTime().toString(36)}${Math.random().toString(36).slice(2, 6)}.mp4`;
+    fs.writeFileSync(path.join(this.dir(VIDEO_DIR), name), data);
+    return name;
+  }
+
+  /** Đường dẫn tuyệt đối của video; undefined khi tên lạ hoặc file không còn. */
+  videoPath(name: string): string | undefined {
+    if (!isSafeName(name) || !name.endsWith(".mp4")) return undefined;
+    const p = path.join(this.dataDir, VIDEO_DIR, name);
+    return fs.existsSync(p) ? p : undefined;
+  }
+
+  removeVideo(name: string | null | undefined): void {
+    if (!name || !isSafeName(name) || !name.endsWith(".mp4")) return;
+    fs.rmSync(path.join(this.dataDir, VIDEO_DIR, name), { force: true });
+  }
+
+  /** Dung lượng một file ảnh / video (byte); 0 khi không còn. */
+  fileBytes(name: string | null | undefined): number {
+    if (!name || !isSafeName(name)) return 0;
+    const p = path.join(this.dataDir, name.endsWith(".mp4") ? VIDEO_DIR : IMAGE_DIR, name);
+    return fs.existsSync(p) ? fs.statSync(p).size : 0;
   }
 
   /** Tổng dung lượng ảnh + video (byte), để hiện "Đang dùng" (17.9). */

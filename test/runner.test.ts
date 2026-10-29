@@ -99,6 +99,9 @@ function setup(opts: { muse?: MuseBehavior; timeoutMinutes?: number; sentToday?:
       fronts++;
     },
     async openChat() {},
+    async downloadVideo(): Promise<{ data: Uint8Array; count: number }> {
+      throw new Error("luồng sheet không tải video");
+    },
   };
 
   const db = openDatabase(":memory:");

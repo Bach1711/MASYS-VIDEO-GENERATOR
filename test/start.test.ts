@@ -64,7 +64,7 @@ const marks = (html: string) => [...html.matchAll(/aria-label="(Xong|Chưa xong)
 describe("Các bước bắt đầu (CON-51)", () => {
   it("máy mới (đã có khoá, chưa kết nối gì): trang chủ hiện 4 bước, bước 1 ✅ kèm email của tool", async () => {
     const { app } = setup();
-    const html = await (await app.request("/")).text();
+    const html = await (await app.request("/bang-sheet")).text();
     expect(html).toContain("Bắt đầu trong 4 bước (1/4 xong)");
     expect(marks(html)).toEqual(["Xong", "Chưa xong", "Chưa xong", "Chưa xong"]);
     expect(html).toContain(`<code>${EMAIL}</code>`);
@@ -75,7 +75,7 @@ describe("Các bước bắt đầu (CON-51)", () => {
 
   it("khoá Google hỏng (op run): bước 1 báo lỗi và chỉ chỗ chọn file khoá; các ô khác khoá lại", async () => {
     const { app } = setup({ env: { GOOGLE_SERVICE_ACCOUNT_JSON: "không phải json" } });
-    const html = await (await app.request("/bat-dau")).text();
+    const html = await (await app.request("/bat-dau/sheet")).text();
     expect(marks(html)[0]).toBe("Chưa xong");
     expect(html).toContain('href="/setup"');
     expect(html).toMatch(/name="link"[^>]*disabled=""/);
@@ -83,14 +83,14 @@ describe("Các bước bắt đầu (CON-51)", () => {
 
   it("đủ 4 bước: Bảng không hiện khung bắt đầu; thiếu bước nào thì Bảng chỉ hiện bước đó", async () => {
     const full = setup({ sheet: true, root: true, museReady: true });
-    expect(await (await full.app.request("/")).text()).not.toContain('aria-label="Các bước bắt đầu"');
-    const html = await (await setup({ sheet: true, root: true }).app.request("/")).text();
+    expect(await (await full.app.request("/bang-sheet")).text()).not.toContain('aria-label="Các bước bắt đầu"');
+    const html = await (await setup({ sheet: true, root: true }).app.request("/bang-sheet")).text();
     expect(html).toContain('id="bang"');
     expect(html).toContain("Còn 1 bước nữa là dùng được");
     expect(marks(html)).toEqual(["Chưa xong"]);
     expect(html).toContain("Đăng nhập Muse");
     // Trang /bat-dau luôn mở được từ ⚙ Nâng cao, hiện đủ 4 bước.
-    expect(marks(await (await full.app.request("/bat-dau")).text())).toEqual(["Xong", "Xong", "Xong", "Xong"]);
+    expect(marks(await (await full.app.request("/bat-dau/sheet")).text())).toEqual(["Xong", "Xong", "Xong", "Xong"]);
   });
 
   it("đăng nhập Muse: Kiểm tra mở cửa sổ bot nếu chưa mở; sẵn sàng thì nhớ (✅), cần đăng nhập thì quên và nói cách làm", async () => {
@@ -99,7 +99,7 @@ describe("Các bước bắt đầu (CON-51)", () => {
     expect(ok.bot.open).toHaveBeenCalledOnce();
     expect(q(r).searchParams.get("ok")).toContain("Muse đã đăng nhập");
     expect(getSettings(ok.db).museReadyAt).toBeTruthy();
-    expect(marks(await (await ok.app.request("/bat-dau")).text())[2]).toBe("Xong");
+    expect(marks(await (await ok.app.request("/bat-dau/sheet")).text())[2]).toBe("Xong");
 
     const login = setup({ museReady: true, muse: "login" });
     const r2 = await login.form("/bat-dau/kiem-tra-muse", { back: "/" });
@@ -133,7 +133,7 @@ describe("Kết nối sheet một bước (CON-51)", () => {
     expect(html).toContain('name="colShirt" value="E"');
     expect(html).toContain("Xác nhận");
     const r = await form("/sheets/map", { id: ID, tab: "Danh sách", headerRow: "1", colImage: "A", colPrompt: "B", colVideo: "C", colStatus: "D", colShirt: "E", back: "bang" });
-    expect(q(r).pathname).toBe("/");
+    expect(q(r).pathname).toBe("/bang-sheet");
     expect(q(r).searchParams.get("ok")).toBe('Đã thêm trang tính "Danh sách".');
     expect(getSheetConfig(db, ID, "Danh sách")).toMatchObject({ colImage: "A", colShirt: "E", spreadsheetTitle: "MASYS Video – Danh sách" });
   });
@@ -174,7 +174,7 @@ describe("Hướng dẫn và gợi ý tại chỗ (CON-51)", () => {
     const html = await (await app.request("/huong-dan")).text();
     expect(html).toContain("Khi tool tạm dừng");
     expect(html).toContain("HUONG-DAN-CHI-TIET.md");
-    const bang = await (await app.request("/")).text();
+    const bang = await (await app.request("/bang-sheet")).text();
     expect(bang).toContain('href="/bat-dau"');
     expect(bang).toContain('href="/huong-dan"');
     expect(bang).toContain("mỗi dòng khoảng 3–5 phút");

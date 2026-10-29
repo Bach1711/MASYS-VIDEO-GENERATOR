@@ -1,6 +1,7 @@
-import type { BangFiles } from "../bang/files.js";
-import { getRow } from "../bang/rows.js";
+import { formatBytes, type BangFiles } from "../bang/files.js";
+import { getRow, setRowVideo } from "../bang/rows.js";
 import { BotError, type WatchResult } from "../bot/museBot.js";
+import { chat as chatSel } from "../bot/museSelectors.js";
 import type { DB } from "../db/index.js";
 import { getDailyQuota } from "../db/quota.js";
 import { logRunEvent, moveRun } from "../db/runs.js";
@@ -26,6 +27,8 @@ export interface MuseDriver {
   watch(): Promise<WatchResult>;
   /** Mở lại cuộc trò chuyện đã gửi để theo dõi tiếp (không gửi gì). */
   openChat(url: string): Promise<void>;
+  /** Tải video mới nhất trong cuộc trò chuyện đang mở (Bảng mới, spec 17.5 bước 6). */
+  downloadVideo(): Promise<{ data: Uint8Array; count: number }>;
   bringToFront(): Promise<void>;
 }
 
@@ -74,7 +77,7 @@ export interface RunnerOptions {
   secondMs?: number;
   random?: () => number;
   /** Ảnh của Bảng mới trên máy (CON-52). */
-  bangFiles?: Pick<BangFiles, "imagePath">;
+  bangFiles?: Pick<BangFiles, "imagePath" | "saveVideo" | "removeVideo">;
 }
 
 interface RunRow {
@@ -228,7 +231,7 @@ export class BatchRunner {
         moveRun(this.db, r.id, r.state, "queued", "Tool mở lại: lượt chưa gửi Muse, xếp lại hàng đợi");
       }
       this.setBatch(id, "paused", "restart");
-      const sent = this.runs(id, ["sending", "waiting", "verifying"]);
+      const sent = this.runs(id, ["sending", "waiting", "verifying", "downloading"]);
       if (sent.length && !this.active) this.launch(id, "watch");
       logger.info({ batchId: id, inflight: sent.map((r) => r.rowNumber) }, "Khôi phục lô sau khi tool mở lại");
     }
@@ -276,7 +279,7 @@ export class BatchRunner {
     if ("pause" in flow) return this.setBatch(batchId, "paused", flow.pause);
 
     // Lượt đã gửi trước khi tool tắt: chỉ theo dõi tiếp, một chu kỳ chờ tính từ bây giờ.
-    for (const r of this.runs(batchId, ["sending", "waiting", "verifying"])) {
+    for (const r of this.runs(batchId, ["sending", "waiting", "verifying", "downloading"])) {
       const out = await flow.resume(r);
       if (out.pause) return this.setBatch(batchId, "paused", out.pause);
     }
@@ -506,7 +509,15 @@ export class BatchRunner {
     moveRun(this.db, run.id, "checking_row", "sending", `Gửi yêu cầu cho Muse kèm ${files.length} ảnh (cuộc trò chuyện mới)`, { sentAt: now() });
     try {
       const { chatUrl } = await this.bot.send(run.requestText, files as string[]);
-      moveRun(this.db, run.id, "sending", "waiting", "Đã gửi Muse, chờ video trong cuộc trò chuyện", { museChatUrl: chatUrl });
+      const known = chatSel.isThreadUrl(chatUrl);
+      moveRun(
+        this.db,
+        run.id,
+        "sending",
+        "waiting",
+        known ? "Đã gửi Muse, chờ video trong cuộc trò chuyện" : "Đã gửi Muse, chờ video; Muse chưa đổi sang link riêng của cuộc trò chuyện",
+        { museChatUrl: known ? chatUrl : null },
+      );
       setMuseReady(this.db, now());
     } catch (e) {
       const err = e instanceof BotError ? e : new BotError("send_unconfirmed", `Lỗi khi gửi: ${errText(e)}`, true);
@@ -534,7 +545,7 @@ export class BatchRunner {
   /** Tool mở lại giữa chừng (17.5): mở lại cuộc trò chuyện đã gửi và chờ tiếp, không gửi lại (D9). */
   private async resumeBangRun(run: RunRow, batch: BatchRow): Promise<Outcome> {
     const msg = "Tool mở lại: theo dõi tiếp cuộc trò chuyện Muse, không gửi lại (D9)";
-    if (!run.museChatUrl) {
+    if (!chatSel.isThreadUrl(run.museChatUrl)) {
       moveRun(this.db, run.id, run.state, "needs_review", "Tool tắt lúc đang gửi nên không biết cuộc trò chuyện Muse; không gửi lại (D9)", {
         error: "không rõ đã gửi chưa",
         doneAt: now(),
@@ -543,7 +554,7 @@ export class BatchRunner {
     }
     if (run.state !== "waiting") moveRun(this.db, run.id, run.state, "waiting", msg);
     else logRunEvent(this.db, run.id, "waiting", msg);
-    await this.reopenChat(run.museChatUrl);
+    await this.reopenChat(run.museChatUrl!);
     return this.watchBang({ ...run, state: "waiting" }, batch, Date.now() + this.timeoutMs());
   }
 
@@ -558,17 +569,53 @@ export class BatchRunner {
     }
   }
 
-  /** Spec 17.5 bước 5 (Bảng mới): chờ video hiện trong cuộc trò chuyện. Tải video về máy ở CON-72. */
+  /**
+   * Spec 17.5 bước 6–8 (D23): tải video về máy, kiểm tra là MP4, gắn vào dòng. Thử 3 lần (video có thể đang nạp);
+   * không được thì Cần xem, giữ link cuộc trò chuyện để người dùng tải tay, không gửi lại (D9).
+   */
+  private async downloadBang(run: RunRow): Promise<Outcome> {
+    moveRun(this.db, run.id, "waiting", "downloading", "Muse đã gửi video trong cuộc trò chuyện; đang tải về máy");
+    let why = "";
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const { data, count } = await this.bot.downloadVideo();
+        const files = this.o.bangFiles;
+        if (!files) throw new Error("thiếu thư mục dữ liệu");
+        const name = files.saveVideo(run.rowNumber, data);
+        const old = setRowVideo(this.db, run.rowNumber, name, data.length);
+        if (old && old !== name) files.removeVideo(old);
+        const note = count > 1 ? `; cuộc trò chuyện có ${count} video, lấy video mới nhất` : "";
+        moveRun(this.db, run.id, "downloading", "done", `Đã tải video về máy (${formatBytes(data.length)})${note}`, { doneAt: now() });
+        return {};
+      } catch (e) {
+        why = errText(e);
+        logger.warn({ err: e, runId: run.id, attempt }, "Chưa tải được video từ Muse");
+        if (attempt < 3) await this.sleep(5 * (this.o.secondMs ?? 1000), false);
+      }
+    }
+    moveRun(this.db, run.id, "downloading", "needs_review", `Không tải được video (${why}). Bấm "Mở trong Muse" để tải tay; không gửi lại (D9)`, {
+      error: "không tải được video",
+      doneAt: now(),
+    });
+    return {};
+  }
+
+  /** Spec 17.5 bước 5 (Bảng mới): chờ video hiện trong cuộc trò chuyện, rồi tải về (bước 6–8). */
   private async watchBang(run: RunRow, batch: BatchRow, deadline: number): Promise<Outcome> {
     let waitingApproval = false;
     let loginNoted = false;
     try {
       for (;;) {
         const w = await this.bot.watch().catch(() => ({ closed: true, login: false, approval: false }) as WatchResult);
-        if ((w.videos ?? 0) > 0) {
-          moveRun(this.db, run.id, "waiting", "done", "Muse đã gửi video trong cuộc trò chuyện", { doneAt: now() });
-          return {};
+        // Muse đổi /thread/new sang link riêng chậm: lấy link ngay khi thấy, để mở lại được khi tool tắt giữa chừng.
+        if (chatSel.isThreadUrl(w.url)) {
+          const saved = (this.db.prepare("SELECT museChatUrl FROM runs WHERE id = ?").get(run.id) as { museChatUrl: string | null }).museChatUrl;
+          if (!chatSel.isThreadUrl(saved)) {
+            this.db.prepare("UPDATE runs SET museChatUrl = ? WHERE id = ?").run(w.url, run.id);
+            logRunEvent(this.db, run.id, "waiting", "Đã có link cuộc trò chuyện Muse");
+          }
         }
+        if ((w.videos ?? 0) > 0) return await this.downloadBang(run);
         if (Date.now() >= deadline) {
           moveRun(this.db, run.id, "waiting", "needs_review", "Quá thời gian chờ mà Muse chưa gửi video; không gửi lại (D9)", {
             error: "quá thời gian",
@@ -579,7 +626,7 @@ export class BatchRunner {
         if (w.closed) {
           // Trình duyệt bot bị tắt: mở lại đúng cuộc trò chuyện để xem tiếp.
           const url = (this.db.prepare("SELECT museChatUrl FROM runs WHERE id = ?").get(run.id) as { museChatUrl: string | null }).museChatUrl;
-          if (url) await this.reopenChat(url);
+          if (chatSel.isThreadUrl(url)) await this.reopenChat(url);
         }
         if (w.approval !== waitingApproval) {
           waitingApproval = w.approval;

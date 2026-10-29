@@ -2,6 +2,23 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v2.0.0
+
+**Bảng là màn hình chính: video tải thẳng về máy, xem / tải / xoá ngay trên Bảng. Không cần Google Sheet hay Drive nữa.**
+
+- Mở tool là vào **Bảng** (trước đây ở ⚙ Nâng cao → Bảng mới). Bảng theo Google Sheet cũ vẫn còn ở **⚙ Nâng cao → Bảng theo sheet (cũ)**.
+- Muse làm xong video thì bot **tự tải video về máy** và gắn vào dòng. Ở cột **Video**:
+  - **▶** xem ngay trên trang (video chỉ tải khi bấm);
+  - **⬇** tải về máy, tên file `MASYS_<số dòng>_<ngày-giờ>.mp4`;
+  - **🗑** xoá video (ảnh và prompt giữ nguyên).
+- Không tải được video thì dòng hiện **Cần xem**: bấm *Mở trong Muse* để tải tay. Tool không tự gửi lại.
+- **Xoá dòng đã chọn** (cùng ảnh và video) và **Dọn tất cả**: hỏi lại, cho biết số dòng và dung lượng sẽ giải phóng; mặc định chỉ xoá dòng **Xong**, tích thêm để xoá cả dòng chưa tạo. Dòng đang tạo video không bao giờ bị xoá.
+- Trang xem trước khi Tạo video cho biết lô mất **khoảng bao lâu** (theo thời gian các video gần đây).
+- **Bắt đầu nhanh còn 2 bước:** *Đăng nhập Muse* và *Thêm dòng đầu tiên*. Máy mới **không cần khoá Google**; khoá chỉ cần khi *Nhập từ Google Sheet* hoặc dùng Bảng theo sheet.
+- Tool tắt giữa chừng: khi mở lại, bot mở đúng cuộc trò chuyện của dòng đang dở và chờ / tải video tiếp, không gửi lại.
+- Sửa lỗi: Muse đổi sang link riêng của cuộc trò chuyện chậm thì bot không còn lưu nhầm link trang trò chuyện trống; bot lấy link đúng trong lúc chờ video.
+- Hướng dẫn trong tool viết lại theo Bảng mới.
+
 ## v1.6.0
 
 **Mới: Bảng mới tạo được video, kể cả áo hai mặt. Ảnh gửi thẳng từ máy vào Muse, không qua Drive.**

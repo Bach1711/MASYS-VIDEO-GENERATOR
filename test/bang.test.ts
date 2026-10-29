@@ -187,11 +187,12 @@ describe("trang Bảng mới", () => {
     return fd;
   };
 
-  it("menu Nâng cao có Bảng mới; trang trống có hướng dẫn và nút Tạo video tạm khoá", async () => {
+  it("trang chủ là Bảng mới (v2.0.0), menu Nâng cao có Bảng theo sheet; trang trống có hướng dẫn và nút Tạo video tạm khoá", async () => {
     const { app } = setup();
-    const home = await (await app.request("/sheets")).text();
-    expect(home).toContain('href="/bang-moi"');
-    const html = await (await app.request("/bang-moi")).text();
+    const html = await (await app.request("/")).text();
+    expect(html).toContain('href="/bang-sheet"');
+    expect(html).toContain('id="bangmoi"');
+    expect(await (await app.request("/bang-moi")).text()).toContain('id="bangmoi"');
     expect(html).toContain("Chưa có dòng nào");
     expect(html).toContain("Hôm nay 0/100");
     expect(html).toMatch(/<button type="button" id="runBtn" disabled/);

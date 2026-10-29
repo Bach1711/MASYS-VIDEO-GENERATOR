@@ -55,6 +55,9 @@ export interface MuseBotOptions {
 
 export const stripQuery = (url: string) => url.split(/[?#]/)[0]!;
 
+/** Video Muse thường vài MB; quá mức này coi là lạ, không tải (giữ bộ nhớ trang và tool). */
+export const MAX_VIDEO_BYTES = 300 * 1024 * 1024;
+
 /**
  * Điều khiển Chrome bằng hồ sơ bot riêng (ngoài repo). Không gõ mật khẩu, không vượt captcha (D6),
  * không đọc cookie: phiên đăng nhập chỉ nằm trong hồ sơ bot.
@@ -134,7 +137,7 @@ export class MuseBot {
       sel.login.url.test(page.url()) || (await visible(sel.login.heading(page))) || sel.challenge.text.test(body) || (await sel.challenge.frame(page).count()) > 0;
     const approval = sel.approval.text.test(body) || (await visible(sel.approval.button(page).first()));
     const videos = await sel.chat.resultVideoCount(page).catch(() => 0);
-    return { closed: false, login, approval, notice, videos };
+    return { closed: false, login, approval, notice, videos, url: page.url() };
   }
 
   /**
@@ -144,6 +147,42 @@ export class MuseBot {
     const page = await this.page();
     if (stripQuery(page.url()) !== stripQuery(url)) await page.goto(url, { waitUntil: "domcontentloaded" });
     await this.classify(page);
+  }
+
+  /**
+   * Tải video mới nhất trong cuộc trò chuyện đang mở (spec 17.5 bước 6, D23). Video của Muse là thẻ `<video>`
+   * nguồn `blob:`, không có nút tải: đọc thẳng trong trang bằng phiên của hồ sơ bot. Không bấm gì, không gửi gì.
+   * `count`: số video kết quả trong cuộc trò chuyện (nhiều hơn 1 thì ghi chú, vẫn lấy video cuối).
+   */
+  async downloadVideo(): Promise<{ data: Uint8Array; count: number }> {
+    if (!this.ctx) throw new BotError("ui_changed", "Trình duyệt bot đã đóng", true);
+    const page = await this.page();
+    // Chạy trong trang Muse (tsconfig không có thư viện DOM nên đọc qua globalThis).
+    const r = await page.evaluate(async (maxBytes: number) => {
+      type Vid = { currentSrc: string; src: string; getBoundingClientRect(): { width: number; height: number }; querySelector(s: string): { src: string } | null };
+      const g = globalThis as unknown as {
+        document: { querySelectorAll(s: string): ArrayLike<Vid> };
+        fetch(u: string): Promise<{ ok: boolean; status: number; arrayBuffer(): Promise<ArrayBuffer> }>;
+        btoa(s: string): string;
+      };
+      const vids = Array.from(g.document.querySelectorAll("video")).filter((v) => {
+        const box = v.getBoundingClientRect();
+        return box.width > 150 || box.height > 150;
+      });
+      const v = vids[vids.length - 1];
+      if (!v) return { error: "không thấy video trong cuộc trò chuyện", count: 0 };
+      const src = v.currentSrc || v.src || v.querySelector("source")?.src || "";
+      if (!src) return { error: "video chưa có nguồn", count: vids.length };
+      const res = await g.fetch(src);
+      if (!res.ok) return { error: `tải video lỗi ${res.status}`, count: vids.length };
+      const buf = new Uint8Array(await res.arrayBuffer());
+      if (buf.length > maxBytes) return { error: "video quá lớn", count: vids.length };
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      return { base64: g.btoa(bin), count: vids.length };
+    }, MAX_VIDEO_BYTES);
+    if (!("base64" in r) || r.base64 === undefined) throw new BotError("ui_changed", `Chưa tải được video: ${r.error}`, true);
+    return { data: new Uint8Array(Buffer.from(r.base64, "base64")), count: r.count };
   }
 
   async close(): Promise<void> {
@@ -290,9 +329,10 @@ export class MuseBot {
         if (url !== startUrl && sel.chat.threadUrl.test(url)) return { chatUrl: url };
         // Ô chat đã trống và yêu cầu hiện trong khung trò chuyện: Muse đã nhận.
         if (composerEmpty && normalize(body).includes(normalize(text).slice(0, 60))) {
-          // Muse đổi /thread/new → /thread/<id> chậm hơn một chút; chờ để lưu đúng link cuộc trò chuyện.
-          await page.waitForURL(sel.chat.threadUrl, { timeout: 15_000 }).catch(() => {});
-          return { chatUrl: page.url() };
+          // Muse đổi /thread/new → /thread/<id> chậm hơn một chút (có lúc hơn 15 giây, ghi nhận 29/10/2026); chờ để lưu
+          // đúng link. Vẫn chưa đổi thì trả rỗng: hàng đợi lấy link sau, trong lúc chờ video (không bao giờ lưu /thread/new).
+          await page.waitForURL(sel.chat.threadUrl, { timeout: 45_000 }).catch(() => {});
+          return { chatUrl: sel.chat.isThreadUrl(page.url()) ? page.url() : "" };
         }
         if (Date.now() > deadline) {
           return await this.fail(page, "send_unconfirmed", "Đã bấm Gửi nhưng không chắc Muse đã nhận yêu cầu", true);
@@ -338,6 +378,8 @@ export interface WatchResult {
   notice?: NoticeKind;
   /** Số video kết quả trong khung chat của trang đang mở (Bảng mới, spec 17.5 bước 5). */
   videos?: number;
+  /** Địa chỉ trang đang mở (để lấy link cuộc trò chuyện khi Muse đổi /thread/new chậm). */
+  url?: string;
 }
 
 function noticeKinds(body: string): NoticeKind[] {

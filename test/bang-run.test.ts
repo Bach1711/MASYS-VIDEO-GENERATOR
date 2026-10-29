@@ -18,13 +18,15 @@ import { FAKE_KEY_ENV } from "./fakeKey.js";
 // Bảng mới tạo video (CON-52, spec v6.0 mục 17.4, 17.5, D22, D24).
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
+/** Phần đầu một file MP4: hộp ftyp. */
+const MP4 = new Uint8Array([0, 0, 0, 24, ...Buffer.from("ftypisom"), 0, 0, 2, 0, 1, 2, 3, 4]);
 const dirs: string[] = [];
 afterEach(() => {
   for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
 });
 
 /** Dòng 1: một ảnh; dòng 2: ghép áo; dòng 3: hai mặt; dòng 4: thiếu áo sau. */
-function setup(o: { videoAfter?: number; sendError?: BotError; limit?: number; videoMissing?: boolean } = {}) {
+function setup(o: { videoAfter?: number; sendError?: BotError; limit?: number; videoMissing?: boolean; download?: "ok" | "fail" | "notvideo"; videoCount?: number } = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "masys-bangrun-"));
   dirs.push(dataDir);
   const files = new BangFiles(dataDir);
@@ -38,6 +40,7 @@ function setup(o: { videoAfter?: number; sendError?: BotError; limit?: number; v
 
   const sent: { text: string; files: string[] }[] = [];
   const opened: string[] = [];
+  const downloads = { n: 0 };
   let videos = 0;
   let polls = 0;
   const bot: MuseDriver = {
@@ -59,9 +62,14 @@ function setup(o: { videoAfter?: number; sendError?: BotError; limit?: number; v
       opened.push(url);
     },
     async bringToFront() {},
+    async downloadVideo() {
+      downloads.n++;
+      if (o.download === "fail") throw new BotError("ui_changed", "Chưa tải được video: video chưa có nguồn", true);
+      return { data: o.download === "notvideo" ? PNG : MP4, count: o.videoCount ?? 1 };
+    },
   };
   const runner = new BatchRunner(db, undefined, undefined, bot, { pollMs: 2, minuteMs: 40, secondMs: 1, random: () => 0, bangFiles: files });
-  return { db, files, dataDir, bot, runner, sent, opened };
+  return { db, files, dataDir, bot, runner, sent, opened, downloads };
 }
 
 const state = (db: DB, row: number) => db.prepare("SELECT state, error, museChatUrl FROM runs WHERE bangRowId = ? ORDER BY id DESC").get(row) as Record<string, string | null>;
@@ -219,7 +227,8 @@ describe("trang Bảng mới: Tạo video", () => {
     await runner.idle();
     expect(sent).toHaveLength(2);
     const page = await (await a.request("/bang-moi")).text();
-    expect(page).toContain("Mở trong Muse ↗");
+    expect(page).toContain('class="vid-play"');
+    expect(page).toContain("Muse ↗");
     expect(page).toContain("Xong (2)");
     expect((db.prepare("SELECT source FROM batches").get() as { source: string }).source).toBe("bang");
   });

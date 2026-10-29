@@ -14,6 +14,7 @@ export const RUN_STATE_TEXT: Record<string, string> = {
   sending: "Đang gửi Muse",
   waiting: "Chờ Muse làm video",
   verifying: "Đang kiểm tra video",
+  downloading: "Đang tải video về máy",
   done: "Xong",
   failed: "Lỗi",
   needs_review: "Cần xem",

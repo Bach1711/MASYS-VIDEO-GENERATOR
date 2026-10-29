@@ -180,7 +180,7 @@ export function registerScanRoutes(app: Hono, deps: ScanDeps) {
   const page = (title: string, body: Child) => "<!doctype html>" + <Layout title={title}>{body}</Layout>;
   const noClient = (
     <Alert kind="warn">
-      Chưa nạp được khoá service account nên chưa quét được sheet. Xem hướng dẫn ở <a href="/">trang chủ</a>.
+      Chưa nạp được khoá service account nên chưa quét được sheet. Xem <a href="/setup">Cài khoá Google</a>.
     </Alert>
   );
 

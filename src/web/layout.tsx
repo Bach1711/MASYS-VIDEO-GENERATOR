@@ -152,6 +152,15 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
           .dropzone { border-style:dashed; }
           .filters { gap:6px; }
           .pager { justify-content:center; align-items:center; margin-top:12px; }
+          td.video { min-width:110px; }
+          .vid { display:flex; flex-direction:column; align-items:center; gap:2px; }
+          button.vid-play { position:relative; padding:0; background:none; border:0; cursor:pointer; }
+          button.vid-play span.thumb { display:block; width:64px; height:64px; border-radius:4px; background:var(--border); }
+          .vid-icon { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.4rem; text-shadow:0 1px 4px rgba(0,0,0,.7); }
+          .vid video { width:180px; max-height:320px; border-radius:6px; background:#000; }
+          .vid-tools { display:flex; gap:2px; align-items:center; }
+          .vid-tools a.edit { padding:2px 6px; text-decoration:none; }
+          button.danger { background:var(--bad-fg); border-color:var(--bad-fg); color:var(--card); }
           footer { max-width:1100px; margin:0 auto; padding:8px 16px 24px; color:var(--muted); font-size:.85rem; }
           @media (prefers-color-scheme: dark) { :root { --info-bg:#1b2a47; --info-fg:#a9c6ff; --bad-bg:#3d1b1b; --bad-fg:#ffb3b3; } }
         `}</style>
@@ -167,8 +176,8 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
             <details class="menu">
               <summary>⚙ Nâng cao</summary>
               <div class="menu-items">
+                <a href="/bang-sheet">Bảng theo sheet (cũ)</a>
                 <a href="/sheets">Kết nối sheet</a>
-                <a href="/bang-moi">Bảng mới (đang thử)</a>
                 <a href="/scan">Quét và chọn dòng (kiểu cũ)</a>
                 <a href="/batches">Lịch sử lô</a>
                 <a href="/logs">Nhật ký</a>
