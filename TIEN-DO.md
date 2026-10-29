@@ -154,7 +154,7 @@ flowchart LR
 
 | # | Ticket | Nội dung | Trạng thái | PR | Hoàn thành |
 |---|---|---|---|---|---|
-| 18 | [CON-70](https://linear.app/conducdaudan/issue/CON-70) | Prompt giữ nguyên bối cảnh và nền (v1.4.1) | 🟦 Chờ duyệt | | |
+| 18 | [CON-70](https://linear.app/conducdaudan/issue/CON-70) | Prompt giữ nguyên bối cảnh và nền (v1.4.1) | 🟦 Chờ duyệt | [#20](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/20) | |
 | 19 | [CON-71](https://linear.app/conducdaudan/issue/CON-71) | Bảng cục bộ + ảnh chọn từ máy + nhập từ sheet (v1.5.0) | ⬜ Chưa làm | | |
 | 20 | [CON-52](https://linear.app/conducdaudan/issue/CON-52) | Bot đính kèm ảnh vào Muse + áo hai mặt (v1.6.0) | ⬜ Chưa làm | | |
 | 21 | [CON-72](https://linear.app/conducdaudan/issue/CON-72) | Tải video về máy, xem / tải / xoá / dọn; Bảng mới thành màn hình chính (v2.0.0) | ⬜ Chưa làm | | |
