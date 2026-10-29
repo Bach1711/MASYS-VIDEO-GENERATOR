@@ -105,17 +105,18 @@ describe("đoạn ghép áo trong yêu cầu gửi Muse", () => {
     expect(validateTemplate(DEFAULT_TEMPLATE)).toEqual([]);
     expect(lacksShirtSlot(DEFAULT_TEMPLATE)).toBe(false);
     expect(validateShirtTemplate(DEFAULT_SHIRT_TEMPLATE)).toEqual([]);
-    expect(DEFAULT_SHIRT_TEMPLATE).toContain("ghép áo trong ảnh áo vào người mẫu");
+    expect(DEFAULT_SHIRT_TEMPLATE).toContain("ghép chiếc áo trong ảnh áo vào người mẫu");
     expect(DEFAULT_SHIRT_TEMPLATE).toContain("Không cần lưu ảnh vừa ghép");
   });
 
   it("có ảnh áo: chèn đoạn đã điền link; không có: bỏ hẳn dòng đó", () => {
     const withShirt = renderTemplate(DEFAULT_TEMPLATE, { ...base, doan_ghep_ao: shirtBlock(DEFAULT_SHIRT_TEMPLATE, img("shirt000002")) });
-    expect(withShirt).toContain(`Ảnh: ${img("model000002")}\nẢnh áo: ${img("shirt000002")}\nHãy ghép áo`);
-    expect(withShirt).toContain("Không cần lưu ảnh vừa ghép.\nPrompt: P");
+    expect(withShirt).toContain(`Ảnh: ${img("model000002")}\nẢnh áo: ${img("shirt000002")}\nHãy ghép chiếc áo`);
+    expect(withShirt).toContain("Không cần lưu ảnh vừa ghép.\nGiữ nguyên nền, bối cảnh");
+    expect(withShirt).toContain("bỏ qua mọi mô tả bối cảnh, phòng, ánh sáng.\nPrompt: P");
 
     const without = renderTemplate(DEFAULT_TEMPLATE, { ...base, doan_ghep_ao: shirtBlock(DEFAULT_SHIRT_TEMPLATE, "") });
-    expect(without).toContain(`Ảnh: ${img("model000002")}\nPrompt: P`);
+    expect(without).toContain(`Ảnh: ${img("model000002")}\nGiữ nguyên nền, bối cảnh`);
     expect(without).not.toContain("Ảnh áo");
     expect(without).not.toContain("{doan_ghep_ao}");
   });

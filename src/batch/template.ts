@@ -3,6 +3,8 @@
 export const DEFAULT_TEMPLATE = `Hãy tạo một video dọc 9:16, dài khoảng 8–10 giây, một cảnh, từ ảnh người mẫu sau:
 Ảnh: {link_anh}
 {doan_ghep_ao}
+Giữ nguyên nền, bối cảnh và ánh sáng của ảnh người mẫu; không đổi sang phòng hay khung cảnh khác.
+Từ prompt dưới đây chỉ lấy động tác, biểu cảm và cách quay; bỏ qua mọi mô tả bối cảnh, phòng, ánh sáng.
 Prompt: {prompt}
 Yêu cầu thêm: {yeu_cau_them}
 Luôn giữ nguyên hình in trên áo, không làm méo hay đổi chữ/hình.
@@ -14,10 +16,11 @@ Sau khi tạo xong:
 
 /**
  * Đoạn ghép áo (spec v4.4 §8.2): chỉ thêm vào yêu cầu của dòng có ảnh áo, thay cho {doan_ghep_ao}.
- * Phỏng theo câu người phụ trách đã thử tay thành công trên Muse ngày 28/10/2026.
+ * Phỏng theo câu người phụ trách đã thử tay thành công trên Muse ngày 28/10/2026;
+ * v1.4.1 (D27): chỉ thay chiếc áo, giữ nguyên nền và bối cảnh của ảnh người mẫu.
  */
 export const DEFAULT_SHIRT_TEMPLATE = `Ảnh áo: {link_anh_ao}
-Hãy ghép áo trong ảnh áo vào người mẫu trong ảnh người mẫu ở trên, rồi dựa theo prompt dưới đây để tạo video theo ảnh vừa ghép đó. Giữ nguyên khuôn mặt người mẫu và hình in trên áo. Không cần lưu ảnh vừa ghép.`;
+Hãy ghép chiếc áo trong ảnh áo vào người mẫu trong ảnh người mẫu ở trên: chỉ thay chiếc áo, giữ nguyên khuôn mặt, tóc, dáng, tư thế, nền, bối cảnh và ánh sáng của ảnh người mẫu, giữ nguyên hình in trên áo. Dùng ảnh vừa ghép để tạo video theo prompt dưới đây. Không cần lưu ảnh vừa ghép.`;
 
 export const SHIRT_PLACEHOLDERS = {
   link_anh_ao: "Link Drive của ảnh áo (cột Ảnh áo)",

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { activeRows, getBatch } from "../src/batch/create.js";
 import {
+  DEFAULT_SHIRT_TEMPLATE,
   DEFAULT_TEMPLATE,
   combineExtra,
   fileStamp,
   renderTemplate,
+  validateShirtTemplate,
   validateTemplate,
   videoFileName,
   type TemplateValues,
@@ -49,6 +51,17 @@ describe("mẫu yêu cầu §8.2", () => {
     expect(text).toContain(`Lưu video vào thư mục Google Drive: https://drive.google.com/drive/folders/${VIDEO} (tên file: Trang tính1_row2_20261026-2215.mp4).`);
     expect(text).toContain(`vào ô C2 của tab "Trang tính1" trong Google Sheet https://docs.google.com/spreadsheets/d/${ID}/edit#gid=0.`);
     expect(text).toContain("3. Chỉ sửa đúng ô C2. Không sửa bất kỳ ô nào khác.");
+  });
+
+  it("mẫu gốc dặn giữ nguyên bối cảnh và nền, chỉ lấy động tác từ prompt (D27)", () => {
+    const text = renderTemplate(DEFAULT_TEMPLATE, { ...values, doan_ghep_ao: "" });
+    expect(text).toContain(
+      "Giữ nguyên nền, bối cảnh và ánh sáng của ảnh người mẫu; không đổi sang phòng hay khung cảnh khác.\n" +
+        "Từ prompt dưới đây chỉ lấy động tác, biểu cảm và cách quay; bỏ qua mọi mô tả bối cảnh, phòng, ánh sáng.\n" +
+        "Prompt: Người mẫu cười",
+    );
+    expect(DEFAULT_SHIRT_TEMPLATE).toContain("chỉ thay chiếc áo, giữ nguyên khuôn mặt, tóc, dáng, tư thế, nền, bối cảnh và ánh sáng của ảnh người mẫu");
+    expect(validateShirtTemplate(DEFAULT_SHIRT_TEMPLATE)).toEqual([]);
   });
 
   it("điền một lượt: chữ {o_video} nằm trong prompt không bị thay", () => {
@@ -330,9 +343,10 @@ describe("ghép ảnh áo (CON-46, spec v4.4)", () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain(
-      `Ảnh: ${img("imgimgimg02")}\nẢnh áo: ${img("imgimgimg12")}\nHãy ghép áo trong ảnh áo vào người mẫu trong ảnh người mẫu ở trên, rồi dựa theo prompt dưới đây để tạo video theo ảnh vừa ghép đó.`,
+      `Ảnh: ${img("imgimgimg02")}\nẢnh áo: ${img("imgimgimg12")}\nHãy ghép chiếc áo trong ảnh áo vào người mẫu trong ảnh người mẫu ở trên: chỉ thay chiếc áo,`,
     );
-    expect(html).toContain(`Ảnh: ${img("imgimgimg03")}\nPrompt: prompt gốc 3`);
+    expect(html).toContain(`Ảnh: ${img("imgimgimg03")}\nGiữ nguyên nền, bối cảnh và ánh sáng của ảnh người mẫu;`);
+    expect(html).toContain("bỏ qua mọi mô tả bối cảnh, phòng, ánh sáng.\nPrompt: prompt gốc 3");
     expect(html.match(/Ảnh áo:/g)).toHaveLength(1);
     expect(html).not.toContain("{doan_ghep_ao}");
     expect(html).not.toContain("thiếu chỗ {doan_ghep_ao}");

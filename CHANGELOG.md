@@ -2,6 +2,14 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v1.4.1
+
+**Video giữ nguyên bối cảnh, ghép áo không làm mất nền.**
+
+- Yêu cầu gửi Muse giờ dặn thêm: **giữ nguyên nền, bối cảnh và ánh sáng của ảnh người mẫu**, và từ prompt **chỉ lấy động tác, biểu cảm, cách quay**. Prompt có tả phòng ngủ, phòng khách… cũng không làm video đổi sang khung cảnh khác, không cần sửa từng prompt.
+- Dòng có ảnh áo: Muse được dặn **chỉ thay chiếc áo**, giữ nguyên khuôn mặt, tóc, dáng, tư thế, nền, bối cảnh và ánh sáng của ảnh người mẫu, giữ nguyên hình in.
+- Nếu bạn đã tự sửa mẫu yêu cầu trong **⚙ Nâng cao → Cài đặt**, tool giữ nguyên bản của bạn. Muốn dùng câu mới thì bấm **Khôi phục mẫu gốc**.
+
 ## v1.4.0
 
 **Mới: bắt đầu trong 4 bước, hướng dẫn gọn.**
