@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import type { Context, Hono } from "hono";
 import type { Child } from "hono/jsx";
-import { importedKeys, isFilter, isSlot, labelOf, listRows, countByFilter, getRow, addRow, setPrompt, setSlot, lockedBangRows, planBangFill, applyBangFill, allRowIds, SLOTS, SLOT_TAG, SLOT_TEXT, FILTERS, FILTER_TEXT, BANG_LABEL_TEXT, type BangFilter, type BangLabel, type BangRow, type Slot } from "../bang/rows.js";
+import { cleanupIds, clearRowVideo, deleteRows, rowFiles, importedKeys, isFilter, isSlot, labelOf, listRows, countByFilter, getRow, addRow, setPrompt, setSlot, lockedBangRows, planBangFill, applyBangFill, allRowIds, SLOTS, SLOT_TAG, SLOT_TEXT, FILTERS, FILTER_TEXT, BANG_LABEL_TEXT, type BangFilter, type BangLabel, type BangRow, type Slot } from "../bang/rows.js";
 import { BangFiles, formatBytes, imageProblem, typeOf } from "../bang/files.js";
 import { planImport, runImport, type ImportPlan } from "../bang/importSheet.js";
 import { attachmentText, BANG_KIND_TEXT } from "../bang/request.js";
-import { insertBangBatch, planBangBatch } from "../bang/run.js";
+import { estimateText, insertBangBatch, planBangBatch } from "../bang/run.js";
 import { activeBatch } from "../db/history.js";
 import { getSettings } from "../db/settings.js";
 import type { BatchRunner } from "../queue/runner.js";
@@ -20,9 +20,11 @@ import { logger } from "../logger.js";
 import { parseRowList } from "../sheetEdit/edit.js";
 import { Alert, Hidden, truncate } from "./components.js";
 import { Layout } from "./layout.js";
+import { QuickStart, quickStatus } from "./start.js";
 
 // Bảng mới (spec v6.0 mục 17.2, 17.6, 17.9; D21, D22): dữ liệu nằm trong tool, ảnh chọn từ máy.
 // v1.5.0: mở ở ⚙ Nâng cao → "Bảng mới (đang thử)". v1.6.0 (CON-52): Tạo video, ảnh đính kèm thẳng vào Muse (17.4, 17.5).
+// v2.0.0 (CON-72): màn hình chính (cả "/" và /bang-moi); video tải về máy, xem / tải / xoá / dọn trên Bảng (D23, D26).
 
 export interface BangMoiDeps {
   config: AppConfig;
@@ -46,6 +48,63 @@ const bangUrl = (o: { filter?: BangFilter; q?: string; page?: number; ok?: strin
   return s ? `${BASE}?${s}` : BASE;
 };
 const imageUrl = (name: string) => `${BASE}/anh/${encodeURIComponent(name)}`;
+const videoUrl = (name: string) => `${BASE}/video/${encodeURIComponent(name)}`;
+
+/** Tên file khi tải về (17.2): MASYS_<số dòng>_<YYYYMMDD-HHmm>.mp4, theo giờ máy lúc video về. */
+export function downloadName(row: number, at: string | null): string {
+  const d = at ? new Date(at) : new Date();
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `MASYS_${row}_${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}.mp4`;
+}
+
+/** Ô Video (17.2): ảnh nhỏ (ảnh người mẫu) + ▶ xem ngay trên trang (chỉ tải khi bấm), ⬇ Tải về, 🗑 Xoá. */
+function VideoCell(props: { row: BangRow; locked: boolean; label: BangLabel }) {
+  const r = props.row;
+  if (!r.videoFile) {
+    return (
+      <td>
+        {r.museChatUrl ? (
+          <a href={r.museChatUrl} target="_blank" rel="noreferrer" title="Mở cuộc trò chuyện Muse của dòng này">
+            {props.label === "done" ? "Mở trong Muse ↗" : "Cuộc trò chuyện ↗"}
+          </a>
+        ) : (
+          <span class="muted">—</span>
+        )}
+      </td>
+    );
+  }
+  return (
+    <td class="video">
+      <div class="vid" data-src={videoUrl(r.videoFile)}>
+        <button type="button" class="vid-play" title="Xem video" aria-label={`Xem video dòng ${r.id}`}>
+          {r.modelFront ? <img class="thumb" src={imageUrl(r.modelFront)} alt="" loading="lazy" width="64" height="64" /> : <span class="thumb" />}
+          <span class="vid-icon">▶</span>
+        </button>
+        <div class="vid-tools">
+          <a class="edit" href={`${videoUrl(r.videoFile)}?tai=1`} download={downloadName(r.id, r.videoAt)} title="Tải về máy" aria-label={`Tải video dòng ${r.id}`}>
+            ⬇
+          </a>
+          {!props.locked && (
+            <button type="button" class="edit vid-del" title="Xoá video" aria-label={`Xoá video dòng ${r.id}`}>
+              🗑
+            </button>
+          )}
+        </div>
+        <div class="small muted">
+          {r.videoBytes ? formatBytes(r.videoBytes) : ""}
+          {r.museChatUrl && (
+            <>
+              {" · "}
+              <a href={r.museChatUrl} target="_blank" rel="noreferrer" title="Mở cuộc trò chuyện Muse của dòng này">
+                Muse ↗
+              </a>
+            </>
+          )}
+        </div>
+      </div>
+    </td>
+  );
+}
 
 function page(title: string, body: Child) {
   return <Layout title={`${title} · MASYS Video`}>{body}</Layout>;
@@ -106,15 +165,7 @@ function RowView(props: { row: BangRow; locked: boolean }) {
           )}
         </div>
       </td>
-      <td>
-        {r.museChatUrl ? (
-          <a href={r.museChatUrl} target="_blank" rel="noreferrer" title="Video nằm trong cuộc trò chuyện Muse; bấm để xem và tải">
-            {label === "done" ? "Mở trong Muse ↗" : "Cuộc trò chuyện ↗"}
-          </a>
-        ) : (
-          <span class="muted">—</span>
-        )}
-      </td>
+      <VideoCell row={r} locked={props.locked} label={label} />
       <td>
         <span class={`badge ${BADGE[label]}`}>{BANG_LABEL_TEXT[label]}</span>
         {problems.length > 0 && (
@@ -134,7 +185,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
   const files = new BangFiles(config.dataDir);
   const clientEmail = config.serviceAccount.ok ? config.serviceAccount.clientEmail : "";
 
-  app.get(BASE, (c) => {
+  const board = (c: Context) => {
     const filter = isFilter(c.req.query("loc")) ? (c.req.query("loc") as BangFilter) : "all";
     const q = (c.req.query("q") ?? "").trim();
     const list = listRows(db, { filter, q, page: Number(c.req.query("trang") ?? 1) || 1 });
@@ -149,10 +200,11 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
     const live = !!active && deps.runner?.runningBatchId === active.id && locked.size > 0;
     return c.html(
       page(
-        "Bảng mới",
+        "Bảng",
         <>
+          <QuickStart status={quickStatus(db)} back={c.req.path} compact />
           <div class="bang-head">
-            <h1 style="margin:0">Bảng mới <span class="muted small">(đang thử)</span></h1>
+            <h1 style="margin:0">Bảng</h1>
             <div class="row">
               <span class="pill">
                 Hôm nay {quota.used}/{quota.limit}
@@ -162,12 +214,12 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
               </span>
             </div>
           </div>
-          <Alert kind="ok">
-            Ảnh chọn thẳng từ máy, không cần Google Drive hay Google Sheet. Bấm <strong>+</strong> ở ô ảnh hoặc kéo ảnh vào ô.
-            Kéo nhiều ảnh vào khung <em>Thêm dòng</em> thì mỗi ảnh thành một dòng mới (ảnh người mẫu mặt trước). Tích các dòng rồi bấm{" "}
-            <strong>Tạo video</strong>: bot gửi ảnh thẳng cho Muse, video nằm trong cuộc trò chuyện Muse (bấm <em>Mở trong Muse</em> để xem và
-            tải).
-          </Alert>
+          {list.total === 0 && !q && filter === "all" && (
+            <Alert kind="ok">
+              Bấm <strong>+ Thêm dòng</strong> rồi bấm <strong>+</strong> ở ô ảnh (hoặc kéo ảnh vào ô), viết prompt, tích dòng và bấm{" "}
+              <strong>▶ Tạo video</strong>. Bot gửi ảnh cho Muse, tải video về máy và gắn vào dòng: bấm ▶ để xem, ⬇ để tải về.
+            </Alert>
+          )}
           {ok && <Alert kind="ok">{ok}</Alert>}
           {err && <Alert kind="warn">{err}</Alert>}
 
@@ -296,6 +348,12 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
               <button type="button" id="fillToggle" class="secondary">
                 Dải prompt
               </button>
+              <button type="button" id="delBtn" class="secondary" disabled>
+                🗑 Xoá dòng đã chọn
+              </button>
+              <a class="button secondary" href={`${BASE}/don`}>
+                Dọn tất cả
+              </a>
             </div>
             <div class="run-right">
               <span id="runHint" class={`small ${blocked ? "warn-text" : "muted"}`}>{blocked || "Tích các dòng cần tạo video."}</span>
@@ -310,13 +368,28 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
         </>,
       ),
     );
-  });
+  };
+  app.get("/", board);
+  app.get(BASE, board);
 
   // Ảnh của Bảng mới: chỉ phục vụ file trong tep\anh, theo tên tool đặt.
   app.get(`${BASE}/anh/:name`, (c) => {
     const p = files.imagePath(c.req.param("name"));
     if (!p) return c.text("Không có ảnh", 404);
     return c.body(fs.readFileSync(p), 200, { "Content-Type": typeOf(p), "Cache-Control": "private, max-age=31536000, immutable" });
+  });
+
+  // Video của Bảng mới (17.2): chỉ file trong tep\video. ?tai=1 → tải về với tên MASYS_<dòng>_<giờ>.mp4.
+  app.get(`${BASE}/video/:name`, (c) => {
+    const name = c.req.param("name");
+    const p = files.videoPath(name);
+    if (!p) return c.text("Không có video", 404);
+    const headers: Record<string, string> = { "Content-Type": "video/mp4", "Cache-Control": "private, max-age=31536000, immutable" };
+    if (c.req.query("tai")) {
+      const row = db.prepare("SELECT id, videoAt FROM bang_rows WHERE videoFile = ?").get(name) as { id: number; videoAt: string | null } | undefined;
+      headers["Content-Disposition"] = `attachment; filename="${downloadName(row?.id ?? Number(name.split("-")[0]), row?.videoAt ?? null)}"`;
+    }
+    return c.body(fs.readFileSync(p), 200, headers);
   });
 
   // Mọi yêu cầu sửa đều phải có header riêng: trang web khác không gửi được tới tool mà không bị trình duyệt chặn.
@@ -364,6 +437,98 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
     if (why) return c.json({ ok: false, message: why }, 409);
     files.removeImage(setSlot(db, id, body.slot, null));
     return c.json({ ok: true });
+  });
+
+  const removeFiles = (names: string[]) => names.forEach((f) => (f.endsWith(".mp4") ? files.removeVideo(f) : files.removeImage(f)));
+
+  /** 🗑 trong ô Video: bỏ video khỏi dòng và xoá file (D26). */
+  app.post(`${BASE}/xoa-video`, async (c) => {
+    if (!fromPage(c)) return deny(c);
+    const id = Number((await json(c))?.row);
+    const why = editable(id);
+    if (why) return c.json({ ok: false, message: why }, 409);
+    files.removeVideo(clearRowVideo(db, id));
+    logger.info({ row: id }, "Bảng mới: đã xoá video");
+    return c.json({ ok: true });
+  });
+
+  /** Xoá các dòng đã chọn cùng ảnh và video (D26); dòng đang tạo video bị bỏ qua. */
+  app.post(`${BASE}/xoa`, async (c) => {
+    if (!fromPage(c)) return deny(c);
+    const body = await json(c);
+    const ids = (Array.isArray(body?.rows) ? body.rows : []).map(Number).filter((n: number) => Number.isInteger(n) && n > 0) as number[];
+    const locked = lockedBangRows(db);
+    const ok = ids.filter((id) => !locked.has(id));
+    removeFiles(deleteRows(db, ok));
+    logger.info({ rows: ok }, "Bảng mới: đã xoá dòng");
+    const skipped = ids.length - ok.length;
+    return c.json({ ok: true, message: `Đã xoá ${ok.length} dòng.${skipped ? ` Bỏ qua ${skipped} dòng đang tạo video.` : ""}` });
+  });
+
+  /** Dọn tất cả (17.9, D26): hỏi lại, hiện số dòng và dung lượng sẽ giải phóng. */
+  const cleanupPlan = (includeTodo: boolean) => {
+    const ids = cleanupIds(db, includeTodo);
+    let bytes = 0;
+    for (const id of ids) {
+      const r = getRow(db, id);
+      if (r) for (const f of rowFiles(r)) bytes += files.fileBytes(f);
+    }
+    return { ids, bytes };
+  };
+
+  app.get(`${BASE}/don`, (c) => {
+    const includeTodo = c.req.query("ca") === "1";
+    const plan = cleanupPlan(includeTodo);
+    const running = lockedBangRows(db).size;
+    return c.html(
+      page(
+        "Dọn tất cả",
+        <>
+          <h1>Dọn tất cả</h1>
+          <p class="muted">
+            Xoá các dòng <strong>Xong</strong> cùng ảnh và video của chúng khỏi máy này để giải phóng chỗ. Số dòng đã xoá không dùng lại. Video
+            nào còn cần thì bấm ⬇ tải về trước.
+          </p>
+          <form method="get" action={`${BASE}/don`} class="card">
+            <label class="inline">
+              <input type="checkbox" name="ca" value="1" checked={includeTodo} onchange="this.form.submit()" /> Xoá cả dòng chưa tạo (chưa có video,
+              thiếu dữ liệu, cần xem)
+            </label>
+          </form>
+          {running > 0 && <Alert kind="warn">{running} dòng đang tạo video: không bao giờ bị xoá.</Alert>}
+          <form method="post" action={`${BASE}/don`} class="card actionbar">
+            {includeTodo && <Hidden name="ca" value="1" />}
+            <span>
+              {plan.ids.length === 0 ? (
+                "Không có dòng nào để dọn."
+              ) : (
+                <>
+                  Sẽ xoá <strong>{plan.ids.length} dòng</strong>, giải phóng <strong>{formatBytes(plan.bytes)}</strong>.
+                </>
+              )}
+            </span>
+            <div class="row">
+              <a class="button secondary" href={BASE}>
+                Quay lại
+              </a>
+              <button type="submit" class="danger" disabled={plan.ids.length === 0}>
+                Xoá {plan.ids.length} dòng
+              </button>
+            </div>
+          </form>
+        </>,
+      ),
+    );
+  });
+
+  app.post(`${BASE}/don`, async (c) => {
+    const site = c.req.header("sec-fetch-site");
+    if (site && site !== "same-origin" && site !== "none") return c.text("Yêu cầu không hợp lệ", 403);
+    const body = await c.req.parseBody();
+    const plan = cleanupPlan(body.ca === "1");
+    removeFiles(deleteRows(db, plan.ids));
+    logger.info({ rows: plan.ids.length, bytes: plan.bytes }, "Bảng mới: đã dọn");
+    return c.redirect(`${BASE}?ok=${encodeURIComponent(`Đã xoá ${plan.ids.length} dòng, giải phóng ${formatBytes(plan.bytes)}.`)}`, 303);
   });
 
   /** Thêm dòng: không có file → một dòng trống; có file → mỗi ảnh một dòng (Mẫu trước). */
@@ -452,8 +617,8 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
         <>
           <h1>Tạo video · {plan.runs.length} dòng</h1>
           <p class="muted">
-            Bot gửi lần lượt từng dòng cho Muse, mỗi dòng một cuộc trò chuyện mới, ảnh đính kèm theo đúng thứ tự bên dưới. Video nằm trong cuộc
-            trò chuyện Muse của dòng đó.
+            Bot gửi lần lượt từng dòng cho Muse, mỗi dòng một cuộc trò chuyện mới, ảnh đính kèm theo đúng thứ tự bên dưới. Muse làm xong thì bot
+            tải video về máy và gắn vào dòng.
           </p>
           {active && <Alert kind="warn">Lô #{active.id} chưa xong. Đợi xong (hoặc Tiếp tục / Huỷ lô đang tạm dừng) rồi tạo video tiếp.</Alert>}
           {over && (
@@ -512,7 +677,8 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
             <Hidden name="ids" value={plan.runs.map((r) => r.row.id).join(",")} />
             <Hidden name="extra" value={extra} />
             <span class="muted small">
-              Hôm nay {quota.used}/{quota.limit} video · mỗi dòng khoảng 3–5 phút
+              Hôm nay {quota.used}/{quota.limit} video · {plan.runs.length} dòng mất {estimateText(db, plan.runs.length, getSettings(db))}, máy cần
+              bật suốt lô
             </span>
             <div class="row">
               <a class="button secondary" href={BASE}>
@@ -763,7 +929,9 @@ const CLIENT_JS = `
   // Chọn dòng.
   function checked() { return Array.prototype.map.call(document.querySelectorAll("input.pick-row:checked"), function (c) { return c.value; }); }
   var runBtn = document.getElementById("runBtn"), runHint = document.getElementById("runHint");
+  var delBtn = document.getElementById("delBtn");
   function syncRun() {
+    delBtn.disabled = checked().length === 0;
     if (runBtn.dataset.blocked) return;
     var n = checked().length;
     runBtn.disabled = n === 0;
@@ -771,9 +939,29 @@ const CLIENT_JS = `
   }
   document.querySelectorAll("input.pick-row").forEach(function (c) { c.addEventListener("change", syncRun); });
   runBtn.addEventListener("click", function () { location.href = "/bang-moi/chuan-bi?ids=" + checked().join(","); });
+  delBtn.addEventListener("click", function () {
+    var ids = checked();
+    if (!ids.length || !confirm("Xo\\u00e1 " + ids.length + " d\\u00f2ng \\u0111\\u00e3 ch\\u1ecdn c\\u00f9ng \\u1ea3nh v\\u00e0 video c\\u1ee7a ch\\u00fang? Kh\\u00f4ng l\\u1ea5y l\\u1ea1i \\u0111\\u01b0\\u1ee3c.")) return;
+    postJson("/bang-moi/xoa", { rows: ids.map(Number) }).then(function (r) { reload(r.message); });
+  });
+  // Ô Video: ▶ mới tải video và phát ngay trên trang; 🗑 xoá video khỏi dòng.
+  document.querySelectorAll("button.vid-play").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var v = document.createElement("video");
+      v.controls = true; v.autoplay = true; v.playsInline = true; v.src = b.closest(".vid").dataset.src;
+      b.replaceWith(v);
+    });
+  });
+  document.querySelectorAll("button.vid-del").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var row = Number(b.closest("tr").dataset.row);
+      if (!confirm("Xo\\u00e1 video d\\u00f2ng " + row + "? File video tr\\u00ean m\\u00e1y s\\u1ebd b\\u1ecb xo\\u00e1; \\u1ea3nh v\\u00e0 prompt gi\\u1eef nguy\\u00ean.")) return;
+      postJson("/bang-moi/xoa-video", { row: row }).then(function (r) { if (r.ok) location.reload(); else alert(r.message); });
+    });
+  });
   // Đang tạo video: tự tải lại 15 giây một lần, trừ khi đang sửa dở.
   if (page.dataset.live) setInterval(function () {
-    if (document.querySelector(".editor") || !document.getElementById("fillBox").hidden || checked().length) return;
+    if (document.querySelector(".editor") || !document.getElementById("fillBox").hidden || checked().length || document.querySelector(".vid video")) return;
     location.reload();
   }, 15000);
   document.getElementById("selReady").addEventListener("click", function () {

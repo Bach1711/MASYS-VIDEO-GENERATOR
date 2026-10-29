@@ -45,7 +45,7 @@ const COOKIE = "masys_bang";
 const FOLDER_COOKIE = "masys_folder";
 const YEAR = 60 * 60 * 24 * 365;
 const DRIVE_ID = /^[A-Za-z0-9_-]{10,}$/;
-export const tableUrl = (id: string, tab: string, extra = "") => `/?id=${encodeURIComponent(id)}&tab=${encodeURIComponent(tab)}${extra}`;
+export const tableUrl = (id: string, tab: string, extra = "") => `/bang-sheet?id=${encodeURIComponent(id)}&tab=${encodeURIComponent(tab)}${extra}`;
 const driveView = (fileId: string) => `https://drive.google.com/file/d/${fileId}/view`;
 
 /** Lượt mới nhất của từng dòng trong các lô chưa xong của tab này. */
@@ -351,6 +351,9 @@ const CLIENT_JS = `
 })();
 `;
 
+/** Bảng theo sheet (v2.0.0: vào từ ⚙ Nâng cao; trang chủ là Bảng mới). */
+export const SHEET_BOARD = "/bang-sheet";
+
 export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Context) => Response | Promise<Response>) {
   const { config, db, sheets, drive, thumbs, bot, runner } = deps;
   const clientEmail = config.serviceAccount.ok ? config.serviceAccount.clientEmail : "";
@@ -398,7 +401,7 @@ export function registerTableRoutes(app: Hono, deps: TableDeps, fallback: (c: Co
     return listSheetConfigs(db)[0];
   }
 
-  app.get("/", async (c) => {
+  app.get(SHEET_BOARD, async (c) => {
     if (!sheets || !drive || listSheetConfigs(db).length === 0) return fallback(c);
     await fillMissingTitles(db, async (sid) => (await sheets.getSpreadsheet(sid)).title).catch(() => {});
     const configs = listSheetConfigs(db);
@@ -811,7 +814,7 @@ function TableHeader(props: {
   const needLogin = active?.status === "paused" && active.pauseReason === "login";
   return (
     <div class="bang-head">
-      <form method="get" action="/" class="row">
+      <form method="get" action={SHEET_BOARD} class="row">
         <select
           name="pick"
           aria-label="Chọn sheet và trang tính"

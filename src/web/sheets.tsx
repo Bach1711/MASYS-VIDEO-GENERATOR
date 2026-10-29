@@ -194,7 +194,7 @@ export function registerSheetRoutes(app: Hono, ctx: { config: AppConfig; db: DB;
     // Vào từ Kết nối nhanh / "+ Thêm sheet" trên Bảng: lưu xong quay về Bảng với trang tính vừa thêm.
     if (str("back") === "bang" || getCookie(c, "masys_back") === "bang") {
       deleteCookie(c, "masys_back", { path: "/" });
-      return c.redirect(`/?id=${encodeURIComponent(cfg.spreadsheetId)}&tab=${encodeURIComponent(cfg.tab)}&ok=${encodeURIComponent(`Đã thêm trang tính "${cfg.tab}".`)}`, 303);
+      return c.redirect(`/bang-sheet?id=${encodeURIComponent(cfg.spreadsheetId)}&tab=${encodeURIComponent(cfg.tab)}&ok=${encodeURIComponent(`Đã thêm trang tính "${cfg.tab}".`)}`, 303);
     }
     return c.redirect(`/sheets?saved=${encodeURIComponent(cfg.tab)}`, 303);
   });

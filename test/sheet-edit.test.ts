@@ -129,7 +129,7 @@ describe("Sửa một ô trên Bảng (CON-50)", () => {
     t.set("D", 4, "Đang chạy");
     expect((await t.post("/bang/sua", { row: 4, field: "prompt", expected: "prompt 4", value: "x" })).message).toContain("đang tạo video");
     expect(t.writes).toEqual([]);
-    const html = await (await t.app.request("/")).text();
+    const html = await (await t.app.request("/bang-sheet")).text();
     const rowHtml = (n: number) => html.slice(html.indexOf(`<tr data-row="${n}"`), html.indexOf("</tr>", html.indexOf(`<tr data-row="${n}"`)));
     expect(rowHtml(2)).toContain('class="edit"');
     expect(rowHtml(3)).not.toContain('class="edit"');
@@ -238,7 +238,7 @@ describe("Thêm dòng (CON-50)", () => {
 
   it("Bảng có nút + Thêm dòng, Dải prompt, ✎; Nhật ký hiện các ô đã sửa", async () => {
     const t = setup();
-    const html = await (await t.app.request("/")).text();
+    const html = await (await t.app.request("/bang-sheet")).text();
     expect(html).toContain('id="addOpen"');
     expect(html).toContain("Dải prompt ▾");
     expect(html).toContain('data-field="prompt" data-value="prompt 3"');

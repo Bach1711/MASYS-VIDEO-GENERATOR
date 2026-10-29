@@ -1,7 +1,7 @@
 import type { Hono } from "hono";
 import { Layout } from "./layout.js";
 
-// Hướng dẫn gọn trong tool (spec v5.0 mục 16.5, CON-51). Bản chi tiết cho người phụ trách nằm ở HUONG-DAN-CHI-TIET.md trên GitHub.
+// Hướng dẫn gọn trong tool (spec v5.0 mục 16.5, CON-51; v2.0.0 theo Bảng mới, spec v6.0 mục 17). Bản chi tiết cho người phụ trách nằm ở HUONG-DAN-CHI-TIET.md trên GitHub.
 
 export const DETAIL_GUIDE_URL = "https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/blob/main/HUONG-DAN-CHI-TIET.md";
 
@@ -10,9 +10,10 @@ const PAUSES: [string, string][] = [
   ["Giao diện Muse thay đổi", "Cửa sổ bot bị tắt thì mở lại rồi Tiếp tục. Vẫn lỗi thì báo người phụ trách (ảnh chụp ở Nhật ký)."],
   ["Muse hết lượt", "Chờ Muse có lượt lại rồi bấm Tiếp tục. Dòng đang gửi dở chuyển Lỗi, không gửi lại."],
   ["Đã đủ video trong ngày", "Hôm sau bấm Tiếp tục."],
-  ["Muse sửa nhầm ô", "Mở sheet, xem ô ghi trong lý do (ví dụ E9), sửa lại cho đúng rồi Tiếp tục."],
-  ["Lệch dòng trong sheet", "Có người chèn / xoá dòng hoặc đổi ảnh / prompt trên sheet sau khi bấm Tạo video. Nên Huỷ rồi tạo lại."],
-  ["Lỗi Google Sheet", "Kiểm tra mạng và quyền chia sẻ sheet cho tool, rồi Tiếp tục."],
+  ["Tool vừa mở lại", "Bấm Tiếp tục. Dòng đã gửi Muse được theo dõi và tải video tiếp, không gửi lại."],
+  ["Muse sửa nhầm ô (Bảng theo sheet)", "Mở sheet, xem ô ghi trong lý do (ví dụ E9), sửa lại cho đúng rồi Tiếp tục."],
+  ["Lệch dòng trong sheet (Bảng theo sheet)", "Có người chèn / xoá dòng hoặc đổi ảnh / prompt trên sheet sau khi bấm Tạo video. Nên Huỷ rồi tạo lại."],
+  ["Lỗi Google Sheet (Bảng theo sheet)", "Kiểm tra mạng và quyền chia sẻ sheet cho tool, rồi Tiếp tục."],
 ];
 
 export function registerGuideRoutes(app: Hono) {
@@ -26,24 +27,37 @@ export function registerGuideRoutes(app: Hono) {
             <div class="card guide">
               <h2>Lần đầu</h2>
               <p>
-                Làm theo <a href="/bat-dau">4 bước bắt đầu</a>: chọn file khoá Google, dán link sheet, đăng nhập Muse, dán link thư mục Drive. Mỗi bước có
-                dấu ✅ khi xong.
+                Làm theo <a href="/bat-dau">2 bước bắt đầu</a>: đăng nhập Muse trong cửa sổ bot, rồi thêm dòng đầu tiên trên Bảng. Không cần Google
+                Sheet hay Drive.
               </p>
               <h2>Hằng ngày, trên Bảng</h2>
               <ol>
-                <li>Mỗi dòng của Bảng là một dòng của Google Sheet: ảnh người mẫu, ảnh áo, prompt, video, trạng thái.</li>
                 <li>
-                  Sửa ô: bấm <strong>✎</strong> (ô trống thì <strong>+</strong>). Thêm dòng: <strong>+ Thêm dòng</strong>. Chép một prompt cho nhiều dòng:{" "}
-                  <strong>Dải prompt ▾</strong>. Tool ghi thẳng lên sheet.
+                  Mỗi dòng có 4 ô ảnh: <strong>Mẫu trước</strong>, <strong>Áo trước</strong>, <strong>Mẫu sau</strong>, <strong>Áo sau</strong>. Bấm{" "}
+                  <strong>+</strong> để chọn ảnh từ máy, hoặc kéo ảnh vào ô. Kéo nhiều ảnh người mẫu vào khung <em>Thêm dòng</em> thì mỗi ảnh thành
+                  một dòng.
                 </li>
                 <li>
-                  Tích các dòng cần làm (hoặc <strong>☑ Chọn mọi dòng chưa có video</strong>) rồi bấm <strong>▶ Tạo video</strong>.
+                  Chỉ ảnh người mẫu: video người mẫu. Thêm ảnh áo trước: Muse ghép áo vào người mẫu. Đủ 4 ảnh: <strong>áo hai mặt</strong>, ra một
+                  video người mẫu xoay từ trước ra sau.
                 </li>
-                <li>Bot gửi lần lượt từng dòng cho Muse, mỗi dòng khoảng 3–5 phút. Video xong hiện ngay trên Bảng (bấm ▶ Xem).</li>
+                <li>
+                  Viết prompt (✎), hoặc chép một prompt cho nhiều dòng bằng <strong>Dải prompt</strong>. Tích các dòng rồi bấm{" "}
+                  <strong>▶ Tạo video</strong>, xem trước rồi bấm <strong>Bắt đầu</strong>.
+                </li>
+                <li>
+                  Bot gửi lần lượt từng dòng cho Muse, tải video về máy và gắn vào dòng. Bấm <strong>▶</strong> để xem, <strong>⬇</strong> để tải về
+                  (tên <code>MASYS_&lt;số dòng&gt;_&lt;giờ&gt;.mp4</code>), <strong>🗑</strong> để xoá.
+                </li>
+                <li>
+                  Dùng xong thì <strong>Dọn tất cả</strong> để xoá các dòng Xong cùng ảnh và video, giải phóng chỗ trên máy. Dung lượng đang dùng hiện ở
+                  đầu Bảng.
+                </li>
               </ol>
               <p class="muted small">
-                Ảnh trong sheet là link Drive của file ảnh, đặt chế độ "Bất kỳ ai có đường liên kết". Mỗi ngày tool chỉ tạo tối đa số video đặt trong Cài
-                đặt (mặc định 5) để giữ tài khoản Muse an toàn.
+                Mỗi ngày tool chỉ tạo tối đa số video đặt trong Cài đặt (mặc định 100). Máy cần bật suốt lô. Dòng <strong>Cần xem</strong>: bấm{" "}
+                <em>Mở trong Muse</em> để xem cuộc trò chuyện; tool không tự gửi lại. Có sheet cũ thì bấm <strong>Nhập từ Google Sheet</strong> (cần
+                khoá Google); Bảng theo sheet cũ ở ⚙ Nâng cao.
               </p>
             </div>
             <div class="card">

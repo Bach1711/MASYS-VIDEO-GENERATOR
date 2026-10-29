@@ -16,7 +16,7 @@ import { registerBotRoutes } from "./bot.js";
 import { registerHistoryRoutes, StatusBanner } from "./history.js";
 import { registerGuideRoutes } from "./guide.js";
 import { registerStartRoutes } from "./start.js";
-import { LOGO_PREFIX, registerLogoRoutes } from "./logo.js";
+import { registerLogoRoutes } from "./logo.js";
 import { setStatusBanner, setUpdateBanner } from "./layout.js";
 import { registerScanRoutes } from "./scan.js";
 import { registerSettingsRoutes } from "./settings.js";
@@ -25,6 +25,9 @@ import { registerUpdateRoutes, UpdateBanner } from "./update.js";
 import type { Updater } from "../update/updater.js";
 import { registerSheetRoutes } from "./sheets.js";
 import { registerTableRoutes } from "./table.js";
+
+/** Trang chỉ dùng được khi có khoá Google (Bảng theo sheet, kết nối sheet, quét, nhập từ sheet). */
+const SHEET_PAGES = ["/bang-sheet", "/bat-dau/sheet", "/sheets", "/ket-noi", "/scan", "/bang", "/bang-moi/nhap"];
 
 export interface AppDeps {
   sheets?: SheetsClient;
@@ -44,16 +47,17 @@ export function createApp(config: AppConfig, db: DB, deps: AppDeps = {}) {
   setStatusBanner(() => <StatusBanner db={db} runner={deps.runner} />);
   setUpdateBanner(() => <UpdateBanner updater={deps.updater} />);
 
-  // Bản zip chưa có khoá Google: mọi trang dẫn về Cài khoá (D15).
+  // Chưa có khoá Google: chỉ các trang cần Google Sheet / Drive dẫn về Cài khoá (D15). Từ v2.0.0 Bảng mới và bot
+  // chạy không cần khoá (spec v6.0 mục 17.8).
   app.use("*", async (c, next) => {
-    if (c.req.method === "GET" && needsKeySetup(config) && !c.req.path.startsWith("/setup") && !c.req.path.startsWith(LOGO_PREFIX) && c.req.path !== "/health") {
+    if (c.req.method === "GET" && needsKeySetup(config) && SHEET_PAGES.some((p) => c.req.path === p || c.req.path.startsWith(`${p}/`))) {
       return c.redirect("/setup", 302);
     }
     await next();
   });
   registerLogoRoutes(app);
 
-  // Chưa kết nối sheet nào: trang chủ là các bước bắt đầu (CON-51).
+  // Bảng theo sheet chưa kết nối sheet nào: hiện 4 bước của Bảng theo sheet (CON-51).
   const { startPage } = registerStartRoutes(app, { config, db, ...deps });
   registerTableRoutes(app, { config, db, ...deps }, startPage);
   registerGuideRoutes(app);

@@ -96,7 +96,7 @@ const query = (r: Response) => new URL(r.headers.get("location")!, "http://x").s
 describe("Bảng (CON-49)", () => {
   it("trang chủ là Bảng: mỗi dòng sheet, ảnh người mẫu + ảnh áo, prompt, video, nhãn; menu ⚙ Nâng cao", async () => {
     const { app } = setup();
-    const r = await app.request("/");
+    const r = await app.request("/bang-sheet");
     expect(r.status).toBe(200);
     const html = await r.text();
     expect(html).toContain('id="bang"');
@@ -119,7 +119,7 @@ describe("Bảng (CON-49)", () => {
 
   it("chưa kết nối sheet nào: trang chủ là các bước bắt đầu (CON-51); /gioi-thieu cũ chuyển sang Hướng dẫn", async () => {
     const { app } = setup({ noConfig: true });
-    const html = await (await app.request("/")).text();
+    const html = await (await app.request("/bang-sheet")).text();
     expect(html).not.toContain('id="bang"');
     expect(html).toContain("Bắt đầu trong 4 bước");
     expect((await app.request("/gioi-thieu")).headers.get("location")).toBe("/huong-dan");
@@ -171,7 +171,7 @@ describe("Bảng (CON-49)", () => {
     const batchId = runner.start.mock.calls[0]![0];
     runner.runningBatchId = batchId;
     db.prepare("UPDATE runs SET state = 'waiting' WHERE rowNumber = 2").run();
-    let html = await (await app.request("/")).text();
+    let html = await (await app.request("/bang-sheet")).text();
     expect(html).toContain("Đang tạo video: 0/2 dòng xong");
     expect(html).toContain("Chờ Muse làm video");
     expect(html).toContain('data-live="1"');
@@ -182,13 +182,13 @@ describe("Bảng (CON-49)", () => {
     // Tạm dừng vì cần đăng nhập Muse: nói rõ phải làm gì, có nút Tiếp tục.
     runner.runningBatchId = undefined;
     db.prepare("UPDATE batches SET status = 'paused', pauseReason = 'login' WHERE id = ?").run(batchId);
-    html = await (await app.request("/")).text();
+    html = await (await app.request("/bang-sheet")).text();
     expect(html).toContain("Hãy đăng nhập Muse trong cửa sổ bot");
     expect(html).toContain("⚠ Cần đăng nhập Muse");
     expect(html).toContain('action="/bang/continue"');
     const r = await app.request("/bang/continue", { method: "POST", body: new URLSearchParams({ batch: String(batchId), id: ID, tab: TAB }) });
     expect(runner.start).toHaveBeenLastCalledWith(batchId);
-    expect(r.headers.get("location")).toContain("/?id=");
+    expect(r.headers.get("location")).toContain("/bang-sheet?id=");
   });
 
   it("làm mới: /bang/state đổi khi sheet hoặc lô đổi; xem yêu cầu gửi Muse từng dòng", async () => {
@@ -206,14 +206,14 @@ describe("Bảng (CON-49)", () => {
 
   it("chưa có bot / khoá Google: nút Tạo video khoá, bấm cũng không tạo lô", async () => {
     const { app, run, db } = setup({ runner: false });
-    expect(await (await app.request("/")).text()).toContain('data-blocked="1"');
+    expect(await (await app.request("/bang-sheet")).text()).toContain('data-blocked="1"');
     expect(query(await run([2])).get("msg")).toContain("Chưa nạp được khoá Google");
     expect((db.prepare("SELECT COUNT(*) AS n FROM batches").get() as { n: number }).n).toBe(0);
   });
 
   it("ô Lưu video vào: mặc định thư mục Video; chọn thư mục con khác hoặc dán link; nhớ lần trước", async () => {
     const { app, run, db, runner } = setup();
-    const html = await (await app.request("/")).text();
+    const html = await (await app.request("/bang-sheet")).text();
     expect(html).toContain(`<option value="${VIDEO}" selected="">📁 MASYS Video / Video`);
     expect(html).toContain("📁 MASYS Video (thư mục gốc)");
     expect(html).toContain("Dán link thư mục khác…");
@@ -222,14 +222,14 @@ describe("Bảng (CON-49)", () => {
     expect(getBatch(db, runner.start.mock.calls[0]![0])!.driveFolderId).toBe(KENH2);
     expect(r1.headers.get("set-cookie")).toContain(`masys_folder=${KENH2}`);
     // Lần sau mở Bảng, thư mục vừa dùng được chọn sẵn.
-    const again = await (await app.request("/", { headers: { cookie: `masys_folder=${KENH2}` } })).text();
+    const again = await (await app.request("/bang-sheet", { headers: { cookie: `masys_folder=${KENH2}` } })).text();
     expect(again).toContain(`<option value="${KENH2}" selected="">`);
 
     db.prepare("UPDATE batches SET status = 'done'").run();
     await run([3], [], [["folder", "__link"], ["folderLink", `https://drive.google.com/drive/folders/${NGOAI}?usp=sharing`]]);
     expect(getBatch(db, runner.start.mock.calls[1]![0])!.driveFolderId).toBe(NGOAI);
     // Thư mục ngoài dán lần trước vẫn hiện trong danh sách.
-    expect(await (await app.request("/", { headers: { cookie: `masys_folder=${NGOAI}` } })).text()).toContain("📁 Thư mục ngoài");
+    expect(await (await app.request("/bang-sheet", { headers: { cookie: `masys_folder=${NGOAI}` } })).text()).toContain("📁 Thư mục ngoài");
   });
 
   it("link thư mục sai hoặc không mở được: báo, không tạo lô; xem trước theo thư mục chọn", async () => {
@@ -245,7 +245,7 @@ describe("Bảng (CON-49)", () => {
 
   it("+ Thêm sheet: mở Kết nối nhanh; lưu ánh xạ xong quay về Bảng với trang tính mới", async () => {
     const { app } = setup();
-    expect(await (await app.request("/")).text()).toContain('href="/ket-noi"');
+    expect(await (await app.request("/bang-sheet")).text()).toContain('href="/ket-noi"');
     expect((await app.request("/bang/them-sheet")).headers.get("location")).toBe("/ket-noi");
     // Bản cũ đánh dấu quay về Bảng bằng cookie; vẫn nhận.
     const save = (cookie: string) =>
@@ -256,7 +256,7 @@ describe("Bảng (CON-49)", () => {
       });
     const r = await save("masys_back=bang");
     const back = new URL(r.headers.get("location")!, "http://x");
-    expect(back.pathname).toBe("/");
+    expect(back.pathname).toBe("/bang-sheet");
     expect(back.searchParams.get("tab")).toBe("Kênh 2");
     expect(back.searchParams.get("ok")).toBe('Đã thêm trang tính "Kênh 2".');
     // Vào Kết nối sheet theo đường thường thì vẫn ở lại trang Kết nối sheet như cũ.

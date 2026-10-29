@@ -35,6 +35,8 @@ export const chat = {
   newThreadUrl: /\/thread\/new\b/,
   /** URL một side chat đã có (sau khi gửi) để lưu lại. */
   threadUrl: /\/thread\/(?!new\b)[A-Za-z0-9_-]{4,}/,
+  /** Link thật của một cuộc trò chuyện (không phải /thread/new). */
+  isThreadUrl: (url: string | null | undefined): url is string => !!url && /\/thread\/(?!new\b)[A-Za-z0-9_-]{4,}/.test(url),
   /**
    * Đính kèm ảnh (ghi nhận 29/10/2026, spec 8.3): ô chat có `input[type=file]` (multiple) cạnh nút "Attach file";
    * mỗi ảnh đã nhận hiện một nút "Remove attachment" — đếm nút này để biết Muse đã nhận đủ ảnh.

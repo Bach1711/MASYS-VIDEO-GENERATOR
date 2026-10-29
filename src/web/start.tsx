@@ -15,8 +15,8 @@ import { Alert } from "./components.js";
 import { Layout } from "./layout.js";
 import { logoUrl } from "./logo.js";
 
-// Bắt đầu nhanh (spec v5.0 mục 16.5, CON-51): 4 bước có dấu ✅ — khoá Google, dán link sheet, đăng nhập Muse,
-// thư mục Drive gốc — và kết nối sheet một bước (tự chọn tab, tự đoán cột, bấm Xác nhận).
+// Bắt đầu nhanh (v2.0.0, spec v6.0 mục 17.8): 2 bước — Đăng nhập Muse, Thêm dòng đầu tiên. Khoá Google chỉ cần khi nhập
+// từ sheet hoặc dùng Bảng theo sheet; 4 bước cũ (spec v5.0 mục 16.5, CON-51) còn ở /bat-dau/sheet và trang Bảng theo sheet.
 
 export interface StartDeps {
   config: AppConfig;
@@ -45,6 +45,21 @@ export function startStatus(config: AppConfig, db: DB): StartStatus {
   const sheets = listSheetConfigs(db).length;
   const done = [key, sheets > 0, !!s.museReadyAt, !!s.driveRootFolderId].filter(Boolean).length;
   return { key, sheets, museReadyAt: s.museReadyAt, driveRoot: s.driveRootFolderId, done, allDone: done === 4 };
+}
+
+/** Bắt đầu nhanh 2 bước (17.8). */
+export interface QuickStatus {
+  museReadyAt: string | null;
+  rows: number;
+  done: number;
+  allDone: boolean;
+}
+
+export function quickStatus(db: DB): QuickStatus {
+  const museReadyAt = getSettings(db).museReadyAt;
+  const rows = (db.prepare("SELECT count(*) AS n FROM bang_rows").get() as { n: number }).n;
+  const done = [!!museReadyAt, rows > 0].filter(Boolean).length;
+  return { museReadyAt, rows, done, allDone: done === 2 };
 }
 
 const when = (iso: string) => new Date(iso).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" });
@@ -159,6 +174,59 @@ export function StartSteps(props: { status: StartStatus; clientEmail: string; pr
   );
 }
 
+/** Bắt đầu nhanh 2 bước. `compact`: chỉ hiện bước còn thiếu (đặt trên Bảng); đủ cả 2 thì không hiện gì. */
+export function QuickStart(props: { status: QuickStatus; back: string; compact?: boolean }) {
+  const { status: s, compact } = props;
+  if (compact && s.allDone) return null;
+  const show = (done: boolean) => !compact || !done;
+  const backField = <input type="hidden" name="back" value={props.back} />;
+  return (
+    <section class="card start" aria-label="Bắt đầu nhanh">
+      <h2>{compact ? `Còn ${2 - s.done} bước nữa là tạo được video` : `Bắt đầu trong 2 bước (${s.done}/2 xong)`}</h2>
+      <ol class="steps">
+        {show(!!s.museReadyAt) && (
+          <Step n={1} done={!!s.museReadyAt} title="Đăng nhập Muse">
+            {s.museReadyAt ? (
+              <div class="muted small">Đã đăng nhập (kiểm tra lúc {when(s.museReadyAt)}).</div>
+            ) : (
+              <div class="muted small">
+                Bấm <strong>Mở cửa sổ Muse</strong>, tự đăng nhập Meta trong cửa sổ Chrome đó (tool không gõ mật khẩu), rồi bấm <strong>Kiểm tra</strong>.
+                Chỉ làm một lần, bot nhớ đăng nhập.
+              </div>
+            )}
+            <div class="row step-form">
+              <form method="post" action="/bat-dau/mo-muse">
+                {backField}
+                <button type="submit" class={s.museReadyAt ? "secondary small" : ""}>
+                  Mở cửa sổ Muse
+                </button>
+              </form>
+              <form method="post" action="/bat-dau/kiem-tra-muse">
+                {backField}
+                <button type="submit" class="secondary">
+                  {s.museReadyAt ? "Kiểm tra lại" : "Kiểm tra"}
+                </button>
+              </form>
+            </div>
+          </Step>
+        )}
+        {show(s.rows > 0) && (
+          <Step n={2} done={s.rows > 0} title="Thêm dòng đầu tiên">
+            {s.rows > 0 ? (
+              <div class="muted small">Bảng đã có dòng.</div>
+            ) : (
+              <div class="muted small">
+                Trên Bảng, bấm <strong>+ Thêm dòng</strong> (hoặc kéo ảnh người mẫu vào khung Thêm dòng), thêm ảnh áo nếu có, viết prompt. Có sẵn
+                sheet cũ thì bấm <strong>Nhập từ Google Sheet</strong>.
+              </div>
+            )}
+          </Step>
+        )}
+      </ol>
+    </section>
+  );
+}
+
 /** Tab nên chọn: theo yêu cầu, rồi tab chưa kết nối mà đoán đủ 4 cột, rồi tab đoán đủ, rồi tab đầu. */
 export function pickTab(
   tabs: { title: string; guess: ColumnGuess }[],
@@ -183,11 +251,8 @@ export function registerStartRoutes(app: Hono, deps: StartDeps) {
   const go = (c: Context, back: string, kind: "ok" | "msg", text: string) =>
     c.redirect(`${back}${back.includes("?") ? "&" : "?"}${kind}=${encodeURIComponent(text)}`, 303);
 
-  /** Trang bắt đầu đầy đủ: logo + 4 bước. Trang chủ dùng khi chưa kết nối sheet nào. */
-  async function startPage(c: Context) {
-    const status = startStatus(config, db);
-    let rootName: string | undefined;
-    if (status.driveRoot && drive) rootName = (await drive.getFolder(status.driveRoot).catch(() => undefined))?.name;
+  /** Trang bắt đầu (v2.0.0): logo + 2 bước; Bảng theo sheet có 4 bước riêng ở /bat-dau/sheet. */
+  app.get("/bat-dau", (c) => {
     const ok = c.req.query("ok");
     const msg = c.req.query("msg");
     return c.html(
@@ -199,11 +264,42 @@ export function registerStartRoutes(app: Hono, deps: StartDeps) {
           </div>
           {ok && <Alert kind="ok">{ok}</Alert>}
           {msg && <Alert kind="warn">{msg}</Alert>}
-          <StartSteps status={status} clientEmail={clientEmail} problem={problem} back={c.req.path === "/" ? "/" : "/bat-dau"} rootName={rootName} />
+          <QuickStart status={quickStatus(db)} back="/bat-dau" />
+          <p>
+            <a class="button" href="/">
+              Mở Bảng →
+            </a>
+          </p>
+          <p class="muted small">
+            Vẫn dùng Google Sheet như bản cũ? Xem <a href="/bat-dau/sheet">các bước của Bảng theo sheet</a>. Cần giúp? Xem{" "}
+            <a href="/huong-dan">Hướng dẫn</a>.
+          </p>
+        </>,
+      ),
+    );
+  });
+
+  /** 4 bước của Bảng theo sheet (CON-51). Bảng theo sheet dùng khi chưa kết nối sheet nào. */
+  async function startPage(c: Context) {
+    const status = startStatus(config, db);
+    let rootName: string | undefined;
+    if (status.driveRoot && drive) rootName = (await drive.getFolder(status.driveRoot).catch(() => undefined))?.name;
+    const ok = c.req.query("ok");
+    const msg = c.req.query("msg");
+    return c.html(
+      page(
+        "Bảng theo sheet · Bắt đầu · MASYS Video",
+        <>
+          <div class="hero small-hero">
+            <img src={logoUrl("masys.png")} alt="MASYS Video Generator" />
+          </div>
+          {ok && <Alert kind="ok">{ok}</Alert>}
+          {msg && <Alert kind="warn">{msg}</Alert>}
+          <StartSteps status={status} clientEmail={clientEmail} problem={problem} back={c.req.path} rootName={rootName} />
           {status.sheets > 0 && (
             <p>
-              <a class="button" href="/">
-                Mở Bảng →
+              <a class="button" href="/bang-sheet">
+                Mở Bảng theo sheet →
               </a>
             </p>
           )}
@@ -214,7 +310,7 @@ export function registerStartRoutes(app: Hono, deps: StartDeps) {
       ),
     );
   }
-  app.get("/bat-dau", startPage);
+  app.get("/bat-dau/sheet", startPage);
 
   app.post("/bat-dau/mo-muse", async (c) => {
     const back = safeBack((await c.req.parseBody()).back);

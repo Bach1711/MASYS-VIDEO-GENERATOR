@@ -71,3 +71,20 @@ export function insertBangBatch(db: DB, extra: string, runs: BangPlannedRun[]): 
     return batchId;
   })();
 }
+
+/** Phút trung bình một lượt gần đây (gửi → xong, 20 lượt gần nhất); chưa có thì 5 phút. */
+export function recentRunMinutes(db: DB): number {
+  const rows = db
+    .prepare("SELECT sentAt, doneAt FROM runs WHERE state = 'done' AND sentAt IS NOT NULL AND doneAt IS NOT NULL ORDER BY id DESC LIMIT 20")
+    .all() as { sentAt: string; doneAt: string }[];
+  const mins = rows.map((r) => (Date.parse(r.doneAt) - Date.parse(r.sentAt)) / 60_000).filter((m) => m > 0 && m < 120);
+  return mins.length ? mins.reduce((a, b) => a + b, 0) / mins.length : 5;
+}
+
+/** Ước lượng thời gian một lô (17.9): số dòng × (thời gian trung bình gần đây + nghỉ giữa hai lượt). */
+export function estimateText(db: DB, n: number, s: Pick<Settings, "pauseMinSec" | "pauseMaxSec">): string {
+  const total = n * (recentRunMinutes(db) + (s.pauseMinSec + s.pauseMaxSec) / 2 / 60);
+  if (total < 60) return `khoảng ${Math.max(1, Math.round(total))} phút`;
+  const hours = Math.round((total / 60) * 2) / 2;
+  return `khoảng ${String(hours).replace(".", ",")} giờ`;
+}

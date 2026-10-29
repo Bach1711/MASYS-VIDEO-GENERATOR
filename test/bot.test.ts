@@ -39,7 +39,7 @@ function send() {
   ${m === "nosend" ? "return;" : ""}
   fetch('/received', { method: 'POST', body: (names.length ? 'FILES ' + names.join(',') + '\\n' : '') + t.value });
   document.getElementById('att').innerHTML = '';
-  ${m === "video" ? "setTimeout(() => { const v = document.createElement('video'); v.style.width = '280px'; v.style.height = '400px'; document.getElementById('log').append(v); }, 1500);" : ""}
+  ${m === "video" ? "setTimeout(() => { const v = document.createElement('video'); v.style.width = '280px'; v.style.height = '400px'; v.src = URL.createObjectURL(new Blob([new Uint8Array([0,0,0,24,102,116,121,112,105,115,111,109,0,0,2,0])], { type: 'video/mp4' })); document.getElementById('log').append(v); }, 1500);" : ""}
   const p = document.createElement('p'); p.textContent = t.value; document.getElementById('log').append(p);
   t.value = ''; document.getElementById('send').hidden = true;
   ${
@@ -209,6 +209,19 @@ describe.skipIf(!hasChrome)("MuseBot với trang Muse giả lập", () => {
     await b.open();
     await expect(b.send(REQUEST, [f, f])).rejects.toMatchObject({ code: "ui_changed", sent: false, message: "Muse chỉ hiện 1/2 ảnh đính kèm; chưa gửi" });
     expect(received).toEqual([]);
+  }, 30_000);
+
+  it("tải video blob: mới nhất trong cuộc trò chuyện về máy (CON-72), bỏ qua ảnh đại diện; chưa có video thì báo lỗi", async () => {
+    const b = newBot();
+    mode = "video";
+    await b.open();
+    await expect(b.downloadVideo()).rejects.toMatchObject({ message: "Chưa tải được video: không thấy video trong cuộc trò chuyện" });
+    await b.send(REQUEST);
+    await expect.poll(async () => (await b.watch()).videos, { timeout: 5000 }).toBe(1);
+    const { data, count } = await b.downloadVideo();
+    expect(count).toBe(1);
+    expect(Buffer.from(data.subarray(4, 8)).toString("ascii")).toBe("ftyp");
+    expect(data.length).toBe(16);
   }, 30_000);
 
   it("openChat mở lại đúng cuộc trò chuyện để theo dõi, không gửi gì", async () => {

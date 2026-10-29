@@ -116,18 +116,19 @@ describe("logo MASYS (CON-48)", () => {
 
   it("Trang chủ có logo đầy đủ", async () => {
     const { app } = setupApp({ env: FAKE_KEY_ENV });
-    expect(await (await app.request("/")).text()).toContain(`src="/logo/masys.png?v=${APP_VERSION}"`);
+    expect(await (await app.request("/bat-dau")).text()).toContain(`src="/logo/masys.png?v=${APP_VERSION}"`);
   });
 });
 
 describe("trang Cài khoá Google (D15)", () => {
-  it("chưa có khoá thì mọi trang dẫn về /setup, trừ /health", async () => {
+  it("chưa có khoá: trang cần Google Sheet dẫn về /setup; Bảng, Bot, Cài đặt vẫn mở được (v2.0.0)", async () => {
     const { app } = setupApp();
-    for (const p of ["/", "/scan", "/settings", "/bot"]) {
+    for (const p of ["/bang-sheet", "/scan", "/sheets", "/ket-noi", "/bang-moi/nhap", "/bat-dau/sheet"]) {
       const r = await app.request(p);
       expect(r.status).toBe(302);
       expect(r.headers.get("location")).toBe("/setup");
     }
+    for (const p of ["/", "/bang-moi", "/bot", "/settings", "/bat-dau"]) expect((await app.request(p)).status).toBe(200);
     const health = await (await app.request("/health")).json();
     expect(health).toMatchObject({ ok: true, app: "masys-video", version: APP_VERSION, serviceAccount: false });
     const page = await (await app.request("/setup")).text();
