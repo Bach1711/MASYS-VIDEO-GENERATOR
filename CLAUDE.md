@@ -1,8 +1,9 @@
 # MASYS Video Generator
 
-Đặc tả đầy đủ: `SPEC-app-tao-video-ao.md` (v5.0) — đọc trước khi làm bất cứ việc gì. Không mở lại các quyết định ở mục 3 (D1–D20) nếu chưa hỏi người phụ trách.
+Đặc tả đầy đủ: `SPEC-app-tao-video-ao.md` (v6.0) — đọc trước khi làm bất cứ việc gì. Không mở lại các quyết định ở mục 3 (D1–D27) nếu chưa hỏi người phụ trách.
 
-## Kiến trúc (spec v5.0)
+## Kiến trúc (spec v5.0, bản v1.x đang chạy)
+> **Đang chuyển sang spec v6.0 (mục 17, GĐ5: CON-71 → CON-52 → CON-72):** ảnh chọn từ máy và bot đính kèm vào Muse, video tải về máy, Bảng cục bộ là nơi lưu, không Drive / sheet. Các dòng bên dưới vẫn đúng cho luồng theo sheet cho tới v2.0.0 (CON-72 cập nhật lại file này).
 - **Tool chạy trên một máy Windows:** một tiến trình Node (TypeScript) + giao diện ở `localhost` + **Playwright** điều khiển Chrome + SQLite cục bộ.
 - **Meta Muse AI là nơi duy nhất tạo video**, điều khiển qua giao diện web bằng bot. Muse tự lưu video lên Drive và tự ghi link vào sheet qua MCP; tool chỉ điều phối, theo dõi ô Video và kiểm tra lại.
 - Google Sheets/Drive truy cập bằng **service account** (D5). Ảnh gửi Muse bằng link Drive (D14). Giới hạn mặc định 5 video/ngày (D13).

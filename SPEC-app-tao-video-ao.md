@@ -1,6 +1,6 @@
 # MASYS Video Generator — Đặc tả sản phẩm (MVP)
 
-> Phiên bản 5.0 · 28/10/2026 · Trạng thái: **GĐ1 xong (CON-35…42); GĐ2 xong (CON-43…45); GĐ3 xong (CON-46…48, bản v1.1.2); GĐ4 "một màn hình" chờ duyệt (mục 16)**. 5.0: theo góp ý của đội (giao diện nhiều nút, hướng dẫn dài) → **màn hình chính là một bảng** đồng bộ hai chiều với sheet, chọn dòng rồi **một nút Tạo video**; sửa prompt / dán link / dải prompt / thêm dòng ngay trong app (tool được ghi thêm các ô dữ liệu, D18); áo **hai mặt** (cột Ảnh áo sau, D20); thêm D17–D20, chi tiết ở **mục 16**. 4.4: thêm cột tuỳ chọn **Ảnh áo**; dòng có ảnh áo thì yêu cầu gửi Muse có thêm **đoạn ghép áo** (Muse ghép áo vào ảnh người mẫu rồi tạo video trong cùng một lượt, đã thử tay 28/10/2026), không lưu ảnh ghép. 4.3: thêm D16 (kiểm tra và cập nhật phiên bản ngay trong tool qua GitHub Releases của repo công khai). 4.2: thêm D15 (đóng gói zip cho người trong đội, khoá Google chọn từ file lần đầu và mã hoá trong máy). 4.1: chốt D5 (service account), ảnh gửi Muse bằng link Drive, giới hạn 5 video/ngày (D13), số liệu GĐ0.
+> Phiên bản 6.0 · 29/10/2026 · Trạng thái: **GĐ1–GĐ3 xong; GĐ4 "một màn hình" xong CON-49…51 (bản v1.4.0); GĐ5 "không Drive, không sheet" đã chốt, chưa làm (mục 17)**. 6.0: theo góp ý của đội ngày 29/10/2026 → **ảnh chọn từ máy** và bot **đính kèm vào khung chat Muse**; **video tải về máy**, xem / tải / xoá ngay trên Bảng; **bỏ Google Sheet và Drive**, Bảng trong tool là nơi lưu (chỉ còn nút nhập từ sheet); áo hai mặt = 4 ảnh (người mẫu trước/sau, áo trước/sau), ghép trước với trước, sau với sau, ra **một video**; prompt giữ nguyên bối cảnh và nền; giới hạn ngày mặc định 100. Thêm D21–D27, thay D2, D3, D11, D12, D13, D14, D17, D18, D20. Chi tiết ở **mục 17**. 5.0: theo góp ý của đội (giao diện nhiều nút, hướng dẫn dài) → **màn hình chính là một bảng** đồng bộ hai chiều với sheet, chọn dòng rồi **một nút Tạo video**; sửa prompt / dán link / dải prompt / thêm dòng ngay trong app (tool được ghi thêm các ô dữ liệu, D18); áo **hai mặt** (cột Ảnh áo sau, D20); thêm D17–D20, chi tiết ở **mục 16**. 4.4: thêm cột tuỳ chọn **Ảnh áo**; dòng có ảnh áo thì yêu cầu gửi Muse có thêm **đoạn ghép áo** (Muse ghép áo vào ảnh người mẫu rồi tạo video trong cùng một lượt, đã thử tay 28/10/2026), không lưu ảnh ghép. 4.3: thêm D16 (kiểm tra và cập nhật phiên bản ngay trong tool qua GitHub Releases của repo công khai). 4.2: thêm D15 (đóng gói zip cho người trong đội, khoá Google chọn từ file lần đầu và mã hoá trong máy). 4.1: chốt D5 (service account), ảnh gửi Muse bằng link Drive, giới hạn 5 video/ngày (D13), số liệu GĐ0.
 > **Thay đổi so với 3.0: bỏ toàn bộ hướng gọi API video (Gemini, Max-Studio, Flow) và web app có server.** App mới là **tool chạy trên một máy**: đọc Google Sheet, cho chọn dòng và chỉnh prompt, rồi **điều khiển trình duyệt** để gửi yêu cầu cho **Meta Muse AI** (tài khoản có 1 tỷ token). Muse tự tạo video, tự lưu lên Drive và tự ghi link vào sheet qua **MCP Google Sheets/Drive đã nối sẵn trong Muse**. App chỉ **điều phối, theo dõi và kiểm tra lại**.
 > Lịch sử v2.x–3.0 xem trong git.
 > Tài liệu này viết để một người hoặc agent mới đọc **một lần là nắm được toàn bộ dự án**.
@@ -16,6 +16,7 @@
 - **Chạy ở đâu:** **một máy Windows** có Chrome (bot cần trình duyệt thật và phiên đăng nhập Muse). Giao diện tool mở trên `localhost`.
 - **Không làm:** caption, nhạc, edit video, tự đăng TikTok, tự tạo ảnh người mẫu, vượt captcha/2FA.
 - **Từ v5.0 (mục 16):** người dùng chỉ cần **một màn hình bảng** trong app: thấy ảnh, prompt, video, trạng thái như trên sheet; sửa ngay trong bảng (tool ghi lên sheet); tích chọn dòng → bấm **Tạo video**. Không cần mở sheet hay Drive.
+- **Từ v6.0 (mục 17):** không còn sheet và Drive trong luồng chính. Người dùng **chọn ảnh từ máy** vào Bảng, bấm **Tạo video**; bot đính kèm ảnh vào Muse, chờ video hiện trong cuộc trò chuyện rồi **tải về máy**; video xem, tải về và xoá ngay trên Bảng. Yêu cầu cốt lõi đổi thành: **ảnh và prompt của dòng N thì video về đúng dòng N trên Bảng.**
 
 ---
 
@@ -87,6 +88,15 @@ Mẫu: TikTok [@scarletthayes40](https://www.tiktok.com/@scarletthayes40), [@chl
 | D18 | **Tool được ghi các ô dữ liệu khi người dùng sửa trong bảng** (v5.0): Prompt, Ảnh người mẫu, Ảnh áo, Ảnh áo sau, và thêm dòng mới ở cuối. **Không bao giờ ghi ô Video** (chỉ Muse ghi). Bot khi chạy vẫn chỉ ghi ô Trạng thái. Trước khi ghi, tool đọc lại ô: giá trị khác lúc người dùng bắt đầu sửa → **không ghi**, báo *"Ô này vừa được người khác sửa"*. Không sửa được dòng đang chạy. **Không xoá dòng, không chèn dòng giữa bảng** từ app | Người dùng không phải mở sheet; tránh đè chữ của người khác; giữ "dòng N" ổn định cho bot | Chỉ sửa bản gửi Muse (v4, F4); cho xoá / chèn / sắp xếp dòng trong app |
 | D19 | **Một nút Tạo video** (v5.0): tích chọn dòng → bấm **Tạo video (N dòng)** là tạo lô với cài đặt mặc định (thư mục Drive gốc, mẫu yêu cầu trong Cài đặt) và chạy luôn; trạng thái và video hiện ngay trên từng dòng của bảng. Xem trước yêu cầu gửi Muse là tuỳ chọn (mở từng dòng). Mọi lớp an toàn giữ nguyên (D6, D9–D13, mục 7). Muse chưa đăng nhập → tự mở cửa sổ bot, báo *"Hãy đăng nhập Muse rồi bấm Tiếp tục"* | Bớt bước: góp ý "quá nhiều nút" | Giữ các bước Tạo lô → Xem trước → Bắt đầu |
 | D20 | **Áo hai mặt** (v5.0): cột tuỳ chọn **Ảnh áo sau**. Dòng có cả hai mặt dùng **đoạn ghép áo hai mặt** (mẫu riêng trong Cài đặt) để Muse tạo **một video** thấy cả mặt trước và mặt sau; dòng chỉ có mặt trước dùng đoạn ghép áo như v4.4. **Chỉ làm sau khi người phụ trách thử tay trên Muse đạt**; không đạt thì phương án dự phòng là mỗi mặt một video (cần chốt lại) | Góp ý của đội: một mẫu có cả mặt trước và mặt sau | Luôn hai video mỗi dòng; ghép hai mặt thành một ảnh trước khi gửi |
+| D21 | **Bảng trong tool là nơi lưu** (v6.0, thay D17, D18, D11): mỗi dòng của Bảng nằm trong SQLite cục bộ, gồm ảnh, prompt, video và trạng thái. Tool **không đọc / ghi Google Sheet khi chạy**; chỉ còn nút **Nhập từ Google Sheet** để lấy dòng cũ, chạy một chiều và chỉ đọc. Dòng mới đánh số tăng dần, **không bao giờ đánh lại số** | Góp ý 29/10: không muốn mở sheet / Drive; sheet không chứa được ảnh và video tải từ máy | Giữ sheet làm nơi lưu (D17); Supabase (D4) |
+| D22 | **Ảnh chọn từ máy, bot đính kèm vào khung chat Muse** (v6.0, thay D14): tool chép ảnh vào thư mục dữ liệu; bot đính kèm đúng thứ tự cố định (mục 17.4) và chỉ bấm Gửi khi Muse đã hiện đủ số ảnh | Góp ý 29/10: không muốn đưa ảnh lên Drive. Service account không có dung lượng Drive để tải hộ | Tool tải ảnh lên Drive bằng tài khoản người dùng / Drive dùng chung |
+| D23 | **Video tải về máy, không lưu Drive** (v6.0, thay D2, D3, D12): tín hiệu xong là **video hiện trong cuộc trò chuyện Muse của dòng đó**. Bot tải file về; tool kiểm tra là video đọc được rồi gắn vào dòng. Muse không lưu Drive, không ghi sheet | Góp ý 29/10: video dùng xong là thôi, không cần Drive. Mỗi dòng một cuộc trò chuyện mới (D7) nên video trong cuộc trò chuyện chắc chắn thuộc dòng đó | Giữ Drive và chỉ phát video trên Bảng |
+| D24 | **Áo hai mặt = 4 ảnh, một video** (v6.0, thay D20): người mẫu trước, áo trước, người mẫu sau, áo sau. Muse ghép **trước với trước, sau với sau** (không tự dựng mặt sau) rồi tạo **một video** theo **mẫu yêu cầu hai mặt** riêng. Không cần thử tay trước (người phụ trách chốt 29/10) | Đội có sẵn ảnh người mẫu quay lưng và thiết kế mặt sau | Muse tự dựng mặt sau; hai video mỗi dòng |
+| D25 | **Giới hạn ngày mặc định 100, tối đa 150** (v6.0, sửa số của D13; cách đếm và chặn giữ nguyên). Vẫn chạy tuần tự (D7) | Đội cần 50–100 video/ngày. Hạn mức Muse do người phụ trách lo; Muse báo hết lượt thì dừng lô (`paused_quota`) | Chạy song song nhiều cuộc trò chuyện |
+| D26 | **Dọn file do người dùng bấm** (v6.0): nút **Xoá** từng dòng và **Dọn tất cả**, có hỏi lại và hiện dung lượng. Tool không tự xoá | Người dùng tự quyết khi nào đã dùng xong video | Tự xoá sau N ngày |
+| D27 | **Prompt giữ nguyên bối cảnh và nền** (v6.0, từ v1.4.1): mẫu yêu cầu dặn Muse giữ nguyên nền, bối cảnh, ánh sáng của ảnh người mẫu, từ prompt chỉ lấy động tác / biểu cảm / cách quay; đoạn ghép áo chỉ thay chiếc áo | Góp ý 29/10: video bị đổi bối cảnh, ghép áo làm mất nền | Bắt người dùng tự sửa từng prompt |
+
+> Từ v6.0: D2, D3, D11, D12, D14, D17, D18, D20 **không còn áp dụng cho luồng mới** (thay bởi D21–D24); số của D13 đổi theo D25. Các dòng cũ giữ lại để tra lịch sử. Bản v1.x vẫn chạy theo chúng cho tới khi GĐ5 xong (mục 17.8).
 
 ---
 
@@ -230,6 +240,8 @@ Mẫu mặc định (sửa được trong Cài đặt). Phải ghi **địa ch�
 Hãy tạo một video dọc 9:16, dài khoảng 8–10 giây, một cảnh, từ ảnh người mẫu sau:
 Ảnh: {link_anh}
 {doan_ghep_ao}
+Giữ nguyên nền, bối cảnh và ánh sáng của ảnh người mẫu; không đổi sang phòng hay khung cảnh khác.
+Từ prompt dưới đây chỉ lấy động tác, biểu cảm và cách quay; bỏ qua mọi mô tả bối cảnh, phòng, ánh sáng.
 Prompt: {prompt}
 Yêu cầu thêm: {yeu_cau_them}
 Luôn giữ nguyên hình in trên áo, không làm méo hay đổi chữ/hình.
@@ -247,10 +259,10 @@ Sau khi tạo xong:
 
 ```
 Ảnh áo: {link_anh_ao}
-Hãy ghép áo trong ảnh áo vào người mẫu trong ảnh người mẫu ở trên, rồi dựa theo prompt dưới đây để tạo video theo ảnh vừa ghép đó. Giữ nguyên khuôn mặt người mẫu và hình in trên áo. Không cần lưu ảnh vừa ghép.
+Hãy ghép chiếc áo trong ảnh áo vào người mẫu trong ảnh người mẫu ở trên: chỉ thay chiếc áo, giữ nguyên khuôn mặt, tóc, dáng, tư thế, nền, bối cảnh và ánh sáng của ảnh người mẫu, giữ nguyên hình in trên áo. Dùng ảnh vừa ghép để tạo video theo prompt dưới đây. Không cần lưu ảnh vừa ghép.
 ```
 
-(Phỏng theo câu người phụ trách đã thử tay thành công ngày 28/10/2026. Khi thử tay, Muse tự đọc link ảnh từ sheet; tool đưa thẳng hai link vào yêu cầu theo D14, chắc chắn hơn và Muse không phải đọc sheet.)
+(v1.4.1, D27: thêm hai dòng giữ bối cảnh / chỉ lấy động tác vào mẫu chính, và "chỉ thay chiếc áo, giữ nguyên nền…" vào đoạn ghép áo. Máy dùng mẫu gốc tự nhận câu mới; máy đã sửa mẫu giữ bản của mình. Phỏng theo câu người phụ trách đã thử tay thành công ngày 28/10/2026. Khi thử tay, Muse tự đọc link ảnh từ sheet; tool đưa thẳng hai link vào yêu cầu theo D14, chắc chắn hơn và Muse không phải đọc sheet.)
 
 - Dòng **có** ảnh áo: `{doan_ghep_ao}` trong mẫu chính được thay bằng đoạn ghép áo đã điền `{link_anh_ao}` (link Drive từ cột Ảnh áo, kiểm tra như ảnh người mẫu). Dòng **không có** ảnh áo: `{doan_ghep_ao}` thành rỗng, không để lại dòng trống thừa.
 - `{doan_ghep_ao}` không bắt buộc trong mẫu chính (để mẫu đã sửa trước v4.4 vẫn hợp lệ), nhưng thiếu thì Cài đặt và trang Xem trước báo rõ.
@@ -400,7 +412,13 @@ Sheet thật "MASYS Video – Danh sách" → Trang tính1 (20 dòng), Drive th�
 15. **Bảng + một nút Tạo video** (D17, D19): màn hình chính là bảng đọc từ sheet, chọn dòng / chọn tất cả, nút Tạo video, trạng thái và video trên từng dòng, ⚙ Nâng cao.
 16. **Sửa ngay trên bảng** (D18): sửa prompt và link, dải prompt, thêm dòng, kiểm tra xung đột trước khi ghi.
 17. **Bắt đầu nhanh, hướng dẫn gọn**: danh sách 3 bước lần đầu ngay trên màn hình, chữ gợi ý tại chỗ, kết nối sheet một bước, README ngắn.
-18. **Áo hai mặt** (D20): chỉ làm sau khi thử tay trên Muse đạt.
+18. **Áo hai mặt** (D20): chỉ làm sau khi thử tay trên Muse đạt. *(v6.0: gộp vào GĐ5 bước 21 theo D24.)*
+
+### Giai đoạn 5 — Không Drive, không sheet (v6.0, mục 17; mỗi bước một ticket, một bản phát hành)
+19. **Prompt giữ bối cảnh và nền** (D27), v1.4.1: sửa mẫu yêu cầu và đoạn ghép áo mặc định của luồng hiện tại.
+20. **Bảng cục bộ + ảnh từ máy** (D21, D22, D25), v1.5.0: mở đầu bằng việc dò khả năng bot (mục 17.7); Bảng mới chạy song song với Bảng cũ (mục 17.8).
+21. **Bot đính kèm ảnh + áo hai mặt** (D22, D24), v1.6.0.
+22. **Tải video về + xem / tải / xoá / dọn** (D23, D26), v2.0.0: Bảng mới thành màn hình chính.
 
 ---
 
@@ -456,4 +474,128 @@ Sheet thật "MASYS Video – Danh sách" → Trang tính1 (20 dòng), Drive th�
 - Kiến trúc (D1–D4), service account (D5), đăng nhập tay (D6), tuần tự + cuộc trò chuyện mới (D7–D8), không tự gửi lại (D9), kiểm tra sau khi Muse xong (D12), giới hạn ngày (D13), ảnh bằng link Drive (D14), phát hành và cập nhật (D15–D16).
 - Các trang v4 vẫn còn trong **⚙ Nâng cao** cho người phụ trách (ánh xạ cột thủ công, mẫu yêu cầu, lịch sử lô, nhật ký, phiên bản).
 - Migration SQLite chỉ thêm (D16).
+
+---
+
+## 17. Bản 6.0 — Không Drive, không sheet (theo góp ý của đội, 29/10/2026)
+
+### 17.1 Góp ý (Google Doc "Tool tạo video", thẻ Take note, mục 29/10/2026)
+1. Không muốn lưu ảnh áo và ảnh người mẫu trên Drive, muốn **tải thẳng từ máy lên**.
+2. Không muốn video lưu trên Drive, muốn **hiện ngay trên bảng, bấm xem và tải về được**. Video dùng xong là thôi.
+3. Prompt tạo video phải **bỏ các chữ làm đổi bối cảnh**, chỉ giữ động tác của nhân vật.
+4. Prompt ghép ảnh **không được làm mất nền** của ảnh người mẫu.
+5. Thêm ảnh **mặt sau**: có ảnh người mẫu quay lưng và thiết kế áo mặt sau; ghép trước với trước, sau với sau.
+
+Người phụ trách chốt thêm trong chat: bỏ hẳn sheet (chỉ giữ nút nhập), áo hai mặt ra một video với mẫu yêu cầu riêng, xoá file do người dùng tự bấm, cần 50–100 video/ngày, không cần thử tay trên Muse trước.
+
+### 17.2 Màn hình chính (Bảng mới)
+```
+[Logo] MASYS Video     Muse: ✅ đã đăng nhập   Hôm nay 12/100   Đang dùng 1,4 GB   ⚙
+[Tất cả] [Hôm nay] [Chưa tạo] [Đang chạy] [Xong] [Lỗi]          🔍 tìm số dòng / chữ trong prompt
+┌──┬────┬──────────┬─────────┬──────────┬────────┬──────────────────┬──────────────┬───────────┐
+│☐ │ #  │ Mẫu trước│ Áo trước│ Mẫu sau  │ Áo sau │ Prompt           │ Video        │ Trạng thái│
+│☑ │ 41 │ [ảnh]    │ [ảnh]   │ [ảnh]    │ [ảnh]  │ Xoay người… ✎    │              │ Sẵn sàng  │
+│☑ │ 42 │ [ảnh]    │ [ảnh]   │  +       │  +     │ Vuốt tóc…   ✎    │              │ Sẵn sàng  │
+│☐ │ 40 │ [ảnh]    │  +      │  +       │  +     │ …           ✎    │ [▶] [⬇] [🗑] │ Xong      │
+│  │ +  │ Thêm dòng (hoặc kéo thả nhiều ảnh vào đây)                                              │
+└──┴────┴──────────┴─────────┴──────────┴────────┴──────────────────┴──────────────┴───────────┘
+[☑ Chọn mọi dòng chưa có video] [Dải prompt ▾] [Nhập từ Google Sheet]  [Dọn tất cả]  [▶ Tạo video (2 dòng)]
+```
+- **Ô ảnh:** bấm **+** để chọn ảnh từ máy, hoặc kéo thả. Bấm ảnh để xem lớn, có nút đổi / bỏ ảnh. Nhận JPG, PNG, WEBP, mỗi ảnh tối đa 20 MB (giới hạn thật của Muse chốt ở 17.7). Tool **chép** ảnh vào thư mục dữ liệu, nên người dùng xoá ảnh gốc trên máy cũng không sao.
+- **Thêm dòng:** một dòng trống, hoặc kéo thả nhiều ảnh vào thì mỗi ảnh thành một dòng mới với ảnh đó là *Mẫu trước*.
+- **Prompt, chọn tất cả, dải prompt, Tạo video, Tạm dừng / Tiếp tục:** như v5.0 (16.2), chỉ khác là ghi vào Bảng chứ không ghi sheet.
+- **Ô Video:** ảnh nhỏ của video, chỉ tải khi bấm ▶ (xem ngay trên trang), **⬇ Tải về** (lưu vào thư mục Tải xuống của trình duyệt, tên file `MASYS_<số dòng>_<YYYYMMDD-HHmm>.mp4`), **🗑 Xoá**.
+- **Số dòng** (#) tăng dần, không bao giờ đánh lại, kể cả khi đã xoá dòng (D21).
+- **Dòng đang trong lô** khoá sửa và khoá xoá.
+
+### 17.3 Dữ liệu (D21)
+- Thư mục file: `%LOCALAPPDATA%\masys-video\tep\anh\` và `tep\video\`. Tên file do tool đặt (số dòng + loại + giờ), không dùng tên gốc.
+- Bảng SQLite mới (chỉ **thêm**, theo D16):
+  - `bang_rows`: `id` (số dòng), `createdAt`, `prompt`, `modelFront`, `shirtFront`, `modelBack`, `shirtBack` (đường dẫn file tương đối, có thể trống), `videoFile`, `videoBytes`, `videoAt`, `deletedAt`, `importedFrom` (sheet, tab, dòng nếu nhập từ sheet).
+  - `runs` thêm cột `bangRowId` (lượt của Bảng mới); các cột cũ để trống với lượt mới.
+  - `settings` thêm `twoSidedTemplate` (mẫu hai mặt).
+- Bảng cũ (`sheet_configs`, `sheet_edits`, các lô theo sheet) giữ nguyên để bản cũ và trang Nâng cao còn đọc được.
+
+### 17.4 Yêu cầu gửi Muse (D22, D24, D27)
+Ảnh luôn đính kèm theo **thứ tự cố định**: 1 = người mẫu trước, 2 = áo trước, 3 = người mẫu sau, 4 = áo sau (bỏ ảnh không có, giữ thứ tự còn lại).
+
+| Dòng có | Ảnh đính kèm | Mẫu dùng |
+|---|---|---|
+| Chỉ người mẫu trước | 1 | Mẫu thường, `{doan_ghep_ao}` rỗng |
+| Người mẫu trước + áo trước | 1, 2 | Mẫu thường + đoạn ghép áo |
+| Đủ 4 ảnh | 1, 2, 3, 4 | **Mẫu hai mặt** |
+| Có người mẫu sau hoặc áo sau nhưng thiếu ảnh nào trong 4 | — | **Thiếu dữ liệu**, kèm lý do |
+| Không có người mẫu trước, hoặc không có prompt | — | **Thiếu dữ liệu** |
+
+Mẫu thường (mặc định, sửa được trong Cài đặt):
+```
+Tôi gửi kèm {so_anh} ảnh: {danh_sach_anh}.
+Hãy tạo một video dọc 9:16, dài khoảng 8–10 giây, một cảnh, từ ảnh người mẫu (ảnh 1).
+{doan_ghep_ao}
+Giữ nguyên nền, bối cảnh và ánh sáng của ảnh người mẫu; không đổi sang phòng hay khung cảnh khác.
+Từ prompt dưới đây chỉ lấy động tác, biểu cảm và cách quay; bỏ qua mọi mô tả bối cảnh, phòng, ánh sáng.
+Prompt: {prompt}
+Yêu cầu thêm: {yeu_cau_them}
+Luôn giữ nguyên hình in trên áo, không làm méo hay đổi chữ/hình.
+Tạo xong thì gửi video ngay trong cuộc trò chuyện này. Không lưu lên Google Drive, không sửa Google Sheet.
+```
+Đoạn ghép áo (mặc định):
+```
+Trước khi tạo video, hãy ghép chiếc áo ở ảnh 2 vào người mẫu ở ảnh 1: chỉ thay chiếc áo, giữ nguyên khuôn mặt, tóc, dáng, tư thế, nền, bối cảnh và ánh sáng của ảnh 1, giữ nguyên hình in trên áo. Dùng ảnh vừa ghép để tạo video. Không cần lưu ảnh vừa ghép.
+```
+Mẫu hai mặt (mặc định):
+```
+Tôi gửi kèm 4 ảnh: ảnh 1 là người mẫu mặt trước, ảnh 2 là thiết kế áo mặt trước, ảnh 3 là người mẫu mặt sau (quay lưng), ảnh 4 là thiết kế áo mặt sau.
+Bước 1: ghép áo ở ảnh 2 vào người mẫu ở ảnh 1, và ghép áo ở ảnh 4 vào người mẫu ở ảnh 3. Chỉ thay chiếc áo; giữ nguyên khuôn mặt, tóc, dáng, nền, bối cảnh và ánh sáng của từng ảnh người mẫu; giữ nguyên hình in từng mặt. Không tự dựng thêm mặt nào.
+Bước 2: dùng hai ảnh vừa ghép tạo một video dọc 9:16, dài khoảng 8–10 giây, một cảnh: người mẫu bắt đầu ở mặt trước rồi xoay người để thấy mặt sau áo.
+Giữ nguyên nền và bối cảnh của ảnh người mẫu. Từ prompt dưới đây chỉ lấy động tác, biểu cảm và cách quay; bỏ qua mọi mô tả bối cảnh, phòng, ánh sáng.
+Prompt: {prompt}
+Yêu cầu thêm: {yeu_cau_them}
+Tạo xong thì gửi video ngay trong cuộc trò chuyện này. Không lưu lên Google Drive, không sửa Google Sheet. Không cần lưu ảnh vừa ghép.
+```
+- `{danh_sach_anh}` do tool điền, ví dụ *"ảnh 1 là người mẫu, ảnh 2 là thiết kế áo"*.
+- Câu chữ mặc định có thể chỉnh sau khi chạy thật; người dùng sửa mẫu trong Cài đặt thì tool cảnh báo khi thiếu `{prompt}`.
+
+### 17.5 Chạy một lượt (thay F5 cho Bảng mới)
+1. **Đọc lại dòng** trong SQLite: còn đủ file ảnh trên đĩa, prompt còn, chưa có video (trừ Ghi đè). Thiếu → `needs_review`, không gửi.
+2. Mở **cuộc trò chuyện mới** (side chat, D7). Ghi `museChatUrl` ngay khi có.
+3. **Đính kèm ảnh** theo thứ tự 17.4, chờ Muse hiện đủ số ảnh xem trước. Không đủ trong thời gian chờ ngắn → `paused_ui` (chưa gửi nên không vi phạm D9).
+4. Dán yêu cầu, ghi `sentAt` **trước** khi bấm Gửi, bấm Gửi.
+5. **Chờ video xuất hiện trong cuộc trò chuyện** (dò mỗi 20 giây), đồng thời dò đăng nhập / captcha / chờ duyệt / lỗi / hết lượt như cũ. Quá thời gian chờ → `needs_review`.
+6. **Tải video** (trạng thái mới `downloading`) bằng phiên của hồ sơ bot, lưu vào `tep\video\`. Lỗi tải → `needs_review`, giữ `museChatUrl` để người dùng tự mở cuộc trò chuyện tải tay; **không gửi lại**.
+7. **Kiểm tra** (thay D12): file là video (`video/*`, đọc được phần đầu MP4), dung lượng > 0. Cuộc trò chuyện có nhiều video → lấy video mới nhất và ghi chú trong nhật ký.
+8. Đạt → `done`, gắn video vào dòng. Nghỉ 20–60 giây, sang dòng tiếp.
+- **Tool tắt giữa chừng:** lượt `sending` / `waiting` / `downloading` khi mở lại **không gửi lại**; tool mở lại `museChatUrl` và tiếp tục chờ / tải video, hết thời gian thì `needs_review`.
+- Trạng thái chỉ hiện trên Bảng (không còn ô Trạng thái trên sheet, D11 thôi áp dụng).
+
+### 17.6 Nhập từ Google Sheet
+- Nút **Nhập từ Google Sheet** → dán link sheet / chọn sheet đã kết nối → tool đọc (service account, chỉ đọc) và hiện trước *"Sẽ thêm N dòng"*.
+- Mỗi dòng sheet chưa có video → một dòng mới trên Bảng: prompt, và **tải ảnh từ link Drive về máy** (Ảnh người mẫu → Mẫu trước, Ảnh áo → Áo trước). Link không đọc được → vẫn thêm dòng, để trống ô ảnh đó và ghi lý do.
+- Dòng sheet đã có video thì bỏ qua (có ô tích *"Nhập cả dòng đã có video"*, khi đó chỉ lấy prompt và ảnh).
+- Nhập lại cùng một sheet → bỏ qua dòng đã nhập (so `importedFrom`). Tool **không ghi gì** lên sheet.
+
+### 17.7 Dò khả năng bot (bước đầu tiên của bước 20, trước khi code tiếp)
+Trong hồ sơ bot đã đăng nhập Muse, dò (không gửi yêu cầu tạo video):
+1. Ô chat có chỗ đính kèm ảnh (`input[type=file]` hoặc nút đính kèm), nhận **nhiều ảnh** một lần; giới hạn số ảnh và dung lượng.
+2. Video trong cuộc trò chuyện: có thẻ `<video>` / nút tải; tải được bằng phiên của hồ sơ bot. Dò trên một cuộc trò chuyện **đã có video** từ trước.
+3. Ghi selector vào `museSelectors` và ghi kết quả vào 8.3.
+
+Không đạt mục 1 hoặc 2 → **dừng, báo người phụ trách**, chốt lại phương án trước khi làm tiếp. Một lượt gửi thật để thử (tốn hạn mức Muse) chỉ làm khi người phụ trách đồng ý.
+
+### 17.8 Chuyển tiếp từ v1.4 sang v2.0
+- **v1.4.1:** sửa mẫu yêu cầu của luồng sheet hiện tại theo D27 (giữ bối cảnh, giữ nền). Người đã sửa mẫu trong Cài đặt thì giữ bản của họ; Cài đặt có sẵn *"Khôi phục mẫu gốc"*.
+- **v1.5.0 – v1.6.0:** Bảng mới mở ở **⚙ Nâng cao → Bảng mới (đang thử)**. Bảng theo sheet vẫn là màn hình chính và chạy như v1.4.
+- **v2.0.0:** Bảng mới thành màn hình chính; Bảng theo sheet chuyển vào ⚙ Nâng cao để xem lại dữ liệu cũ. Bắt đầu nhanh còn 2 bước: *Đăng nhập Muse* · *Thêm dòng đầu tiên* (khoá Google chỉ cần khi nhập từ sheet).
+- Quy tắc ghi sheet trong CLAUDE.md (D18) chỉ còn áp dụng cho Bảng theo sheet.
+
+### 17.9 Khi có 50–100 dòng mỗi ngày (D25)
+- Bảng không giới hạn số dòng. **Lọc nhanh** (Tất cả / Hôm nay / Chưa tạo / Đang chạy / Xong / Lỗi), **tìm** theo số dòng hoặc chữ trong prompt, **chia trang 50 dòng**.
+- Ảnh nhỏ tải dần khi cuộn; video chỉ tải khi bấm ▶.
+- Đầu trang hiện **dung lượng đang dùng**. **Dọn tất cả** hỏi lại, hiện số dòng và dung lượng sẽ giải phóng, xoá các dòng **Xong** cùng ảnh và video của chúng (có ô tích *"Xoá cả dòng chưa tạo"*). Dòng đang chạy không bao giờ bị xoá.
+- Khi bấm Tạo video, hiện ước lượng *"khoảng X giờ"* (số dòng × (thời gian trung bình gần đây + nghỉ)). Máy phải bật suốt lô.
+- Cài đặt: giới hạn ngày 1–150, mặc định 100; nhắc rủi ro hạn mức Muse khi > 50.
+
+### 17.10 Giữ nguyên
+- Muse là nơi duy nhất tạo video, điều khiển qua web bằng bot (D1); một máy Windows (D4); đăng nhập tay, không gõ mật khẩu, không vượt captcha (D6); tuần tự, mỗi dòng một cuộc trò chuyện mới, có cửa sổ (D7, D8); **không tự gửi lại khi không chắc** (D9); Ghi đè khi dòng đã có video (D10); cách đếm giới hạn ngày (D13); phát hành và cập nhật (D15, D16); migration chỉ thêm.
+- Bot không bao giờ tự bấm duyệt trong Muse (8.3).
 
