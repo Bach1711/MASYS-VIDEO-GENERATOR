@@ -98,11 +98,10 @@ function setup(opts: { muse?: MuseBehavior; timeoutMinutes?: number; sentToday?:
     async bringToFront() {
       fronts++;
     },
+    async openChat() {},
   };
 
   const db = openDatabase(":memory:");
-
-
   db.prepare("UPDATE settings SET dailyVideoLimit = 5").run(); // các ca giới hạn ngày viết theo mức 5 cũ (D13)
   saveSheetConfig(db, CFG);
   db.prepare("UPDATE settings SET timeoutMinutes = ? WHERE id = 1").run(opts.timeoutMinutes ?? 20);

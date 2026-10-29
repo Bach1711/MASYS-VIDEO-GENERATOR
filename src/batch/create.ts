@@ -130,6 +130,8 @@ export interface BatchView {
   status: string;
   createdAt: string;
   pauseReason: string | null;
+  /** 'sheet' hoặc 'bang' (Bảng mới, CON-52). */
+  source: string;
   runs: {
     id: number;
     rowNumber: number;

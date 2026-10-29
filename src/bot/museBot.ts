@@ -47,6 +47,8 @@ export interface MuseBotOptions {
   loadTimeoutMs?: number;
   /** Thời gian chờ Muse nhận tin sau khi bấm Gửi (ms). */
   confirmTimeoutMs?: number;
+  /** Thời gian chờ Muse nhận đủ ảnh đính kèm và cho bấm Gửi (ms). */
+  attachTimeoutMs?: number;
   /** Nghỉ ngắn trước khi bấm Gửi, như người (ms). */
   pauseBeforeSendMs?: [number, number];
 }
@@ -87,6 +89,11 @@ export class MuseBot {
         this.ctx = undefined;
         logger.info("Trình duyệt bot đã đóng");
       });
+      // Tab trống Chrome mở sẵn cùng hồ sơ có lúc tải Muse mãi không xong (ghi nhận 29/10/2026), tab mở thêm thì
+      // tải bình thường: làm việc trên một tab mới, đóng các tab trống ban đầu.
+      const initial = ctx.pages();
+      await ctx.newPage();
+      for (const p of initial) if (p.url() === "about:blank") await p.close().catch(() => {});
       this.ctx = ctx;
       logger.info({ profileDir: this.o.profileDir }, "Đã mở trình duyệt bot");
       return ctx;
@@ -126,7 +133,17 @@ export class MuseBot {
     const login =
       sel.login.url.test(page.url()) || (await visible(sel.login.heading(page))) || sel.challenge.text.test(body) || (await sel.challenge.frame(page).count()) > 0;
     const approval = sel.approval.text.test(body) || (await visible(sel.approval.button(page).first()));
-    return { closed: false, login, approval, notice };
+    const videos = await sel.chat.resultVideoCount(page).catch(() => 0);
+    return { closed: false, login, approval, notice, videos };
+  }
+
+  /**
+   * Mở lại một cuộc trò chuyện đã gửi (tool mở lại giữa chừng, spec 17.5) để theo dõi tiếp, không gửi gì.
+   */
+  async openChat(url: string): Promise<void> {
+    const page = await this.page();
+    if (stripQuery(page.url()) !== stripQuery(url)) await page.goto(url, { waitUntil: "domcontentloaded" });
+    await this.classify(page);
   }
 
   async close(): Promise<void> {
@@ -182,10 +199,11 @@ export class MuseBot {
   }
 
   /**
-   * Mở cuộc trò chuyện mới, dán yêu cầu, nghỉ ngắn, bấm Gửi (D7).
+   * Mở cuộc trò chuyện mới, đính kèm ảnh (nếu có, theo đúng thứ tự), dán yêu cầu, nghỉ ngắn, bấm Gửi (D7).
+   * Chỉ bấm Gửi khi Muse hiện đủ số ảnh (spec 17.5 bước 3).
    * Trả về URL cuộc trò chuyện. Lỗi sau khi đã bấm Gửi luôn có `sent: true` để không ai gửi lại (D9).
    */
-  async send(text: string): Promise<{ chatUrl: string }> {
+  async send(text: string, files: string[] = []): Promise<{ chatUrl: string }> {
     if (this.busy) throw new BotError("busy", "Bot đang gửi một yêu cầu khác", false);
     if (!this.ctx) throw new BotError("closed", STATE_TEXT.closed, false);
     this.busy = true;
@@ -199,13 +217,14 @@ export class MuseBot {
       }
 
       // Mỗi lượt một cuộc trò chuyện mới (D7): Chats → New side chat → /thread/new.
+      // Ô chat hiện trước khi danh sách trò chuyện tải xong (ghi nhận 29/10/2026): chờ nút New side chat hoặc nút Chats hiện ra.
       const newSideChat = sel.chat.newSideChat(page);
-      if (!(await visible(newSideChat))) {
-        const panel = sel.chat.chatsPanel(page);
-        if (await visible(panel)) await panel.click();
-      }
+      const panel = sel.chat.chatsPanel(page);
+      const panelDeadline = Date.now() + (this.o.loadTimeoutMs ?? 15_000);
+      while (!(await visible(newSideChat)) && !(await visible(panel)) && Date.now() < panelDeadline) await page.waitForTimeout(500);
+      if (!(await visible(newSideChat)) && (await visible(panel))) await panel.click();
       try {
-        await newSideChat.click({ timeout: 5000 });
+        await newSideChat.click({ timeout: 10_000 });
         await page.waitForURL(sel.chat.newThreadUrl, { timeout: 10_000 });
       } catch {
         return await this.fail(page, "ui_changed", "Không mở được cuộc trò chuyện mới (không thấy nút New side chat)", false);
@@ -214,6 +233,26 @@ export class MuseBot {
       if (fresh !== "ready") return await this.fail(page, fresh, `Không mở được cuộc trò chuyện mới: ${STATE_TEXT[fresh]}`, false);
       const startUrl = page.url();
       const noticesBefore = noticeKinds(await bodyText(page));
+
+      if (files.length) {
+        if ((await sel.chat.removeAttachment(page).count()) > 0) {
+          return await this.fail(page, "ui_changed", "Cuộc trò chuyện mới đã có sẵn ảnh đính kèm lạ; chưa gửi", false);
+        }
+        try {
+          await sel.chat.fileInput(page).setInputFiles(files, { timeout: 5000 });
+        } catch {
+          return await this.fail(page, "ui_changed", "Không thấy chỗ đính kèm ảnh của Muse", false);
+        }
+        const deadline = Date.now() + (this.o.attachTimeoutMs ?? 60_000);
+        for (;;) {
+          const got = await sel.chat.removeAttachment(page).count();
+          if (got === files.length) break;
+          if (got > files.length || Date.now() > deadline) {
+            return await this.fail(page, "ui_changed", `Muse chỉ hiện ${got}/${files.length} ảnh đính kèm; chưa gửi`, false);
+          }
+          await page.waitForTimeout(500);
+        }
+      }
 
       const composer = sel.chat.composer(page);
       await composer.click();
@@ -226,9 +265,12 @@ export class MuseBot {
       const [min, max] = this.o.pauseBeforeSendMs ?? [1500, 3000];
       await page.waitForTimeout(min + Math.random() * (max - min));
 
+      // Ảnh còn đang tải lên thì nút Gửi có thể chưa bấm được: chờ thêm một lúc.
       const send = sel.chat.send(page);
-      if (!(await visible(send)) || !(await send.isEnabled())) {
-        return await this.fail(page, "ui_changed", "Không thấy nút Gửi của Muse", false);
+      const sendDeadline = Date.now() + (files.length ? (this.o.attachTimeoutMs ?? 60_000) : 0);
+      while (!((await visible(send)) && (await send.isEnabled().catch(() => false)))) {
+        if (Date.now() >= sendDeadline) return await this.fail(page, "ui_changed", "Không thấy nút Gửi của Muse", false);
+        await page.waitForTimeout(500);
       }
       await send.click();
       logger.info({ url: stripQuery(startUrl) }, "Đã bấm Gửi trên Muse");
@@ -285,7 +327,7 @@ function normalize(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
-export type NoticeKind = "quota" | "rejected" | "error";
+export type NoticeKind = "quota" | "rejected" | "error" | "videoMissing";
 
 export interface WatchResult {
   closed: boolean;
@@ -294,8 +336,10 @@ export interface WatchResult {
   /** Muse đang chờ người dùng duyệt một thao tác. */
   approval: boolean;
   notice?: NoticeKind;
+  /** Số video kết quả trong khung chat của trang đang mở (Bảng mới, spec 17.5 bước 5). */
+  videos?: number;
 }
 
 function noticeKinds(body: string): NoticeKind[] {
-  return (["quota", "rejected", "error"] as const).filter((k) => sel.notices[k].test(body));
+  return (["quota", "rejected", "error", "videoMissing"] as const).filter((k) => sel.notices[k].test(body));
 }

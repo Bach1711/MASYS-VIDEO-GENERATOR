@@ -10,7 +10,7 @@ import { BotError, MuseBot } from "../src/bot/museBot.js";
 import { openDatabase } from "../src/db/index.js";
 
 // Trang Muse giả lập theo tên thật đã ghi nhận (museSelectors.ts). Chrome chạy ẩn chỉ trong test.
-type Mode = "ready" | "login" | "challenge" | "broken" | "quota" | "nosend" | "nonew" | "approval";
+type Mode = "ready" | "login" | "challenge" | "broken" | "quota" | "nosend" | "nonew" | "approval" | "video" | "dropone";
 let mode: Mode = "ready";
 let received: string[] = [];
 
@@ -22,13 +22,24 @@ const CHAT_PAGE = (m: Mode) => `<!doctype html><html><head><title>Chat — Như<
   ${m === "nonew" ? "" : `<button onclick="history.pushState({}, '', '/thread/new'); document.getElementById('log').innerHTML=''">New side chat</button>`}
 </nav>
 <div id="log" role="log" aria-label="Chat messages"><p>Tin cũ: try again later</p></div>
+<video id="avatar" style="width:48px;height:48px"></video>
+<div id="att"></div>
+<button aria-label="Attach file">+</button><input type="file" multiple onchange="attach(this)">
 <textarea aria-label="Message" oninput="document.getElementById('send').hidden=!this.value"></textarea>
 <button id="send" hidden onclick="send()">Send</button>
 <script>
+let names = [];
+function attach(inp) {
+  names = [...inp.files].map((f) => f.name);
+  const n = ${m === "dropone" ? "Math.min(1, names.length)" : "names.length"};
+  for (let i = 0; i < n; i++) { const b = document.createElement('button'); b.textContent = 'Remove attachment'; document.getElementById('att').append(b); }
+}
 function send() {
   const t = document.querySelector('textarea');
   ${m === "nosend" ? "return;" : ""}
-  fetch('/received', { method: 'POST', body: t.value });
+  fetch('/received', { method: 'POST', body: (names.length ? 'FILES ' + names.join(',') + '\\n' : '') + t.value });
+  document.getElementById('att').innerHTML = '';
+  ${m === "video" ? "setTimeout(() => { const v = document.createElement('video'); v.style.width = '280px'; v.style.height = '400px'; document.getElementById('log').append(v); }, 1500);" : ""}
   const p = document.createElement('p'); p.textContent = t.value; document.getElementById('log').append(p);
   t.value = ''; document.getElementById('send').hidden = true;
   ${
@@ -172,6 +183,40 @@ describe.skipIf(!hasChrome)("MuseBot với trang Muse giả lập", () => {
     expect(w.notice).toBeUndefined();
     await new Promise((r) => setTimeout(r, 300));
     expect(received).toEqual([REQUEST]);
+  }, 30_000);
+
+  it("đính kèm ảnh đúng thứ tự rồi mới gửi; thấy video trong khung chat, bỏ qua ảnh đại diện nhỏ (Bảng mới)", async () => {
+    const imgs = ["mau-truoc", "ao-truoc", "mau-sau", "ao-sau"].map((n) => {
+      const f = path.join(tmp, `${n}.png`);
+      fs.writeFileSync(f, "x");
+      return f;
+    });
+    const b = newBot();
+    mode = "video";
+    await b.open();
+    expect((await b.watch()).videos).toBe(0);
+    const { chatUrl } = await b.send(REQUEST, imgs);
+    expect(chatUrl).toBe(`${base}/thread/abc123XYZ`);
+    expect(received).toEqual([`FILES mau-truoc.png,ao-truoc.png,mau-sau.png,ao-sau.png\n${REQUEST}`]);
+    await expect.poll(async () => (await b.watch()).videos, { timeout: 5000 }).toBe(1);
+  }, 30_000);
+
+  it("Muse không hiện đủ ảnh đính kèm → ui_changed, chưa gửi", async () => {
+    const f = path.join(tmp, "a.png");
+    fs.writeFileSync(f, "x");
+    const b = newBot({ attachTimeoutMs: 800 });
+    mode = "dropone";
+    await b.open();
+    await expect(b.send(REQUEST, [f, f])).rejects.toMatchObject({ code: "ui_changed", sent: false, message: "Muse chỉ hiện 1/2 ảnh đính kèm; chưa gửi" });
+    expect(received).toEqual([]);
+  }, 30_000);
+
+  it("openChat mở lại đúng cuộc trò chuyện để theo dõi, không gửi gì", async () => {
+    const b = newBot();
+    await b.open();
+    await b.openChat(`${base}/thread/abc123XYZ`);
+    expect((await b.check()).url).toBe(`${base}/thread/abc123XYZ`);
+    expect(received).toEqual([]);
   }, 30_000);
 
   it("bấm Send mà không thấy Muse nhận → send_unconfirmed, sent=true (không gửi lại)", async () => {

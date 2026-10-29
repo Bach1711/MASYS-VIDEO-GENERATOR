@@ -573,6 +573,9 @@ Tạo xong thì gửi video ngay trong cuộc trò chuyện này. Không lưu l�
 8. Đạt → `done`, gắn video vào dòng. Nghỉ 20–60 giây, sang dòng tiếp.
 - **Tool tắt giữa chừng:** lượt `sending` / `waiting` / `downloading` khi mở lại **không gửi lại**; tool mở lại `museChatUrl` và tiếp tục chờ / tải video, hết thời gian thì `needs_review`.
 - Trạng thái chỉ hiện trên Bảng (không còn ô Trạng thái trên sheet, D11 thôi áp dụng).
+- **v1.6.0 (CON-52, bước tạm trước CON-72):** làm bước 1–5. Video hiện trong cuộc trò chuyện → lượt **Xong**, Bảng hiện nút *"Mở trong Muse"* (link cuộc trò chuyện) để người dùng xem và tải tay; bước 6–8 (tải về máy, kiểm tra file, gắn vào dòng) làm ở CON-72. Lô của Bảng mới lưu ở `batches.source = 'bang'` (không có sheet / thư mục Drive), mỗi lượt gắn dòng qua `runs.bangRowId`; dùng chung hàng đợi và giới hạn ngày với Bảng theo sheet (mỗi lúc chỉ một lô). Lô của Bảng mới chạy được cả khi chưa nạp khoá Google.
+- Bảng mới lọc thêm **Đang chạy / Xong / Cần xem** theo lượt gần nhất của dòng.
+- **Gửi thử thật CON-52 (29/10/2026, người phụ trách đồng ý, 2 lượt):** dòng ghép áo một mặt (2 ảnh) và dòng áo hai mặt (4 ảnh). Bot đính kèm đủ ảnh đúng thứ tự, mỗi dòng gửi đúng một lần. Cả hai lần Muse trả lời *"Xong rồi"* nhưng ô video trong chat trống / báo **"Video not found"**, mở bằng Chrome thường (có VPN) cũng vậy, nên là lỗi phía Muse. Bot nhận câu này (`notices.videoMissing`) và ghi lượt **Cần xem** ngay, không chờ hết giờ, không gửi lại. Cũng ghi nhận: tab trống Chrome mở sẵn cùng hồ sơ có lúc tải Muse mãi không xong, bot làm việc trên tab mới; ô chat hiện trước danh sách trò chuyện, bot chờ nút *New side chat*.
 
 ### 17.6 Nhập từ Google Sheet
 - Nút **Nhập từ Google Sheet** → dán link sheet / chọn sheet đã kết nối → tool đọc (service account, chỉ đọc) và hiện trước *"Sẽ thêm N dòng"*.

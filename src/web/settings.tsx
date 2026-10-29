@@ -1,4 +1,5 @@
 import type { Hono } from "hono";
+import { BANG_DEFAULTS, BANG_PLACEHOLDERS, validateBangTemplate } from "../bang/request.js";
 import type { Child } from "hono/jsx";
 import {
   DEFAULT_SHIRT_TEMPLATE,
@@ -21,8 +22,10 @@ import {
   RECOMMENDED_DAILY_LIMIT,
   saveRunSettings,
   setDriveRootFolder,
+  setBangTemplate,
   setRequestTemplate,
   setShirtTemplate,
+  type BangTemplateKind,
 } from "../db/settings.js";
 import { parseDriveLink, type DriveFolder } from "../google/drive.js";
 import { describeGoogleError } from "../google/errors.js";
@@ -50,6 +53,7 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
       shirtDraft?: string;
       runErrors?: string[];
       runDraft?: Record<string, unknown>;
+      bang?: { kind: BangTemplateKind; errors: string[]; draft: string };
     } = {},
   ) {
     const s = getSettings(db);
@@ -194,6 +198,20 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
             </div>
           </form>
         </section>
+
+        <h2 id="bang-moi">Mẫu yêu cầu cho Bảng mới</h2>
+        <p class="muted">
+          Bảng mới gửi ảnh thẳng vào cuộc trò chuyện Muse theo thứ tự cố định: ảnh 1 người mẫu mặt trước, ảnh 2 áo mặt trước, ảnh 3 người mẫu mặt
+          sau, ảnh 4 áo mặt sau. Dòng đủ 4 ảnh dùng <em>mẫu hai mặt</em>; dòng khác dùng <em>mẫu thường</em> (có ảnh áo trước thì thêm đoạn ghép áo).
+        </p>
+        {BANG_SECTIONS.map((sec) => (
+          <BangTemplateCard
+            {...sec}
+            saved={s[sec.kind]}
+            draft={opts.bang?.kind === sec.kind ? opts.bang.draft : undefined}
+            errors={opts.bang?.kind === sec.kind ? opts.bang.errors : undefined}
+          />
+        ))}
       </>,
     );
   }
@@ -206,6 +224,8 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
       template: "Đã lưu mẫu.",
       shirt: "Đã lưu đoạn ghép áo.",
       shirtReset: "Đã quay về đoạn ghép áo gốc.",
+      bang: "Đã lưu mẫu của Bảng mới.",
+      bangReset: "Đã quay về mẫu gốc của Bảng mới.",
       run: "Đã lưu. Lô đang chạy (nếu có) dùng cài đặt mới từ dòng kế tiếp.",
     };
     const notice = saved && <Alert kind="ok">{text[saved] ?? "Đã lưu."}</Alert>;
@@ -262,6 +282,78 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
     setShirtTemplate(db, draft.trim() === DEFAULT_SHIRT_TEMPLATE.trim() ? null : draft);
     return c.redirect("/settings?saved=shirt#ghep-ao", 303);
   });
+
+  app.post("/settings/bang-moi", async (c) => {
+    const body = await c.req.parseBody();
+    const kind = BANG_SECTIONS.find((x) => x.kind === body.kind)?.kind;
+    if (!kind) return c.text("Yêu cầu không hợp lệ", 400);
+    if (body.action === "reset") {
+      setBangTemplate(db, kind, null);
+      return c.redirect(`/settings?saved=bangReset#${kind}`, 303);
+    }
+    const draft = String(body.template ?? "").replace(/\r\n/g, "\n");
+    const errors = validateBangTemplate(kind, draft);
+    if (errors.length) return c.html(await render({ bang: { kind, errors, draft } }), 400);
+    setBangTemplate(db, kind, draft.trim() === BANG_DEFAULTS[kind].trim() ? null : draft);
+    return c.redirect(`/settings?saved=bang#${kind}`, 303);
+  });
+}
+
+const BANG_SECTIONS: { kind: BangTemplateKind; title: string; note: string; rows: number }[] = [
+  { kind: "bangTemplate", title: "Mẫu thường", note: "Dòng một ảnh người mẫu, hoặc người mẫu + áo mặt trước.", rows: 11 },
+  {
+    kind: "bangShirtTemplate",
+    title: "Đoạn ghép áo",
+    note: "Chỉ dòng có ảnh áo mặt trước mới có đoạn này: tool đặt nó vào chỗ {doan_ghep_ao} của mẫu thường.",
+    rows: 4,
+  },
+  { kind: "twoSidedTemplate", title: "Mẫu hai mặt", note: "Dòng đủ 4 ảnh: ghép trước với trước, sau với sau, ra một video.", rows: 14 },
+];
+
+function BangTemplateCard(props: (typeof BANG_SECTIONS)[number] & { saved: string | null; draft?: string; errors?: string[] }) {
+  const ph = BANG_PLACEHOLDERS[props.kind];
+  return (
+    <section class="card" id={props.kind}>
+      <h2>{props.title}</h2>
+      <p class="muted">
+        {props.saved ? "Đang dùng bản đã sửa." : "Đang dùng bản gốc (spec 17.4)."} {props.note}
+      </p>
+      {Object.keys(ph.known).length > 0 && (
+        <ul class="placeholders">
+          {Object.entries(ph.known).map(([k, text]) => (
+            <li>
+              <code>{`{${k}}`}</code> — {text}
+              {ph.required.includes(k) && <strong> (bắt buộc)</strong>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {props.errors && props.errors.length > 0 && (
+        <Alert kind="warn">
+          Chưa lưu vì mẫu có lỗi:
+          <ul>
+            {props.errors.map((e) => (
+              <li>{e}</li>
+            ))}
+          </ul>
+        </Alert>
+      )}
+      <form method="post" action="/settings/bang-moi">
+        <input type="hidden" name="kind" value={props.kind} />
+        <textarea name="template" rows={props.rows} class="mono">
+          {props.draft ?? props.saved ?? BANG_DEFAULTS[props.kind]}
+        </textarea>
+        <div class="row-between">
+          <button type="submit" name="action" value="reset" class="secondary" onclick="return confirm('Bỏ bản đã sửa và quay về bản gốc?')">
+            Khôi phục bản gốc
+          </button>
+          <button type="submit" name="action" value="save">
+            Lưu
+          </button>
+        </div>
+      </form>
+    </section>
+  );
 }
 
 function RunSettingsCard(props: { s: Record<string, unknown>; errors?: string[] }) {

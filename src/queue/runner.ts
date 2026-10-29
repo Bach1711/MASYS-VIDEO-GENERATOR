@@ -1,3 +1,5 @@
+import type { BangFiles } from "../bang/files.js";
+import { getRow } from "../bang/rows.js";
 import { BotError, type WatchResult } from "../bot/museBot.js";
 import type { DB } from "../db/index.js";
 import { getDailyQuota } from "../db/quota.js";
@@ -19,8 +21,11 @@ import { isRunningStatus, STATUS_RUNNING } from "../scan/labels.js";
 export interface MuseDriver {
   readonly isOpen: boolean;
   open(): Promise<void>;
-  send(text: string): Promise<{ chatUrl: string }>;
+  /** `files`: ảnh đính kèm theo đúng thứ tự (Bảng mới); bot chỉ bấm Gửi khi Muse hiện đủ ảnh. */
+  send(text: string, files?: string[]): Promise<{ chatUrl: string }>;
   watch(): Promise<WatchResult>;
+  /** Mở lại cuộc trò chuyện đã gửi để theo dõi tiếp (không gửi gì). */
+  openChat(url: string): Promise<void>;
   bringToFront(): Promise<void>;
 }
 
@@ -68,6 +73,8 @@ export interface RunnerOptions {
   minuteMs?: number;
   secondMs?: number;
   random?: () => number;
+  /** Ảnh của Bảng mới trên máy (CON-52). */
+  bangFiles?: Pick<BangFiles, "imagePath">;
 }
 
 interface RunRow {
@@ -80,6 +87,7 @@ interface RunRow {
   overwrite: number;
   sentAt: string | null;
   tabSnapshot: string | null;
+  museChatUrl: string | null;
 }
 
 interface BatchRow {
@@ -89,6 +97,21 @@ interface BatchRow {
   driveFolderId: string;
   status: string;
   pauseReason: string | null;
+  /** 'sheet' (Bảng theo sheet) hoặc 'bang' (Bảng mới, CON-52). */
+  source: string;
+}
+
+/** Lượt của Bảng mới (spec 17.5): ảnh đính kèm (tên file, đúng thứ tự) và prompt lúc bấm Tạo video. */
+export interface BangSnapshot {
+  attachments: string[];
+  prompt: string;
+}
+
+/** Cách chạy một lượt: theo sheet (F5) hoặc Bảng mới (17.5). */
+interface Flow {
+  process(run: RunRow): Promise<Outcome>;
+  /** Lượt đã gửi trước khi tool tắt: chỉ theo dõi tiếp, không gửi lại (D9). */
+  resume(run: RunRow): Promise<Outcome>;
 }
 
 interface InputSnapshot {
@@ -113,11 +136,22 @@ export class BatchRunner {
 
   constructor(
     private readonly db: DB,
-    private readonly sheets: SheetsClient,
-    private readonly drive: DriveClient,
+    private readonly sheets: SheetsClient | undefined,
+    private readonly drive: DriveClient | undefined,
     private readonly bot: MuseDriver,
     private readonly o: RunnerOptions = {},
   ) {}
+
+  /** Google chỉ cần cho lô theo sheet; lô của Bảng mới chạy được khi chưa nạp khoá. */
+  private get gs(): SheetsClient {
+    if (!this.sheets) throw new Error("Chưa nạp khoá Google");
+    return this.sheets;
+  }
+
+  private get gd(): DriveClient {
+    if (!this.drive) throw new Error("Chưa nạp khoá Google");
+    return this.drive;
+  }
 
   get runningBatchId(): number | undefined {
     return this.active?.batchId;
@@ -220,16 +254,30 @@ export class BatchRunner {
     return !!(this.active?.pauseRequested || this.active?.cancelRequested);
   }
 
+  private flowFor(batch: BatchRow): Flow | { pause: PauseReason } {
+    if (batch.source === "bang") {
+      return { process: (r) => this.processBangRun(r, batch), resume: (r) => this.resumeBangRun(r, batch) };
+    }
+    const cfg = getSheetConfig(this.db, batch.spreadsheetId, batch.tab);
+    if (!cfg || !this.sheets || !this.drive) return { pause: "google" };
+    return {
+      process: (r) => this.processRun(r, cfg, batch),
+      resume: (r) => {
+        if (r.state !== "waiting") moveRun(this.db, r.id, r.state, "waiting", "Tool mở lại: theo dõi tiếp ô Video, không gửi lại (D9)");
+        else logRunEvent(this.db, r.id, "waiting", "Tool mở lại: theo dõi tiếp ô Video, không gửi lại (D9)");
+        return this.watchAndVerify(r, cfg, batch, Date.now() + this.timeoutMs());
+      },
+    };
+  }
+
   private async loop(batchId: number, mode: "full" | "watch"): Promise<void> {
     const batch = this.batch(batchId)!;
-    const cfg = getSheetConfig(this.db, batch.spreadsheetId, batch.tab);
-    if (!cfg) return this.setBatch(batchId, "paused", "google");
+    const flow = this.flowFor(batch);
+    if ("pause" in flow) return this.setBatch(batchId, "paused", flow.pause);
 
     // Lượt đã gửi trước khi tool tắt: chỉ theo dõi tiếp, một chu kỳ chờ tính từ bây giờ.
     for (const r of this.runs(batchId, ["sending", "waiting", "verifying"])) {
-      if (r.state !== "waiting") moveRun(this.db, r.id, r.state, "waiting", "Tool mở lại: theo dõi tiếp ô Video, không gửi lại (D9)");
-      else logRunEvent(this.db, r.id, "waiting", "Tool mở lại: theo dõi tiếp ô Video, không gửi lại (D9)");
-      const out = await this.watchAndVerify(r, cfg, batch, Date.now() + this.timeoutMs());
+      const out = await flow.resume(r);
       if (out.pause) return this.setBatch(batchId, "paused", out.pause);
     }
     if (mode === "watch") return;
@@ -245,7 +293,7 @@ export class BatchRunner {
         await this.sleep(this.pauseMs());
         if (this.stopRequested()) return this.setBatch(batchId, "paused", "user");
       }
-      const out = await this.processRun(next, cfg, batch);
+      const out = await flow.process(next);
       if (out.pause) return this.setBatch(batchId, "paused", out.pause);
       previousSent = !!out.sent;
     }
@@ -264,7 +312,7 @@ export class BatchRunner {
     moveRun(this.db, run.id, "queued", "checking_row", "Đọc lại dòng trong sheet");
     let current: InputSnapshot;
     try {
-      current = pick(await this.sheets.readRow(cfg.spreadsheetId, cfg.tab, run.rowNumber), cfg);
+      current = pick(await this.gs.readRow(cfg.spreadsheetId, cfg.tab, run.rowNumber), cfg);
     } catch (e) {
       moveRun(this.db, run.id, "checking_row", "queued", `Không đọc được sheet: ${errText(e)}`);
       return { pause: "google" };
@@ -293,8 +341,8 @@ export class BatchRunner {
     // Bước 2: chụp toàn tab. Bước 3: ghi Đang chạy.
     let before: Grid;
     try {
-      before = await this.sheets.readTab(cfg.spreadsheetId, cfg.tab, "FORMULA");
-      await this.sheets.writeStatus(cfg, run.rowNumber, STATUS.running);
+      before = await this.gs.readTab(cfg.spreadsheetId, cfg.tab, "FORMULA");
+      await this.gs.writeStatus(cfg, run.rowNumber, STATUS.running);
     } catch (e) {
       moveRun(this.db, run.id, "checking_row", "queued", `Không chụp / ghi được sheet: ${errText(e)}`);
       return { pause: "google" };
@@ -348,7 +396,7 @@ export class BatchRunner {
     try {
       for (;;) {
         try {
-          const cur = pick(await this.sheets.readRow(cfg.spreadsheetId, cfg.tab, run.rowNumber), cfg);
+          const cur = pick(await this.gs.readRow(cfg.spreadsheetId, cfg.tab, run.rowNumber), cfg);
           if (cur.video && (!run.overwrite || cur.video !== snap.video)) {
             video = cur.video;
             break;
@@ -401,7 +449,7 @@ export class BatchRunner {
     let changed: string[] = [];
     if (run.tabSnapshot) {
       try {
-        const after = await this.sheets.readTab(cfg.spreadsheetId, cfg.tab, "FORMULA");
+        const after = await this.gs.readTab(cfg.spreadsheetId, cfg.tab, "FORMULA");
         // Ô người dùng sửa trên Bảng trong lúc chờ (D18) không phải Muse sửa: bỏ qua nếu ô còn đúng giá trị tool đã ghi.
         // Tính từ trước lúc gửi một khoảng để gồm cả lần sửa giữa lúc chụp tab và lúc gửi.
         const since = new Date(Date.parse(run.sentAt ?? now()) - TOOL_EDIT_MARGIN_MS).toISOString();
@@ -431,12 +479,150 @@ export class BatchRunner {
     return {};
   }
 
+  /** Spec 17.5 bước 1–4 (Bảng mới): đọc lại dòng, mở cuộc trò chuyện mới, đính kèm ảnh, gửi; rồi chờ video. */
+  private async processBangRun(run: RunRow, batch: BatchRow): Promise<Outcome> {
+    const snap = JSON.parse(run.inputSnapshot) as BangSnapshot;
+    if (getDailyQuota(this.db).remaining <= 0) {
+      moveRun(this.db, run.id, "queued", "paused_limit", "Đủ giới hạn video hôm nay (D25)");
+      return { pause: "limit" };
+    }
+
+    // Bước 1: đọc lại dòng trên Bảng mới; còn đủ file ảnh trên máy.
+    moveRun(this.db, run.id, "queued", "checking_row", "Đọc lại dòng trên Bảng mới");
+    const review = (why: string, error: string) => {
+      moveRun(this.db, run.id, "checking_row", "needs_review", `${why}; không gửi Muse`, { error, doneAt: now() });
+      return {};
+    };
+    const row = getRow(this.db, run.rowNumber);
+    if (!row) return review("Dòng đã bị xoá khỏi Bảng mới", "dòng đã bị xoá");
+    const current = [row.modelFront, row.shirtFront, row.modelBack, row.shirtBack].filter((x): x is string => !!x);
+    if (current.join("|") !== snap.attachments.join("|") || row.prompt.trim() !== snap.prompt) {
+      return review("Ảnh hoặc prompt dòng này đã đổi sau lúc bấm Tạo video", "dữ liệu dòng đã đổi");
+    }
+    const files = snap.attachments.map((n) => this.o.bangFiles?.imagePath(n));
+    if (files.some((f) => !f)) return review("Không còn file ảnh của dòng này trên máy", "thiếu file ảnh");
+
+    // Bước 2–4: sentAt ghi trước khi bấm Gửi; bot mở cuộc trò chuyện mới, đính kèm ảnh, chỉ gửi khi Muse hiện đủ ảnh.
+    moveRun(this.db, run.id, "checking_row", "sending", `Gửi yêu cầu cho Muse kèm ${files.length} ảnh (cuộc trò chuyện mới)`, { sentAt: now() });
+    try {
+      const { chatUrl } = await this.bot.send(run.requestText, files as string[]);
+      moveRun(this.db, run.id, "sending", "waiting", "Đã gửi Muse, chờ video trong cuộc trò chuyện", { museChatUrl: chatUrl });
+      setMuseReady(this.db, now());
+    } catch (e) {
+      const err = e instanceof BotError ? e : new BotError("send_unconfirmed", `Lỗi khi gửi: ${errText(e)}`, true);
+      if (!err.sent) {
+        const to = err.code === "login" || err.code === "challenge" ? "paused_login" : "paused_ui";
+        moveRun(this.db, run.id, "sending", to, `Chưa gửi: ${err.message}`, { sentAt: null }, err.screenshot);
+        if (to === "paused_login") setMuseReady(this.db, null);
+        await this.bot.bringToFront();
+        return { pause: to === "paused_login" ? "login" : "ui" };
+      }
+      if (err.code === "quota") {
+        moveRun(this.db, run.id, "sending", "paused_quota", err.message, { error: "Muse hết lượt" }, err.screenshot);
+        return { pause: "quota", sent: true };
+      }
+      if (err.code === "rejected" || err.code === "muse_error") {
+        moveRun(this.db, run.id, "sending", "failed", err.message, { error: err.message, doneAt: now() }, err.screenshot);
+        return { sent: true };
+      }
+      // Không chắc Muse đã nhận: không gửi lại, vẫn chờ video trên trang đến hết giờ.
+      moveRun(this.db, run.id, "sending", "waiting", `${err.message}. Không gửi lại; vẫn chờ video trong cuộc trò chuyện`, {}, err.screenshot);
+    }
+    return { ...(await this.watchBang(run, batch, Date.now() + this.timeoutMs())), sent: true };
+  }
+
+  /** Tool mở lại giữa chừng (17.5): mở lại cuộc trò chuyện đã gửi và chờ tiếp, không gửi lại (D9). */
+  private async resumeBangRun(run: RunRow, batch: BatchRow): Promise<Outcome> {
+    const msg = "Tool mở lại: theo dõi tiếp cuộc trò chuyện Muse, không gửi lại (D9)";
+    if (!run.museChatUrl) {
+      moveRun(this.db, run.id, run.state, "needs_review", "Tool tắt lúc đang gửi nên không biết cuộc trò chuyện Muse; không gửi lại (D9)", {
+        error: "không rõ đã gửi chưa",
+        doneAt: now(),
+      });
+      return {};
+    }
+    if (run.state !== "waiting") moveRun(this.db, run.id, run.state, "waiting", msg);
+    else logRunEvent(this.db, run.id, "waiting", msg);
+    await this.reopenChat(run.museChatUrl);
+    return this.watchBang({ ...run, state: "waiting" }, batch, Date.now() + this.timeoutMs());
+  }
+
+  private async reopenChat(url: string): Promise<boolean> {
+    try {
+      if (!this.bot.isOpen) await this.bot.open();
+      await this.bot.openChat(url);
+      return true;
+    } catch (e) {
+      logger.warn({ err: e }, "Không mở lại được cuộc trò chuyện Muse");
+      return false;
+    }
+  }
+
+  /** Spec 17.5 bước 5 (Bảng mới): chờ video hiện trong cuộc trò chuyện. Tải video về máy ở CON-72. */
+  private async watchBang(run: RunRow, batch: BatchRow, deadline: number): Promise<Outcome> {
+    let waitingApproval = false;
+    let loginNoted = false;
+    try {
+      for (;;) {
+        const w = await this.bot.watch().catch(() => ({ closed: true, login: false, approval: false }) as WatchResult);
+        if ((w.videos ?? 0) > 0) {
+          moveRun(this.db, run.id, "waiting", "done", "Muse đã gửi video trong cuộc trò chuyện", { doneAt: now() });
+          return {};
+        }
+        if (Date.now() >= deadline) {
+          moveRun(this.db, run.id, "waiting", "needs_review", "Quá thời gian chờ mà Muse chưa gửi video; không gửi lại (D9)", {
+            error: "quá thời gian",
+            doneAt: now(),
+          });
+          return {};
+        }
+        if (w.closed) {
+          // Trình duyệt bot bị tắt: mở lại đúng cuộc trò chuyện để xem tiếp.
+          const url = (this.db.prepare("SELECT museChatUrl FROM runs WHERE id = ?").get(run.id) as { museChatUrl: string | null }).museChatUrl;
+          if (url) await this.reopenChat(url);
+        }
+        if (w.approval !== waitingApproval) {
+          waitingApproval = w.approval;
+          if (w.approval) {
+            this.notices.set(batch.id, `Muse đang chờ bạn duyệt (dòng ${run.rowNumber} của Bảng mới). Mở cửa sổ bot và bấm duyệt trong Muse; bot không tự bấm.`);
+            logRunEvent(this.db, run.id, "waiting", "Muse đang chờ người dùng duyệt một thao tác");
+            await this.bot.bringToFront();
+          } else this.notices.delete(batch.id);
+        }
+        if (w.login && !loginNoted) {
+          loginNoted = true;
+          logRunEvent(this.db, run.id, "waiting", "Trang Muse đang hiện đăng nhập / kiểm tra bảo mật; vẫn chờ video");
+        }
+        if (w.notice === "quota") {
+          moveRun(this.db, run.id, "waiting", "paused_quota", "Muse báo hết lượt", { error: "Muse hết lượt" });
+          return { pause: "quota" };
+        }
+        if (w.notice === "rejected" || w.notice === "error") {
+          const why = w.notice === "rejected" ? "Muse từ chối yêu cầu" : "Muse báo lỗi";
+          moveRun(this.db, run.id, "waiting", "failed", why, { error: why, doneAt: now() });
+          return {};
+        }
+        if (w.notice === "videoMissing") {
+          // Muse nói xong nhưng ô video báo "Video not found": không chờ hết giờ, không gửi lại (D9).
+          moveRun(this.db, run.id, "waiting", "needs_review", "Muse báo xong nhưng video trong cuộc trò chuyện không mở được", {
+            error: "video không mở được",
+            doneAt: now(),
+          });
+          return {};
+        }
+        await this.sleep(this.o.pollMs ?? 20_000, false);
+      }
+    } finally {
+      this.notices.delete(batch.id);
+    }
+  }
+
   /** D12: link là file Drive, tồn tại, không trong thùng rác, là video, nằm trong thư mục của lô. */
   private async checkVideoLink(video: string, folderId: string): Promise<{ ok: true; fileId: string } | { ok: false; reason: string; fileId?: string }> {
     const link = parseDriveLink(video);
     if (link?.kind !== "file") return { ok: false, reason: "không phải link file Google Drive" };
     try {
-      const f = await this.drive.getFile(link.id);
+      const f = await this.gd.getFile(link.id);
       if (f.trashed) return { ok: false, reason: "file nằm trong thùng rác", fileId: f.id };
       if (!f.mimeType.startsWith("video/")) return { ok: false, reason: `file không phải video (${f.mimeType})`, fileId: f.id };
       if (!(f.parents ?? []).includes(folderId)) return { ok: false, reason: "file không nằm trong thư mục đã chọn", fileId: f.id };
@@ -451,7 +637,7 @@ export class BatchRunner {
 
   private async writeStatusSafe(cfg: SheetConfig, run: RunRow, text: string): Promise<void> {
     try {
-      await this.sheets.writeStatus(cfg, run.rowNumber, text);
+      await this.gs.writeStatus(cfg, run.rowNumber, text);
     } catch (e) {
       logger.warn({ err: e, runId: run.id }, "Không ghi được ô Trạng thái");
       logRunEvent(this.db, run.id, this.state(run.id), `Không ghi được ô Trạng thái "${text}": ${errText(e)}`);
@@ -483,13 +669,13 @@ export class BatchRunner {
   }
 
   private batch(id: number): BatchRow | undefined {
-    return this.db.prepare("SELECT id, spreadsheetId, tab, driveFolderId, status, pauseReason FROM batches WHERE id = ?").get(id) as BatchRow | undefined;
+    return this.db.prepare("SELECT id, spreadsheetId, tab, driveFolderId, status, pauseReason, source FROM batches WHERE id = ?").get(id) as BatchRow | undefined;
   }
 
   private runs(batchId: number, states: string[]): RunRow[] {
     return this.db
       .prepare(
-        `SELECT id, batchId, rowNumber, state, inputSnapshot, requestText, overwrite, sentAt, tabSnapshot FROM runs
+        `SELECT id, batchId, rowNumber, state, inputSnapshot, requestText, overwrite, sentAt, tabSnapshot, museChatUrl FROM runs
          WHERE batchId = ? AND state IN (${states.map(() => "?").join(", ")}) ORDER BY rowNumber`,
       )
       .all(batchId, ...states) as RunRow[];

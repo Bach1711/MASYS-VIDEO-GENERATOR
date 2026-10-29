@@ -2,6 +2,18 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v1.6.0
+
+**Mới: Bảng mới tạo được video, kể cả áo hai mặt. Ảnh gửi thẳng từ máy vào Muse, không qua Drive.**
+
+- Trên **Bảng mới** (⚙ Nâng cao → Bảng mới), tích các dòng rồi bấm **▶ Tạo video**. Tool hiện trang **xem trước**: từng dòng làm kiểu gì (*Một ảnh người mẫu*, *Ghép áo một mặt*, *Áo hai mặt*), các ảnh sẽ đính kèm theo thứ tự, và yêu cầu gửi Muse. Có ô *Yêu cầu thêm chung* nếu muốn dặn thêm Muse.
+- **Áo hai mặt:** dòng có đủ 4 ảnh (Mẫu trước, Áo trước, Mẫu sau, Áo sau) ra **một video**: Muse ghép áo mặt trước vào người mẫu quay mặt trước, áo mặt sau vào người mẫu quay lưng, rồi làm video người mẫu xoay từ trước ra sau.
+- Bot mở một cuộc trò chuyện Muse mới cho mỗi dòng, đính kèm ảnh, và **chỉ bấm Gửi khi Muse đã nhận đủ ảnh**. Muse nhận thiếu ảnh thì bot tạm dừng, chưa gửi.
+- Video xong thì dòng hiện **Xong** kèm nút **Mở trong Muse ↗**: bấm để xem và tải video trong Muse. Bản tiếp theo tool sẽ tự tải video về máy.
+- Bảng mới lọc thêm **Đang chạy / Xong / Cần xem**; bảng tự cập nhật trong lúc tạo video.
+- Ba mẫu yêu cầu của Bảng mới (*Mẫu thường*, *Đoạn ghép áo*, *Mẫu hai mặt*) sửa được ở **Cài đặt**, có nút *Khôi phục bản gốc*. Mẫu luôn dặn Muse giữ nguyên nền và bối cảnh của ảnh người mẫu.
+- Bảng theo sheet vẫn chạy như cũ. Hai bảng dùng chung hàng đợi (mỗi lúc chỉ một lô) và chung giới hạn video mỗi ngày.
+
 ## v1.5.0
 
 **Mới (đang thử): Bảng mới, ảnh chọn thẳng từ máy, không cần Google Drive.**
