@@ -13,4 +13,4 @@ function readVersion(): string {
 }
 
 export const APP_VERSION = readVersion();
-export const APP_NAME = "MASYS Video";
+export const APP_NAME = "KOL Fashion MASYS Video";

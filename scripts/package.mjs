@@ -1,6 +1,7 @@
 // Đóng gói bản phát hành cho người trong đội (spec D15, D16):
-//   release/MASYS-Video-vX.Y.Z-win64.zip
-//   └─ MASYS-Video\  Mo-MASYS.bat · HUONG-DAN.txt
+//   release/KOL-Fashion-MASYS-Video-vX.Y.Z-win64.zip
+//   └─ KOL-Fashion-MASYS-Video\  Mo-MASYS.bat · HUONG-DAN.txt
+//   release/MASYS-Video-vX.Y.Z-win64.zip  ← cùng nội dung, thư mục tên cũ, cho bản trước 2.1.0 tự cập nhật (D29)
 //      └─ phien-ban\  hien-tai.txt ("X.Y.Z") · X.Y.Z\node\node.exe · X.Y.Z\app\ (dist + thư viện production)
 // Cùng một zip dùng cho cài mới và cho nút Cập nhật trong tool (tool chỉ lấy thư mục phien-ban\X.Y.Z).
 // Chạy: npm run package. Không cần op run: gói không chứa khoá, và check-secrets quét lại zip trước khi xong.
@@ -22,10 +23,15 @@ const nodeVersion = process.version;
 const releaseDir = path.join(root, "release");
 const cacheDir = path.join(releaseDir, "cache");
 const stage = path.join(releaseDir, "stage");
-const appRoot = path.join(stage, "MASYS-Video");
+// Tên app trên zip (D29). Bản trước 2.1.0 chỉ tìm zip và thư mục tên cũ, nên đóng thêm một zip tên cũ.
+const APP_DIR = "KOL-Fashion-MASYS-Video";
+const LEGACY_APP_DIR = "MASYS-Video";
+const appRoot = path.join(stage, APP_DIR);
 const verRoot = path.join(appRoot, "phien-ban", version);
-const zipName = `MASYS-Video-v${version}-win64.zip`;
+const zipName = `${APP_DIR}-v${version}-win64.zip`;
 const zipPath = path.join(releaseDir, zipName);
+const legacyZipName = `${LEGACY_APP_DIR}-v${version}-win64.zip`;
+const legacyZipPath = path.join(releaseDir, legacyZipName);
 const systemTar = path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe");
 
 const step = (msg) => console.log(`\n▶ ${msg}`);
@@ -54,7 +60,7 @@ async function nodeExe() {
   return out;
 }
 
-step(`Đóng gói MASYS Video v${version} (Node ${nodeVersion})`);
+step(`Đóng gói KOL Fashion MASYS Video v${version} (Node ${nodeVersion})`);
 fs.rmSync(stage, { recursive: true, force: true });
 fs.rmSync(path.join(root, "dist"), { recursive: true, force: true });
 fs.mkdirSync(path.join(verRoot, "node"), { recursive: true });
@@ -91,21 +97,30 @@ execFileSync(path.join(verRoot, "node", "node.exe"), ["-e", "new (require('bette
   stdio: "inherit",
 });
 
-step(`Nén ${zipName}`);
-fs.rmSync(zipPath, { force: true });
-execFileSync(systemTar, ["-a", "-c", "-f", zipPath, "-C", stage, "MASYS-Video"]);
-const hash = sha256(zipPath);
-fs.writeFileSync(`${zipPath}.sha256`, `${hash}  ${zipName}\n`);
-
-step("Quét bí mật và file cấm trong zip");
-const r = checkSecrets({ root, extra: [zipPath], repo: false, data: false });
-if (r.findings.length) {
-  for (const f of r.findings) console.log(`❌ ${f.file} — ${f.pattern}`);
-  fs.rmSync(zipPath, { force: true });
-  fs.rmSync(`${zipPath}.sha256`, { force: true });
-  throw new Error("Zip có bí mật hoặc file cấm: đã xoá zip, không phát hành.");
+function zipAs(dir, name, file) {
+  step(`Nén ${name}`);
+  fs.rmSync(file, { force: true });
+  execFileSync(systemTar, ["-a", "-c", "-f", file, "-C", stage, dir]);
+  const h = sha256(file);
+  fs.writeFileSync(`${file}.sha256`, `${h}  ${name}\n`);
+  step(`Quét bí mật và file cấm trong ${name}`);
+  const r = checkSecrets({ root, extra: [file], repo: false, data: false });
+  if (r.findings.length) {
+    for (const f of r.findings) console.log(`❌ ${f.file} — ${f.pattern}`);
+    for (const z of [zipPath, legacyZipPath]) {
+      fs.rmSync(z, { force: true });
+      fs.rmSync(`${z}.sha256`, { force: true });
+    }
+    throw new Error("Zip có bí mật hoặc file cấm: đã xoá zip, không phát hành.");
+  }
+  console.log(`✅ Đã quét ${r.scanned} file trong zip: sạch.`);
+  return h;
 }
-console.log(`✅ Đã quét ${r.scanned} file trong zip: sạch.`);
+const hash = zipAs(APP_DIR, zipName, zipPath);
+// Cùng nội dung, đổi tên thư mục gốc về tên cũ cho bản trước 2.1.0.
+fs.renameSync(appRoot, path.join(stage, LEGACY_APP_DIR));
+zipAs(LEGACY_APP_DIR, legacyZipName, legacyZipPath);
+fs.renameSync(path.join(stage, LEGACY_APP_DIR), appRoot);
 
 const mb = (fs.statSync(zipPath).size / 1024 / 1024).toFixed(1);
 console.log(`\n✅ Xong: ${path.relative(root, zipPath)} (${mb} MB)\n   SHA-256: ${hash}`);

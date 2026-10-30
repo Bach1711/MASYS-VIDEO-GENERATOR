@@ -11,6 +11,7 @@ import { getSettings } from "../db/settings.js";
 import type { BatchRunner } from "../queue/runner.js";
 import type { AppConfig } from "../config.js";
 import type { DB } from "../db/index.js";
+import { APP_NAME } from "../version.js";
 import { getDailyQuota } from "../db/quota.js";
 import { getSheetConfig, listSheetConfigs, sheetName } from "../db/sheetConfigs.js";
 import type { DriveClient } from "../google/drive.js";
@@ -107,7 +108,7 @@ function VideoCell(props: { row: BangRow; locked: boolean; label: BangLabel }) {
 }
 
 function page(title: string, body: Child) {
-  return <Layout title={`${title} · MASYS Video`}>{body}</Layout>;
+  return <Layout title={`${title} · ${APP_NAME}`}>{body}</Layout>;
 }
 
 function ImageCell(props: { row: BangRow; slot: Slot; locked: boolean }) {
@@ -617,8 +618,8 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
         <>
           <h1>Tạo video · {plan.runs.length} dòng</h1>
           <p class="muted">
-            Bot gửi lần lượt từng dòng cho Muse, mỗi dòng một cuộc trò chuyện mới, ảnh đính kèm theo đúng thứ tự bên dưới. Muse làm xong thì bot
-            tải video về máy và gắn vào dòng.
+            Bot gửi lần lượt từng dòng cho Muse, mỗi dòng một cuộc trò chuyện mới trong tab riêng, ảnh đính kèm theo đúng thứ tự bên dưới, và chờ
+            tối đa {getSettings(db).parallelVideos} video cùng lúc (đổi ở Cài đặt). Video nào xong thì bot tải về máy và gắn vào đúng dòng đó.
           </p>
           {active && <Alert kind="warn">Lô #{active.id} chưa xong. Đợi xong (hoặc Tiếp tục / Huỷ lô đang tạm dừng) rồi tạo video tiếp.</Alert>}
           {over && (
@@ -714,7 +715,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
     const started = runner.start(batchId);
     if (!started.ok) return back("msg", started.message);
     const skipped = plan.rejected.length ? ` Bỏ qua: ${plan.rejected.map((r) => `dòng ${r.id} (${r.why})`).join("; ")}.` : "";
-    return back("ok", `Đang tạo video cho ${plan.runs.length} dòng (lô #${batchId}). Bot gửi lần lượt từng dòng cho Muse; bảng tự cập nhật.${skipped}`);
+    return back("ok", `Đang tạo video cho ${plan.runs.length} dòng (lô #${batchId}). Bot gửi lần lượt từng dòng cho Muse và chờ tối đa ${getSettings(db).parallelVideos} video cùng lúc; bảng tự cập nhật.${skipped}`);
   });
 
   // ---------- Nhập từ Google Sheet (17.6) ----------

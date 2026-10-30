@@ -1,9 +1,9 @@
 @echo off
 setlocal
-rem MASYS Video - bam dup file nay de bat tool (spec D15, D16).
+rem KOL Fashion MASYS Video - bam dup file nay de bat tool (spec D15, D16).
 rem Ban dang dung ghi trong phien-ban\hien-tai.txt; cap nhat / quay ve chi doi file do.
 chcp 65001 >nul
-title MASYS Video - dung dong cua so nay khi dang dung tool
+title KOL Fashion MASYS Video - dung dong cua so nay khi dang dung tool
 cd /d "%~dp0"
 set "MASYS_HOME=%~dp0"
 

@@ -6,7 +6,7 @@ import type { DB } from "../db/index.js";
 import { logger } from "../logger.js";
 import { compareVersions, type InstallLayout, isCompleteVersion } from "./layout.js";
 import { type DirOps, moveDir, realDirOps, removeDirQuietly } from "./moveDir.js";
-import type { ReleaseInfo, ReleaseSource } from "./releases.js";
+import { APP_DIR, LEGACY_APP_DIR, type ReleaseInfo, type ReleaseSource } from "./releases.js";
 
 // Kiểm tra / cập nhật / quay về phiên bản (D16). Chỉ chạy khi người dùng bấm; không bao giờ tự cập nhật.
 
@@ -187,7 +187,10 @@ export class Updater {
       } catch {
         throw new Error("Giải nén bản mới không được (ổ đĩa đầy hoặc file zip hỏng); đã huỷ, bản đang dùng giữ nguyên.");
       }
-      const src = path.join(tmp, "x", "MASYS-Video", "phien-ban", release.version);
+      // Zip tên mới hay tên cũ (D29) đều được.
+      const src =
+        [APP_DIR, LEGACY_APP_DIR].map((d) => path.join(tmp, "x", d, "phien-ban", release.version)).find((p) => fs.existsSync(p)) ??
+        path.join(tmp, "x", APP_DIR, "phien-ban", release.version);
       if (!isCompleteVersion(src)) throw new Error("File zip bản mới thiếu thành phần; đã huỷ.");
       const pkg = JSON.parse(fs.readFileSync(path.join(src, "app", "package.json"), "utf8")) as { version?: string };
       if (pkg.version !== release.version) throw new Error("Số phiên bản trong zip không khớp; đã huỷ.");

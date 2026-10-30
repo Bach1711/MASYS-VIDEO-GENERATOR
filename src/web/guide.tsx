@@ -46,7 +46,9 @@ export function registerGuideRoutes(app: Hono) {
                   <strong>▶ Tạo video</strong>, xem trước rồi bấm <strong>Bắt đầu</strong>.
                 </li>
                 <li>
-                  Bot gửi lần lượt từng dòng cho Muse, tải video về máy và gắn vào dòng. Bấm <strong>▶</strong> để xem, <strong>⬇</strong> để tải về
+                  Bot gửi lần lượt từng dòng cho Muse, mỗi dòng một cuộc trò chuyện trong tab riêng, và chờ nhiều video cùng lúc (mặc định 3, đổi ở
+                  Cài đặt → <em>Số video chạy cùng lúc</em>). Xong video nào bot tải về máy và gắn vào đúng dòng đó. Bấm <strong>▶</strong> để xem,{" "}
+                  <strong>⬇</strong> để tải về
                   (tên <code>MASYS_&lt;số dòng&gt;_&lt;giờ&gt;.mp4</code>), <strong>🗑</strong> để xoá.
                 </li>
                 <li>

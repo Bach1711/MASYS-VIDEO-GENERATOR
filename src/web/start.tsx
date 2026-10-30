@@ -12,6 +12,7 @@ import { guessColumns, normalizeHeader, OPTIONAL_ROLE_LABELS, ROLE_LABELS, type 
 import type { SheetsClient } from "../google/sheets.js";
 import { logger } from "../logger.js";
 import { Alert } from "./components.js";
+import { APP_NAME } from "../version.js";
 import { Layout } from "./layout.js";
 import { logoUrl } from "./logo.js";
 
@@ -257,7 +258,7 @@ export function registerStartRoutes(app: Hono, deps: StartDeps) {
     const msg = c.req.query("msg");
     return c.html(
       page(
-        "Bắt đầu · MASYS Video",
+        `Bắt đầu · ${APP_NAME}`,
         <>
           <div class="hero small-hero">
             <img src={logoUrl("masys.png")} alt="MASYS Video Generator" />
@@ -288,7 +289,7 @@ export function registerStartRoutes(app: Hono, deps: StartDeps) {
     const msg = c.req.query("msg");
     return c.html(
       page(
-        "Bảng theo sheet · Bắt đầu · MASYS Video",
+        `Bảng theo sheet · Bắt đầu · ${APP_NAME}`,
         <>
           <div class="hero small-hero">
             <img src={logoUrl("masys.png")} alt="MASYS Video Generator" />

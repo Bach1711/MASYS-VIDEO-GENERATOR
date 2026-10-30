@@ -2,6 +2,18 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v2.1.0
+
+**Tạo nhiều video cùng lúc, mẫu áo hai mặt mới, tên mới: KOL Fashion MASYS Video.**
+
+- **Chạy song song:** bot gửi lần lượt từng dòng cho Muse, mỗi dòng một cuộc trò chuyện trong một tab riêng, và **chờ nhiều video cùng lúc** thay vì làm xong dòng này mới gửi dòng sau. Video nào xong trước thì tải về trước, luôn gắn đúng dòng của nó. Lô 100 dòng nhanh hơn khoảng 3 lần.
+  - Chỉnh ở **Cài đặt → Số video chạy cùng lúc**: từ 1 đến 6, mặc định 3. Đặt 1 thì chạy như trước.
+  - Bấm **Tạm dừng**, hoặc Muse đòi đăng nhập / hết lượt, hoặc đủ giới hạn ngày: bot ngừng gửi dòng mới nhưng vẫn chờ và tải nốt các video đã gửi.
+  - Tool tắt giữa chừng: khi mở lại, bot mở lại tất cả cuộc trò chuyện đang dở và tải tiếp, không gửi lại. Bấm Tiếp tục ngay được, không phải chờ.
+  - Thời gian ước lượng ở trang xem trước đã tính theo số video chạy cùng lúc.
+- **Mẫu áo hai mặt mới:** Muse ghép áo ra 2 ảnh (mặt trước, quay lưng) rồi làm video: mặt trước → cắt cảnh sang quay lưng, người mẫu vẫn cử động nhẹ (quay đầu, vuốt tóc, dồn chân) → trở lại mặt trước. Người mẫu không xoay người liền mạch nữa, vì lúc xoay Muse hay vẽ sai hình in mặt sau. Máy chưa sửa mẫu tự dùng mẫu mới; máy đã sửa mẫu ở Cài đặt giữ bản của mình (bấm *Khôi phục bản gốc* để lấy mẫu mới).
+- **Tên mới: KOL Fashion MASYS Video**, hiện ở đầu trang, tab trình duyệt và cửa sổ mở tool. File tải mới là `KOL-Fashion-MASYS-Video-v2.1.0-win64.zip`. Ảnh, video và đăng nhập Muse giữ nguyên. Máy đang dùng cứ bấm Cập nhật như mọi lần; thư mục cài đặt giữ tên cũ (muốn thì tắt tool rồi tự đổi tên thư mục).
+
 ## v2.0.0
 
 **Bảng là màn hình chính: video tải thẳng về máy, xem / tải / xoá ngay trên Bảng. Không cần Google Sheet hay Drive nữa.**

@@ -18,7 +18,9 @@ import {
   getSettings,
   parseRunSettings,
   DEFAULT_DAILY_LIMIT,
+  DEFAULT_PARALLEL_VIDEOS,
   MAX_DAILY_LIMIT,
+  MAX_PARALLEL_VIDEOS,
   RECOMMENDED_DAILY_LIMIT,
   saveRunSettings,
   setDriveRootFolder,
@@ -307,7 +309,12 @@ const BANG_SECTIONS: { kind: BangTemplateKind; title: string; note: string; rows
     note: "Chỉ dòng có ảnh áo mặt trước mới có đoạn này: tool đặt nó vào chỗ {doan_ghep_ao} của mẫu thường.",
     rows: 4,
   },
-  { kind: "twoSidedTemplate", title: "Mẫu hai mặt", note: "Dòng đủ 4 ảnh: ghép trước với trước, sau với sau, ra một video.", rows: 14 },
+  {
+    kind: "twoSidedTemplate",
+    title: "Mẫu hai mặt",
+    note: "Dòng đủ 4 ảnh: ghép trước với trước, sau với sau thành ảnh A, B; video cắt cảnh từ mặt trước sang quay lưng (quay lưng vẫn cử động nhẹ), không xoay người liền mạch.",
+    rows: 20,
+  },
 ];
 
 function BangTemplateCard(props: (typeof BANG_SECTIONS)[number] & { saved: string | null; draft?: string; errors?: string[] }) {
@@ -397,6 +404,14 @@ function RunSettingsCard(props: { s: Record<string, unknown>; errors?: string[] 
           <label for="dailyVideoLimit">Giới hạn video mỗi ngày</label>
           <input id="dailyVideoLimit" name="dailyVideoLimit" type="number" min="1" max={String(MAX_DAILY_LIMIT)} required value={v("dailyVideoLimit")} />
           <div class="muted small">Đủ số này thì lô tự tạm dừng đến hôm sau. Mặc định {DEFAULT_DAILY_LIMIT}, cao nhất {MAX_DAILY_LIMIT}.</div>
+        </div>
+        <div class="field">
+          <label for="parallelVideos">Số video chạy cùng lúc</label>
+          <input id="parallelVideos" name="parallelVideos" type="number" min="1" max={String(MAX_PARALLEL_VIDEOS)} required value={v("parallelVideos")} />
+          <div class="muted small">
+            Bot gửi lần lượt từng dòng, mỗi dòng một cuộc trò chuyện Muse trong một tab riêng, và chờ tối đa chừng này video cùng lúc
+            (D28). 1 là làm xong dòng này mới gửi dòng sau. Mặc định {DEFAULT_PARALLEL_VIDEOS}, cao nhất {MAX_PARALLEL_VIDEOS}.
+          </div>
         </div>
         <div class="field">
           <label for="museUrl">Địa chỉ trang Muse</label>

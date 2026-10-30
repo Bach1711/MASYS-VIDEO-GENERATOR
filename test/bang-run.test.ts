@@ -124,7 +124,7 @@ describe("chạy lô Bảng mới (17.5)", () => {
     expect(sent.map((x) => x.files.length)).toEqual([1, 4]);
     const row3 = getRow(db, 3)!;
     expect(sent[1]!.files).toEqual([row3.modelFront, row3.shirtFront, row3.modelBack, row3.shirtBack].map((n) => files.imagePath(n!)));
-    expect(sent[1]!.text).toContain("ảnh 4 là thiết kế áo mặt sau");
+    expect(sent[1]!.text).toContain("ảnh 4 = áo mặt sau");
     expect(state(db, 1)).toMatchObject({ state: "done", museChatUrl: "https://muse.ai/thread/t1abcd" });
     expect(getBatch(db, batchId)!.status).toBe("done");
     expect(labelOf(getRow(db, 3)!).label).toBe("done");

@@ -25,7 +25,7 @@ import { Updater } from "./update/updater.js";
 const config = loadConfig();
 const keyStore = new KeyStore(config.dataDir);
 await applyStoredKey(config, keyStore);
-logger.info({ version: APP_VERSION, keySource: config.keySource }, "Khởi động MASYS Video");
+logger.info({ version: APP_VERSION, keySource: config.keySource }, "Khởi động KOL Fashion MASYS Video");
 
 if (config.serviceAccount.ok) {
   logger.info({ clientEmail: config.serviceAccount.clientEmail }, "Đã nạp khoá service account");

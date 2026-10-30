@@ -66,8 +66,10 @@ export class MuseBot {
   private ctx?: BrowserContext;
   private opening?: Promise<BrowserContext>;
   private busy = false;
-  /** Yêu cầu vừa gửi và các thông báo đã có trên trang trước khi gửi (để `watch` không báo nhầm). */
-  private lastSent?: { text: string; noticesBefore: NoticeKind[] };
+  /** Yêu cầu vừa gửi ở mỗi tab và các thông báo đã có trên trang trước khi gửi (để `watch` không báo nhầm). */
+  private sent = new Map<string, { text: string; noticesBefore: NoticeKind[] }>();
+  /** Tab riêng của từng lượt đang chờ video (chạy song song, D28). Không có tên tab = trang làm việc chung. */
+  private tabs = new Map<string, Page>();
 
   constructor(private readonly o: MuseBotOptions) {}
 
@@ -90,6 +92,7 @@ export class MuseBot {
       });
       ctx.on("close", () => {
         this.ctx = undefined;
+        this.tabs.clear();
         logger.info("Trình duyệt bot đã đóng");
       });
       // Tab trống Chrome mở sẵn cùng hồ sơ có lúc tải Muse mãi không xong (ghi nhận 29/10/2026), tab mở thêm thì
@@ -104,11 +107,30 @@ export class MuseBot {
     return this.opening;
   }
 
-  /** Trang đang làm việc: tab cuối cùng còn mở, hoặc tab mới. */
-  private async page(): Promise<Page> {
+  /**
+   * Trang làm việc. Có `tab`: tab riêng của một lượt (mở mới nếu chưa có hoặc đã bị đóng).
+   * Không có: tab cuối cùng còn mở mà không phải tab riêng của lượt nào, hoặc tab mới.
+   */
+  private async page(tab?: string): Promise<Page> {
     const ctx = await this.context();
-    const pages = ctx.pages().filter((p) => !p.isClosed());
+    if (tab !== undefined) {
+      const own = this.tabs.get(tab);
+      if (own && !own.isClosed()) return own;
+      const fresh = await ctx.newPage();
+      this.tabs.set(tab, fresh);
+      return fresh;
+    }
+    const owned = new Set(this.tabs.values());
+    const pages = ctx.pages().filter((p) => !p.isClosed() && !owned.has(p));
     return pages[pages.length - 1] ?? (await ctx.newPage());
+  }
+
+  /** Đóng tab riêng của một lượt khi đã xong (tải video xong, Cần xem…). Không đụng trang làm việc chung. */
+  async closeTab(tab: string): Promise<void> {
+    const p = this.tabs.get(tab);
+    this.tabs.delete(tab);
+    this.sent.delete(tab);
+    if (p && !p.isClosed()) await p.close().catch(() => {});
   }
 
   /** Mở cửa sổ bot (để người dùng đăng nhập hoặc xem), đưa lên trước. */
@@ -126,12 +148,14 @@ export class MuseBot {
    * Nhìn trang Muse trong lúc chờ video, không tải lại, không bấm gì (F5 bước 5).
    * Trình duyệt tắt thì trả `closed`; tool vẫn theo dõi ô Video bình thường.
    */
-  async watch(): Promise<WatchResult> {
+  async watch(tab?: string): Promise<WatchResult> {
     if (!this.ctx || this.busy) return { closed: !this.ctx, login: false, approval: false };
-    const page = await this.page();
+    if (tab !== undefined && (!this.tabs.get(tab) || this.tabs.get(tab)!.isClosed())) return { closed: true, login: false, approval: false };
+    const page = await this.page(tab);
     const body = normalize(await bodyText(page));
-    const own = this.lastSent ? normalize(this.lastSent.text) : "";
-    const before = this.lastSent?.noticesBefore ?? [];
+    const last = this.sent.get(tab ?? "");
+    const own = last ? normalize(last.text) : "";
+    const before = last?.noticesBefore ?? [];
     const notice = noticeKinds(own ? body.replace(own, " ") : body).find((k) => !before.includes(k));
     const login =
       sel.login.url.test(page.url()) || (await visible(sel.login.heading(page))) || sel.challenge.text.test(body) || (await sel.challenge.frame(page).count()) > 0;
@@ -143,8 +167,8 @@ export class MuseBot {
   /**
    * Mở lại một cuộc trò chuyện đã gửi (tool mở lại giữa chừng, spec 17.5) để theo dõi tiếp, không gửi gì.
    */
-  async openChat(url: string): Promise<void> {
-    const page = await this.page();
+  async openChat(url: string, tab?: string): Promise<void> {
+    const page = await this.page(tab);
     if (stripQuery(page.url()) !== stripQuery(url)) await page.goto(url, { waitUntil: "domcontentloaded" });
     await this.classify(page);
   }
@@ -154,9 +178,9 @@ export class MuseBot {
    * nguồn `blob:`, không có nút tải: đọc thẳng trong trang bằng phiên của hồ sơ bot. Không bấm gì, không gửi gì.
    * `count`: số video kết quả trong cuộc trò chuyện (nhiều hơn 1 thì ghi chú, vẫn lấy video cuối).
    */
-  async downloadVideo(): Promise<{ data: Uint8Array; count: number }> {
+  async downloadVideo(tab?: string): Promise<{ data: Uint8Array; count: number }> {
     if (!this.ctx) throw new BotError("ui_changed", "Trình duyệt bot đã đóng", true);
-    const page = await this.page();
+    const page = await this.page(tab);
     // Chạy trong trang Muse (tsconfig không có thư viện DOM nên đọc qua globalThis).
     const r = await page.evaluate(async (maxBytes: number) => {
       type Vid = { currentSrc: string; src: string; getBoundingClientRect(): { width: number; height: number }; querySelector(s: string): { src: string } | null };
@@ -242,12 +266,14 @@ export class MuseBot {
    * Chỉ bấm Gửi khi Muse hiện đủ số ảnh (spec 17.5 bước 3).
    * Trả về URL cuộc trò chuyện. Lỗi sau khi đã bấm Gửi luôn có `sent: true` để không ai gửi lại (D9).
    */
-  async send(text: string, files: string[] = []): Promise<{ chatUrl: string }> {
+  async send(text: string, files: string[] = [], tab?: string): Promise<{ chatUrl: string }> {
     if (this.busy) throw new BotError("busy", "Bot đang gửi một yêu cầu khác", false);
     if (!this.ctx) throw new BotError("closed", STATE_TEXT.closed, false);
     this.busy = true;
     try {
-      const page = await this.page();
+      const page = await this.page(tab);
+      // Tab riêng vừa mở còn trống: vào trang Muse trước.
+      if (page.url() === "about:blank") await page.goto(this.o.museUrl(), { waitUntil: "domcontentloaded" });
       const before = await this.classify(page);
       if (before !== "ready") {
         if (before === "ui_changed") return await this.fail(page, before, STATE_TEXT.ui_changed, false);
@@ -313,7 +339,7 @@ export class MuseBot {
       }
       await send.click();
       logger.info({ url: stripQuery(startUrl) }, "Đã bấm Gửi trên Muse");
-      this.lastSent = { text, noticesBefore };
+      this.sent.set(tab ?? "", { text, noticesBefore });
 
       // Từ đây yêu cầu có thể đã tới Muse: mọi lỗi đều sent=true.
       const deadline = Date.now() + (this.o.confirmTimeoutMs ?? 30_000);
