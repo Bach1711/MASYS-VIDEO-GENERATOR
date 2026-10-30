@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **29/10/2026**, sau CON-72 — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **30/10/2026**, CON-73 chờ duyệt (v2.1.0: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v6.0 · Linear: project **MASYS Video Generator**
 
 **Tổng quan:** 21/21 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 4/4 🎉
 
 ```
-[■■■■■■■■■■]  21/21 — xong CON-35…CON-52, CON-70…CON-72
+[■■■■■■■■■□]  21/22 — xong CON-35…CON-52, CON-70…CON-72; CON-73 chờ duyệt
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -43,6 +43,7 @@ flowchart LR
         localtable["Bảng cục bộ: 4 ô ảnh chọn từ máy,<br/>nhập từ sheet, lọc / chia trang<br/>CON-71"]
         twoside["Bot đính kèm ảnh vào Muse<br/>+ áo hai mặt (4 ảnh, 1 video)<br/>CON-52"]
         videodl["Tải video về máy: xem / tải /<br/>xoá / dọn; Bảng mới thành chính<br/>CON-72"]
+        parallel["Chạy song song 1–6 video, mỗi dòng<br/>một tab; mẫu hai mặt mới;<br/>tên KOL Fashion MASYS Video<br/>CON-73"]
         logo["Logo MASYS: tab Chrome,<br/>thanh trên cùng, Trang chủ<br/>CON-48"]
         shirt["Ghép ảnh áo: cột Ảnh áo,<br/>ảnh thu nhỏ, đoạn ghép áo<br/>trong yêu cầu gửi Muse<br/>CON-46"]
     end
@@ -82,7 +83,8 @@ flowchart LR
     quick --> localtable
     localtable --> twoside
     twoside --> videodl
-    videodl --> chrome
+    videodl --> parallel
+    parallel --> chrome
     scan --> shirt
     editor --> shirt
 
@@ -110,6 +112,7 @@ flowchart LR
     class localtable done
     class twoside done
     class videodl done
+    class parallel review
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -160,9 +163,11 @@ flowchart LR
 | 19 | [CON-71](https://linear.app/conducdaudan/issue/CON-71) | Bảng cục bộ + ảnh chọn từ máy + nhập từ sheet (v1.5.0) | 🟩 Xong | [#21](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/21) | 29/10/2026 |
 | 20 | [CON-52](https://linear.app/conducdaudan/issue/CON-52) | Bot đính kèm ảnh vào Muse + áo hai mặt (v1.6.0) | 🟩 Xong | [#22](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/22) | 29/10/2026 |
 | 21 | [CON-72](https://linear.app/conducdaudan/issue/CON-72) | Tải video về máy, xem / tải / xoá / dọn; Bảng mới thành màn hình chính (v2.0.0) | 🟩 Xong | [#23](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/23) | 29/10/2026 |
+| 22 | [CON-73](https://linear.app/conducdaudan/issue/CON-73) | Chạy song song tối đa 6 video, mẫu hai mặt mới, đổi tên app (v2.1.0) | 🟦 Chờ duyệt | #24 | 30/10/2026 |
 
 ## Nhật ký cập nhật
 
+- **30/10/2026 · CON-73** (chờ duyệt): **v2.1.0** — **chạy song song** (D28): bot gửi lần lượt, mỗi dòng một cuộc trò chuyện trong tab riêng, chờ tối đa N video cùng lúc (Cài đặt *Số video chạy cùng lúc* 1–6, mặc định 3); video xong trước tải trước, luôn gắn đúng dòng; tạm dừng / đăng nhập / hết lượt / giới hạn ngày thì ngừng gửi mới nhưng vẫn tải nốt; mở lại tool thì mở lại mọi cuộc trò chuyện đang dở, không gửi lại; ước lượng thời gian chia theo N. Đo thật trước khi làm (3 lượt, đồng ý): Muse làm 3 video cùng lúc. **Mẫu hai mặt mới** (đội duyệt): cắt cảnh sang quay lưng có cử động nhẹ thay vì xoay người. **Đổi tên** thành *KOL Fashion MASYS Video* (D29), zip tên mới + zip tên cũ để bản trước tự cập nhật; thư mục dữ liệu giữ nguyên. Spec v6.1. 272 test đạt.
 - **29/10/2026 · CON-72** (xong, đã duyệt và gộp vào main): **v2.0.0** — Bảng là màn hình chính (`/`); Bảng theo sheet chuyển vào ⚙ Nâng cao (`/bang-sheet`). Muse xong video thì bot **tự tải video về máy** (đọc video trong chat, kiểm tra MP4, thử 3 lần; không được → Cần xem, không gửi lại); cột Video có ▶ xem / ⬇ tải (`MASYS_<dòng>_<ngày-giờ>.mp4`) / 🗑 xoá; **Xoá dòng đã chọn** và **Dọn tất cả** (cho biết dung lượng giải phóng, không xoá dòng đang chạy); xem trước lô có ước lượng thời gian; Bắt đầu nhanh 2 bước, máy mới không cần khoá Google. Sửa lỗi lưu nhầm link `/thread/new` khi Muse đổi link chậm. **Gửi thử thật 3 lượt** (đồng ý): dòng một ảnh chạy trọn, video tự tải về; dòng ghép áo lộ lỗi link (đã sửa); dòng hai mặt gửi đúng. 258 test đạt.
 - **29/10/2026 · CON-52** (xong, đã duyệt và gộp vào main): **v1.6.0** — Bảng mới có nút **▶ Tạo video**: trang xem trước (kiểu *Một ảnh người mẫu* / *Ghép áo một mặt* / *Áo hai mặt*, ảnh đính kèm theo thứ tự, yêu cầu gửi Muse, yêu cầu thêm chung); bot đính kèm ảnh từ máy, chỉ bấm Gửi khi Muse hiện đủ ảnh; video hiện trong chat → **Xong** + nút *Mở trong Muse ↗*; "Video not found" → Cần xem ngay; tool mở lại giữa chừng thì mở lại đúng cuộc trò chuyện, không gửi lại; lọc Đang chạy / Xong / Cần xem; 3 mẫu yêu cầu sửa được ở Cài đặt; dùng chung hàng đợi và giới hạn ngày với Bảng theo sheet. **Gửi thử thật 2 lượt** (đồng ý): bot gửi đúng, nhưng Muse trả "Video not found" cả hai lần (Chrome thường cũng vậy, lỗi phía Muse). 244 test đạt.
 

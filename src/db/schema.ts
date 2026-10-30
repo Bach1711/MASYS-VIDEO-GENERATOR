@@ -138,4 +138,8 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE settings ADD COLUMN bangShirtTemplate TEXT;
   CREATE INDEX runs_bangRow ON runs(bangRowId);
   `,
+  // 10: Chạy song song (CON-73, D28): số cuộc trò chuyện Muse chờ video cùng lúc, 1–6.
+  `
+  ALTER TABLE settings ADD COLUMN parallelVideos INTEGER NOT NULL DEFAULT 3;
+  `,
 ];

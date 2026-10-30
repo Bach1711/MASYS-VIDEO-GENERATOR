@@ -17,8 +17,12 @@ describe("Cài đặt chạy lô (F7)", () => {
   it("kiểm tra dữ liệu nhập", () => {
     expect(parseRunSettings(ok)).toEqual({
       ok: true,
-      value: { timeoutMinutes: 20, pauseMinSec: 20, pauseMaxSec: 60, dailyVideoLimit: 5, museUrl: null },
+      value: { timeoutMinutes: 20, pauseMinSec: 20, pauseMaxSec: 60, dailyVideoLimit: 5, museUrl: null, parallelVideos: 3 },
     });
+    // Số video chạy cùng lúc (D28): 1–6.
+    expect(parseRunSettings({ ...ok, parallelVideos: "6" })).toMatchObject({ ok: true, value: { parallelVideos: 6 } });
+    expect(parseRunSettings({ ...ok, parallelVideos: "1" })).toMatchObject({ ok: true, value: { parallelVideos: 1 } });
+    for (const v of ["0", "7", "2.5", ""]) expect(parseRunSettings({ ...ok, parallelVideos: v }).ok).toBe(false);
     const bad = parseRunSettings({ timeoutMinutes: "0", pauseMinSec: "60", pauseMaxSec: "20", dailyVideoLimit: "abc", museUrl: "https://evil.example/muse.ai" });
     expect(bad.ok).toBe(false);
     if (!bad.ok) expect(bad.errors).toHaveLength(4);
@@ -31,7 +35,7 @@ describe("Cài đặt chạy lô (F7)", () => {
     const db = openDatabase(":memory:");
     const app = createApp(loadConfig(FAKE_KEY_ENV), db);
     const page = await (await app.request("/settings")).text();
-    for (const s of ["Thời gian chờ mỗi dòng", "Nghỉ giữa hai dòng", "Giới hạn video mỗi ngày", "Địa chỉ trang Muse", "Thư mục Drive gốc", "Mẫu yêu cầu gửi Muse", 'action="/bot/open"']) {
+    for (const s of ["Thời gian chờ mỗi dòng", "Nghỉ giữa hai dòng", "Giới hạn video mỗi ngày", "Số video chạy cùng lúc", "Địa chỉ trang Muse", "Thư mục Drive gốc", "Mẫu yêu cầu gửi Muse", 'action="/bot/open"']) {
       expect(page).toContain(s);
     }
     const post = (body: Record<string, string>) => app.request("/settings/run", { method: "POST", body: new URLSearchParams(body) });
@@ -41,9 +45,10 @@ describe("Cài đặt chạy lô (F7)", () => {
     expect(await bad.text()).toContain("Nghỉ nhiều nhất phải lớn hơn hoặc bằng nghỉ ít nhất.");
     expect(getSettings(db).pauseMaxSec).toBe(60);
 
-    const res = await post({ timeoutMinutes: "30", pauseMinSec: "10", pauseMaxSec: "40", dailyVideoLimit: "80", museUrl: "https://muse.ai/" });
+    expect(getSettings(db).parallelVideos).toBe(3);
+    const res = await post({ timeoutMinutes: "30", pauseMinSec: "10", pauseMaxSec: "40", dailyVideoLimit: "80", museUrl: "https://muse.ai/", parallelVideos: "5" });
     expect(res.status).toBe(303);
-    expect(getSettings(db)).toMatchObject({ timeoutMinutes: 30, pauseMinSec: 10, pauseMaxSec: 40, dailyVideoLimit: 80, museUrl: "https://muse.ai/" });
+    expect(getSettings(db)).toMatchObject({ timeoutMinutes: 30, pauseMinSec: 10, pauseMaxSec: 40, dailyVideoLimit: 80, museUrl: "https://muse.ai/", parallelVideos: 5 });
     expect(await (await app.request("/settings?saved=run")).text()).toContain("hạn mức Muse");
   });
 });

@@ -224,6 +224,27 @@ describe.skipIf(!hasChrome)("MuseBot với trang Muse giả lập", () => {
     expect(data.length).toBe(16);
   }, 30_000);
 
+  it("chạy song song (D28): mỗi lượt gửi trong tab riêng, xem và tải video theo tab, đóng tab không đụng tab khác", async () => {
+    const b = newBot();
+    mode = "video";
+    await b.open();
+    await b.send(REQUEST + " A", [], "run-1");
+    await b.send(REQUEST + " B", [], "run-2");
+    expect(received).toEqual([REQUEST + " A", REQUEST + " B"]);
+    await expect.poll(async () => (await b.watch("run-1")).videos, { timeout: 5000 }).toBe(1);
+    await expect.poll(async () => (await b.watch("run-2")).videos, { timeout: 5000 }).toBe(1);
+    expect((await b.downloadVideo("run-1")).data.length).toBe(16);
+    // Trang làm việc chung không có video: tab của lượt là trang riêng.
+    expect((await b.watch()).videos).toBe(0);
+    await b.closeTab("run-1");
+    expect(await b.watch("run-1")).toMatchObject({ closed: true });
+    expect((await b.watch("run-2")).videos).toBe(1);
+    // Mở lại cuộc trò chuyện vào tab riêng (tool mở lại giữa chừng): không gửi gì.
+    await b.openChat(`${base}/thread/abc123XYZ`, "run-3");
+    expect((await b.watch("run-3")).url).toBe(`${base}/thread/abc123XYZ`);
+    expect(received).toHaveLength(2);
+  }, 30_000);
+
   it("openChat mở lại đúng cuộc trò chuyện để theo dõi, không gửi gì", async () => {
     const b = newBot();
     await b.open();

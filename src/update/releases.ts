@@ -6,7 +6,13 @@ export const RELEASE_REPO = "Bach1711/MASYS-VIDEO-GENERATOR";
 const GITHUB_API = `https://api.github.com/repos/${RELEASE_REPO}/releases/latest`;
 const GITHUB_DOWNLOAD = `https://github.com/${RELEASE_REPO}/releases/download/`;
 
-export const zipAssetName = (v: string) => `MASYS-Video-v${v}-win64.zip`;
+/**
+ * Tên app trên zip (D29, CON-73): "KOL-Fashion-MASYS-Video". Bản trước 2.1.0 chỉ biết tên cũ "MASYS-Video", nên mỗi bản
+ * phát hành đăng cả hai zip; bản từ 2.1.0 tìm zip tên mới trước, không có thì dùng zip tên cũ.
+ */
+export const APP_DIR = "KOL-Fashion-MASYS-Video";
+export const LEGACY_APP_DIR = "MASYS-Video";
+export const zipAssetName = (v: string, dir: string = APP_DIR) => `${dir}-v${v}-win64.zip`;
 
 export interface ReleaseInfo {
   version: string;
@@ -98,8 +104,9 @@ export class ReleaseSource {
     const version = (body.tag_name ?? "").replace(/^v/, "");
     if (!isVersion(version)) throw new Error("Bản phát hành trên GitHub có số phiên bản không hợp lệ.");
     const asset = (name: string) => body.assets?.find((a) => a.name === name);
-    const zip = asset(zipAssetName(version));
-    const sha = asset(`${zipAssetName(version)}.sha256`);
+    const name = [APP_DIR, LEGACY_APP_DIR].map((d) => zipAssetName(version, d)).find((n) => asset(n) && asset(`${n}.sha256`)) ?? zipAssetName(version);
+    const zip = asset(name);
+    const sha = asset(`${name}.sha256`);
     if (!zip || !sha) throw new Error(`Bản v${version} trên GitHub thiếu file zip hoặc file SHA-256.`);
     const prefix = `${this.downloadPrefix}v${version}/`;
     if (!zip.browser_download_url.startsWith(prefix) || !sha.browser_download_url.startsWith(prefix)) {

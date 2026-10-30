@@ -50,7 +50,9 @@ if (!notes) fail(`Mục ${tag} trong CHANGELOG.md đang trống.`);
 
 // 5. Đóng gói (kèm quét bí mật trong zip) rồi đăng.
 execSync("node scripts/package.mjs", { cwd: root, stdio: "inherit" });
-const zip = path.join(root, "release", `MASYS-Video-${tag}-win64.zip`);
+// Zip tên mới cho máy tải mới, zip tên cũ cho bản trước 2.1.0 tự cập nhật (D29).
+const zip = path.join(root, "release", `KOL-Fashion-MASYS-Video-${tag}-win64.zip`);
+const legacyZip = path.join(root, "release", `MASYS-Video-${tag}-win64.zip`);
 const notesFile = path.join(root, "release", `ghi-chu-${tag}.md`);
 fs.writeFileSync(notesFile, notes + "\n");
 console.log(`\n▶ Đăng ${tag} lên GitHub Releases`);
@@ -60,12 +62,14 @@ const url = gh(
   tag,
   zip,
   `${zip}.sha256`,
+  legacyZip,
+  `${legacyZip}.sha256`,
   "--repo",
   REPO,
   "--target",
   head,
   "--title",
-  `MASYS Video ${tag}`,
+  `KOL Fashion MASYS Video ${tag}`,
   "--notes-file",
   notesFile,
 );

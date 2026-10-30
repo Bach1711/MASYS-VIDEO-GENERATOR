@@ -39,7 +39,7 @@ function portOpen(): Promise<boolean> {
   });
 }
 
-/** true nếu cổng đang là MASYS Video (trả /health đúng dạng). */
+/** true nếu cổng đang là tool này (trả /health đúng dạng). */
 async function isOurTool(): Promise<boolean> {
   try {
     const r = await fetch(`http://${HOST}:${port}/health`, { signal: AbortSignal.timeout(2000) });

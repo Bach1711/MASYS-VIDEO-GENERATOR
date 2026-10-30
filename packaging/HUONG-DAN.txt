@@ -1,9 +1,9 @@
-MASYS Video vVERSION — hướng dẫn nhanh
+KOL Fashion MASYS Video vVERSION — hướng dẫn nhanh
 =======================================
 
 Cần có: máy Windows 10/11 đã cài Google Chrome, và file khoá Google (.json) người phụ trách gửi riêng cho bạn.
 
-1. Giải nén toàn bộ file zip ra một thư mục bất kỳ (ví dụ Documents\MASYS-Video). Đừng chạy thẳng trong file zip.
+1. Giải nén toàn bộ file zip ra một thư mục bất kỳ (ví dụ Documents\KOL-Fashion-MASYS-Video). Đừng chạy thẳng trong file zip.
 2. Bấm đúp Mo-MASYS.bat. Một cửa sổ đen hiện ra và trình duyệt tự mở trang tool.
    Đừng đóng cửa sổ đen khi đang dùng tool. Muốn tắt tool thì đóng cửa sổ đó.
    Nếu Windows hỏi "Windows protected your PC", bấm "More info" rồi "Run anyway".

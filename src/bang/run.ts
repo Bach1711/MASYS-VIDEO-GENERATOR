@@ -81,9 +81,15 @@ export function recentRunMinutes(db: DB): number {
   return mins.length ? mins.reduce((a, b) => a + b, 0) / mins.length : 5;
 }
 
-/** Ước lượng thời gian một lô (17.9): số dòng × (thời gian trung bình gần đây + nghỉ giữa hai lượt). */
-export function estimateText(db: DB, n: number, s: Pick<Settings, "pauseMinSec" | "pauseMaxSec">): string {
-  const total = n * (recentRunMinutes(db) + (s.pauseMinSec + s.pauseMaxSec) / 2 / 60);
+/**
+ * Ước lượng thời gian một lô (17.9): số dòng × (thời gian trung bình gần đây + nghỉ giữa hai lượt), chia cho số video
+ * chạy cùng lúc (D28). Chạy song song vẫn phải nghỉ giữa hai lần gửi, nên mỗi dòng mất ít nhất một lần nghỉ.
+ */
+export function estimateText(db: DB, n: number, s: Pick<Settings, "pauseMinSec" | "pauseMaxSec"> & { parallelVideos?: number }): string {
+  const pause = (s.pauseMinSec + s.pauseMaxSec) / 2 / 60;
+  const parallel = Math.max(1, s.parallelVideos ?? 1);
+  const perRow = parallel === 1 ? recentRunMinutes(db) + pause : Math.max((recentRunMinutes(db) + pause) / parallel, pause + 0.5);
+  const total = n * perRow;
   if (total < 60) return `khoảng ${Math.max(1, Math.round(total))} phút`;
   const hours = Math.round((total / 60) * 2) / 2;
   return `khoảng ${String(hours).replace(".", ",")} giờ`;

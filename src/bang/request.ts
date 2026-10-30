@@ -17,13 +17,26 @@ Tạo xong thì gửi video ngay trong cuộc trò chuyện này. Không lưu l�
 
 export const DEFAULT_BANG_SHIRT_TEMPLATE = `Trước khi tạo video, hãy ghép chiếc áo ở ảnh 2 vào người mẫu ở ảnh 1: chỉ thay chiếc áo, giữ nguyên khuôn mặt, tóc, dáng, tư thế, nền, bối cảnh và ánh sáng của ảnh 1, giữ nguyên hình in trên áo. Dùng ảnh vừa ghép để tạo video. Không cần lưu ảnh vừa ghép.`;
 
-export const DEFAULT_TWO_SIDED_TEMPLATE = `Tôi gửi kèm 4 ảnh: ảnh 1 là người mẫu mặt trước, ảnh 2 là thiết kế áo mặt trước, ảnh 3 là người mẫu mặt sau (quay lưng), ảnh 4 là thiết kế áo mặt sau.
-Bước 1: ghép áo ở ảnh 2 vào người mẫu ở ảnh 1, và ghép áo ở ảnh 4 vào người mẫu ở ảnh 3. Chỉ thay chiếc áo; giữ nguyên khuôn mặt, tóc, dáng, nền, bối cảnh và ánh sáng của từng ảnh người mẫu; giữ nguyên hình in từng mặt. Không tự dựng thêm mặt nào.
-Bước 2: dùng hai ảnh vừa ghép tạo một video dọc 9:16, dài khoảng 8–10 giây, một cảnh: người mẫu bắt đầu ở mặt trước rồi xoay người để thấy mặt sau áo.
-Giữ nguyên nền và bối cảnh của ảnh người mẫu. Từ prompt dưới đây chỉ lấy động tác, biểu cảm và cách quay; bỏ qua mọi mô tả bối cảnh, phòng, ánh sáng.
+/**
+ * Mẫu hai mặt (CON-73, đội duyệt 30/10/2026). Ghép ra ảnh A, B trước rồi làm video chỉ từ hai ảnh đó; không cho người mẫu
+ * xoay người liền mạch (AI làm video vẽ lại hình in khi xoay nên mặt sau bị sai), mà cắt cảnh sang quay lưng và chỉ cử
+ * động nhẹ ở đầu, tóc, chân để hình in mặt sau giữ đúng.
+ */
+export const DEFAULT_TWO_SIDED_TEMPLATE = `Tôi gửi kèm 4 ảnh theo đúng thứ tự: ảnh 1 = người mẫu mặt trước, ảnh 2 = áo mặt trước, ảnh 3 = người mẫu quay lưng, ảnh 4 = áo mặt sau.
+Làm đúng 2 bước theo thứ tự, không gộp, không bỏ bước nào.
+Bước 1 – thay áo cho người mẫu. Đầu ra là 2 ảnh người mẫu:
+- Ảnh A: người mẫu ở ảnh 1 mặc chiếc áo ở ảnh 2.
+- Ảnh B: người mẫu ở ảnh 3 mặc chiếc áo ở ảnh 4.
+Chỉ thay chiếc áo, bỏ hoàn toàn áo cũ; giữ nguyên thiết kế áo (chữ, hình, màu, vị trí); giữ nguyên khuôn mặt, tóc, dáng, nền và ánh sáng của người mẫu. Gửi ảnh A và ảnh B vào cuộc trò chuyện này.
+Bước 2 – chỉ làm sau khi đã có ảnh A và ảnh B: tạo MỘT video dọc 9:16, dài khoảng 9–10 giây, ghép từ 3 đoạn, chuyển đoạn bằng cắt thẳng hoặc hoà cảnh nhanh (không cần cảnh người mẫu xoay người):
+- Đoạn 1 (khoảng 4 giây): tạo từ ảnh A, người mẫu ở mặt trước làm động tác theo prompt bên dưới.
+- Đoạn 2 (khoảng 3–4 giây): tạo từ ảnh B, người mẫu vẫn quay lưng suốt đoạn, KHÔNG xoay người, có cử động nhẹ: quay đầu nhìn lại máy quay qua vai và mỉm cười, vuốt hoặc hất tóc nhẹ, dồn trọng tâm từ chân này sang chân kia; máy quay tiến gần chậm. Thân áo gần như giữ yên, tay không che hình in, hình in mặt sau giữ đúng như ảnh B ở mọi khung hình.
+- Đoạn 3 (khoảng 2 giây): quay lại mặt trước như ảnh A, người mẫu cười nhìn máy quay.
+Không dùng ảnh 2 và ảnh 4 cho video. Ở mọi khung hình, hình in phải đúng như ảnh A (mặt trước) và ảnh B (mặt sau).
+Từ prompt dưới đây chỉ lấy động tác, biểu cảm và cách quay cho đoạn 1; bỏ qua mọi mô tả bối cảnh, phòng, ánh sáng.
 Prompt: {prompt}
 Yêu cầu thêm: {yeu_cau_them}
-Tạo xong thì gửi video ngay trong cuộc trò chuyện này. Không lưu lên Google Drive, không sửa Google Sheet. Không cần lưu ảnh vừa ghép.`;
+Tạo xong thì gửi video ngay trong cuộc trò chuyện này. Không lưu lên Google Drive, không sửa Google Sheet.`;
 
 export const BANG_DEFAULTS: Record<BangTemplateKind, string> = {
   bangTemplate: DEFAULT_BANG_TEMPLATE,

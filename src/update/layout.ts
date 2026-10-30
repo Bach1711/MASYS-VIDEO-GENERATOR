@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 // Thư mục bản zip từ CON-44 (D16):
-//   MASYS-Video\                 ← MASYS_HOME, Mo-MASYS.bat đặt biến này
+//   KOL-Fashion-MASYS-Video\     ← MASYS_HOME, Mo-MASYS.bat đặt biến này (máy cài trước 2.1.0: MASYS-Video\)
 //   ├─ Mo-MASYS.bat              ← đọc phien-ban\hien-tai.txt rồi chạy bản đó
 //   └─ phien-ban\
 //      ├─ hien-tai.txt           ← bản đang dùng, ví dụ "1.0.1"

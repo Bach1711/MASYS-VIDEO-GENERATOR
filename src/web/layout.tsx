@@ -168,9 +168,9 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
       <body>
         <nav>
           <div class="nav-in">
-            <a href="/" class="brand" title="MASYS Video Generator">
+            <a href="/" class="brand" title={APP_NAME}>
               <img src={logoUrl("icon-64.png")} alt="" />
-              MASYS Video
+              {APP_NAME}
             </a>
             <a href="/">Bảng</a>
             <details class="menu">

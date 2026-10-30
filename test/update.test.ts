@@ -7,7 +7,7 @@ import { loadConfig } from "../src/config.js";
 import { openDatabase, type DB } from "../src/db/index.js";
 import { updateBlocker } from "../src/db/history.js";
 import { compareVersions, InstallLayout } from "../src/update/layout.js";
-import { ReleaseSource, sourceFromEnv, zipAssetName } from "../src/update/releases.js";
+import { APP_DIR, LEGACY_APP_DIR, ReleaseSource, sourceFromEnv, zipAssetName } from "../src/update/releases.js";
 import { type DirOps, realDirOps } from "../src/update/moveDir.js";
 import { KEEP_BACKUPS, Updater } from "../src/update/updater.js";
 import { createApp } from "../src/web/app.js";
@@ -141,6 +141,23 @@ describe("hỏi GitHub bản mới nhất", () => {
     await expect(new ReleaseSource().download("https://evil.example.com/x.zip")).rejects.toThrow("không thuộc repo");
   });
 
+  it("đổi tên app (D29): có zip tên mới thì dùng zip mới; bản chỉ có zip tên cũ vẫn dùng được", async () => {
+    const release = (dirs: string[]) => {
+      const assets = dirs.flatMap((d) => {
+        const n = zipAssetName("2.1.0", d);
+        return [
+          { name: n, browser_download_url: `${DL}v2.1.0/${n}`, size: 10 },
+          { name: `${n}.sha256`, browser_download_url: `${DL}v2.1.0/${n}.sha256` },
+        ];
+      });
+      const fetchFn = async () => Response.json({ tag_name: "v2.1.0", body: "", assets });
+      return new ReleaseSource({ fetch: fetchFn as unknown as typeof fetch }).latest();
+    };
+    expect(zipAssetName("2.1.0")).toBe("KOL-Fashion-MASYS-Video-v2.1.0-win64.zip");
+    expect((await release([LEGACY_APP_DIR, APP_DIR])).zipUrl).toBe(`${DL}v2.1.0/KOL-Fashion-MASYS-Video-v2.1.0-win64.zip`);
+    expect((await release([LEGACY_APP_DIR])).sha256Url).toBe(`${DL}v2.1.0/MASYS-Video-v2.1.0-win64.zip.sha256`);
+  });
+
   it("địa chỉ thay thế từ biến môi trường chỉ nhận localhost", () => {
     expect(sourceFromEnv({ MASYS_RELEASES_API: "http://127.0.0.1:9/api", MASYS_RELEASES_DOWNLOAD: "http://127.0.0.1:9/dl/" })).toEqual({
       apiUrl: "http://127.0.0.1:9/api",
@@ -163,6 +180,15 @@ describe("cập nhật", () => {
     expect(fs.existsSync(path.join(layout.versionsDir, "_tai-ve"))).toBe(false);
     expect(fs.readdirSync(path.join(dataDir, "sao-luu"))).toHaveLength(1);
     expect(switchVersion).toHaveBeenCalledOnce();
+  });
+
+  it("zip giải nén ra thư mục tên mới (KOL-Fashion-MASYS-Video) cũng cập nhật được (D29)", async () => {
+    const t = setup({ remote: "1.0.1" });
+    t.extract.mockImplementation((_zip: string, dest: string) => makeVersionDir(path.join(dest, APP_DIR, "phien-ban", "1.0.1"), "1.0.1"));
+    await t.updater.check();
+    await t.updater.install();
+    expect(t.updater.job?.error).toBeUndefined();
+    expect(t.layout.current()).toBe("1.0.1");
   });
 
   it("phần mềm diệt virus giữ file mới (EPERM khi đổi tên): chờ, rồi sao chép; vẫn cập nhật được (CON-47)", async () => {
