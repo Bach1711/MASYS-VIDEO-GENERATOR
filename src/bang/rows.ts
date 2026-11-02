@@ -23,6 +23,14 @@ export interface BangRow {
   videoBytes: number | null;
   videoAt: string | null;
   importedFrom: string | null;
+  /** Hook đầu video (CON-74, D30): clip (tep\hook), câu riêng (null = dùng câu chung hôm nay), bản có hook (tep\video). */
+  hookClip?: string | null;
+  hookText?: string | null;
+  hookVideoFile?: string | null;
+  hookVideoBytes?: number | null;
+  /** Câu hook đang chờ ghép; null = không chờ. */
+  hookJob?: string | null;
+  hookError?: string | null;
   /** Lượt tạo video gần nhất của dòng (CON-52); null = chưa chạy lần nào. */
   runState: string | null;
   runError?: string | null;
@@ -127,6 +135,7 @@ function where(filter: BangFilter, q: string, now: Date): { sql: string; args: u
 const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 const COLS = `id, createdAt, prompt, modelFront, shirtFront, modelBack, shirtBack, videoFile, videoBytes, videoAt, importedFrom,
+  hookClip, hookText, hookVideoFile, hookVideoBytes, hookJob, hookError,
   ${LAST_STATE} AS runState, ${lastRun("error")} AS runError, ${lastRun("museChatUrl")} AS museChatUrl`;
 
 /** Một trang của Bảng, dòng mới nhất trước. */
@@ -174,23 +183,74 @@ export function setSlot(db: DB, id: number, slot: Slot, name: string | null): st
   return old;
 }
 
-/** Gắn video bot tải về vào dòng (17.5 bước 8); trả tên file video cũ (để xoá file). */
-export function setRowVideo(db: DB, id: number, name: string, bytes: number, at = new Date().toISOString()): string | null {
-  const old = (db.prepare("SELECT videoFile AS f FROM bang_rows WHERE id = ?").get(id) as { f: string | null } | undefined)?.f ?? null;
-  db.prepare("UPDATE bang_rows SET videoFile = ?, videoBytes = ?, videoAt = ? WHERE id = ?").run(name, bytes, at, id);
+/**
+ * Gắn video bot tải về vào dòng (17.5 bước 8). Bản có hook cũ làm từ video cũ nên bỏ luôn (D30).
+ * Trả các file cũ cần xoá (video cũ, bản có hook cũ).
+ */
+export function setRowVideo(db: DB, id: number, name: string, bytes: number, at = new Date().toISOString()): string[] {
+  const old = db.prepare("SELECT videoFile, hookVideoFile FROM bang_rows WHERE id = ?").get(id) as { videoFile: string | null; hookVideoFile: string | null } | undefined;
+  db.prepare("UPDATE bang_rows SET videoFile = ?, videoBytes = ?, videoAt = ?, hookVideoFile = NULL, hookVideoBytes = NULL, hookJob = NULL, hookError = NULL WHERE id = ?").run(
+    name,
+    bytes,
+    at,
+    id,
+  );
+  return [old?.videoFile, old?.hookVideoFile].filter((f): f is string => !!f && f !== name);
+}
+
+/** Bỏ video khỏi dòng (nút 🗑 trong ô Video), cùng bản có hook; trả các file để xoá. */
+export function clearRowVideo(db: DB, id: number): string[] {
+  const old = db.prepare("SELECT videoFile, hookVideoFile FROM bang_rows WHERE id = ? AND deletedAt IS NULL").get(id) as
+    | { videoFile: string | null; hookVideoFile: string | null }
+    | undefined;
+  db.prepare("UPDATE bang_rows SET videoFile = NULL, videoBytes = NULL, videoAt = NULL, hookVideoFile = NULL, hookVideoBytes = NULL, hookJob = NULL, hookError = NULL WHERE id = ?").run(id);
+  return [old?.videoFile, old?.hookVideoFile].filter((f): f is string => !!f);
+}
+
+/** Các file (ảnh, video, clip hook, bản có hook) của một dòng. */
+export function rowFiles(r: Pick<BangRow, Slot | "videoFile" | "hookClip" | "hookVideoFile">): string[] {
+  return [...SLOTS.map((k) => r[k]), r.videoFile, r.hookClip, r.hookVideoFile].filter((x): x is string => !!x);
+}
+
+// ---------- Hook đầu video (CON-74, D30) ----------
+
+/** Đặt / bỏ clip hook của dòng; trả tên clip cũ (để xoá file). */
+export function setHookClip(db: DB, id: number, name: string | null): string | null {
+  const old = (db.prepare("SELECT hookClip AS f FROM bang_rows WHERE id = ?").get(id) as { f: string | null } | undefined)?.f ?? null;
+  db.prepare("UPDATE bang_rows SET hookClip = ? WHERE id = ? AND deletedAt IS NULL").run(name, id);
   return old;
 }
 
-/** Bỏ video khỏi dòng (nút 🗑 trong ô Video); trả tên file để xoá. */
-export function clearRowVideo(db: DB, id: number): string | null {
-  const old = (db.prepare("SELECT videoFile AS f FROM bang_rows WHERE id = ? AND deletedAt IS NULL").get(id) as { f: string | null } | undefined)?.f ?? null;
-  db.prepare("UPDATE bang_rows SET videoFile = NULL, videoBytes = NULL, videoAt = NULL WHERE id = ?").run(id);
-  return old;
+/** Câu hook riêng của dòng; trống = dùng câu chung hôm nay. */
+export function setHookText(db: DB, id: number, text: string): void {
+  db.prepare("UPDATE bang_rows SET hookText = ? WHERE id = ? AND deletedAt IS NULL").run(text.trim() || null, id);
 }
 
-/** Các file (ảnh + video) của một dòng. */
-export function rowFiles(r: Pick<BangRow, Slot | "videoFile">): string[] {
-  return [...SLOTS.map((k) => r[k]), r.videoFile].filter((x): x is string => !!x);
+/** Câu hook dùng cho dòng: câu riêng, không có thì câu chung hôm nay; "" = chưa có câu nào. */
+export function hookTextFor(r: Pick<BangRow, "hookText">, dayText: string): string {
+  return r.hookText?.trim() || dayText.trim();
+}
+
+/** Xếp dòng vào hàng chờ ghép hook với câu `text`. */
+export function queueHook(db: DB, id: number, text: string): void {
+  db.prepare("UPDATE bang_rows SET hookJob = ?, hookError = NULL WHERE id = ? AND deletedAt IS NULL").run(text, id);
+}
+
+/** Ghép xong: gắn bản có hook, bỏ khỏi hàng chờ; trả bản có hook cũ (để xoá file). */
+export function setHookVideo(db: DB, id: number, name: string, bytes: number): string | null {
+  const old = (db.prepare("SELECT hookVideoFile AS f FROM bang_rows WHERE id = ?").get(id) as { f: string | null } | undefined)?.f ?? null;
+  db.prepare("UPDATE bang_rows SET hookVideoFile = ?, hookVideoBytes = ?, hookJob = NULL, hookError = NULL WHERE id = ?").run(name, bytes, id);
+  return old && old !== name ? old : null;
+}
+
+/** Ghép hỏng: ghi lý do, bỏ khỏi hàng chờ. Video gốc giữ nguyên. */
+export function setHookError(db: DB, id: number, why: string): void {
+  db.prepare("UPDATE bang_rows SET hookJob = NULL, hookError = ? WHERE id = ?").run(why, id);
+}
+
+/** Các dòng đang chờ ghép hook (để ghép tiếp khi tool mở lại). */
+export function pendingHookRows(db: DB): number[] {
+  return (db.prepare("SELECT id FROM bang_rows WHERE hookJob IS NOT NULL AND deletedAt IS NULL ORDER BY id").all() as { id: number }[]).map((r) => r.id);
 }
 
 /**

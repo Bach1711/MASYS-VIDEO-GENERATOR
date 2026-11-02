@@ -1,5 +1,5 @@
 import { formatBytes, type BangFiles } from "../bang/files.js";
-import { getRow, setRowVideo } from "../bang/rows.js";
+import { getRow, queueHook, setRowVideo } from "../bang/rows.js";
 import { BotError, type WatchResult } from "../bot/museBot.js";
 import { chat as chatSel } from "../bot/museSelectors.js";
 import type { DB } from "../db/index.js";
@@ -83,7 +83,9 @@ export interface RunnerOptions {
   secondMs?: number;
   random?: () => number;
   /** Ảnh của Bảng mới trên máy (CON-52). */
-  bangFiles?: Pick<BangFiles, "imagePath" | "saveVideo" | "removeVideo">;
+  bangFiles?: Pick<BangFiles, "imagePath" | "saveVideo" | "removeAny">;
+  /** Video của dòng vừa về và lô có thêm hook (CON-74, D30): xếp dòng vào hàng chờ ghép. */
+  onHookJob?: (rowId: number) => void;
 }
 
 interface RunRow {
@@ -97,6 +99,8 @@ interface RunRow {
   sentAt: string | null;
   tabSnapshot: string | null;
   museChatUrl: string | null;
+  /** Câu hook lúc bấm Tạo video (CON-74, D30); null = không thêm hook. */
+  hookText?: string | null;
 }
 
 interface BatchRow {
@@ -690,10 +694,14 @@ export class BatchRunner {
         const files = this.o.bangFiles;
         if (!files) throw new Error("thiếu thư mục dữ liệu");
         const name = files.saveVideo(run.rowNumber, data);
-        const old = setRowVideo(this.db, run.rowNumber, name, data.length);
-        if (old && old !== name) files.removeVideo(old);
+        for (const old of setRowVideo(this.db, run.rowNumber, name, data.length)) files.removeAny(old);
         const note = count > 1 ? `; cuộc trò chuyện có ${count} video, lấy video mới nhất` : "";
-        moveRun(this.db, run.id, "downloading", "done", `Đã tải video về máy (${formatBytes(data.length)})${note}`, { doneAt: now() });
+        const hook = run.hookText?.trim();
+        moveRun(this.db, run.id, "downloading", "done", `Đã tải video về máy (${formatBytes(data.length)})${note}${hook ? "; đang ghép hook" : ""}`, { doneAt: now() });
+        if (hook) {
+          queueHook(this.db, run.rowNumber, hook);
+          this.o.onHookJob?.(run.rowNumber);
+        }
         return;
       } catch (e) {
         why = errText(e);
@@ -826,7 +834,7 @@ export class BatchRunner {
   private runs(batchId: number, states: string[]): RunRow[] {
     return this.db
       .prepare(
-        `SELECT id, batchId, rowNumber, state, inputSnapshot, requestText, overwrite, sentAt, tabSnapshot, museChatUrl FROM runs
+        `SELECT id, batchId, rowNumber, state, inputSnapshot, requestText, overwrite, sentAt, tabSnapshot, museChatUrl, hookText FROM runs
          WHERE batchId = ? AND state IN (${states.map(() => "?").join(", ")}) ORDER BY rowNumber`,
       )
       .all(batchId, ...states) as RunRow[];

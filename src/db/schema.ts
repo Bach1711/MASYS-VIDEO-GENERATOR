@@ -142,4 +142,19 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE settings ADD COLUMN parallelVideos INTEGER NOT NULL DEFAULT 3;
   `,
+  // 11: Hook đầu video (CON-74, D30). Clip hook của dòng (tep\hook), câu hook riêng, bản video có hook (tep\video),
+  // hookJob = câu hook đang chờ ghép (NULL = không chờ), hookError = lý do lần ghép gần nhất hỏng.
+  // runs.hookText: câu hook lúc bấm Tạo video (NULL = lô không thêm hook). settings: ô "Thêm hook" + câu hook chung trong ngày.
+  `
+  ALTER TABLE bang_rows ADD COLUMN hookClip TEXT;
+  ALTER TABLE bang_rows ADD COLUMN hookText TEXT;
+  ALTER TABLE bang_rows ADD COLUMN hookVideoFile TEXT;
+  ALTER TABLE bang_rows ADD COLUMN hookVideoBytes INTEGER;
+  ALTER TABLE bang_rows ADD COLUMN hookJob TEXT;
+  ALTER TABLE bang_rows ADD COLUMN hookError TEXT;
+  ALTER TABLE runs ADD COLUMN hookText TEXT;
+  ALTER TABLE settings ADD COLUMN hookOn INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE settings ADD COLUMN hookDayText TEXT;
+  ALTER TABLE settings ADD COLUMN hookDay TEXT;
+  `,
 ];

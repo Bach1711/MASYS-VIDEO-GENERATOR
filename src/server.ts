@@ -3,6 +3,7 @@ import { MuseBot } from "./bot/museBot.js";
 import { DEFAULT_MUSE_URL } from "./bot/museSelectors.js";
 import { getSettings } from "./db/settings.js";
 import { BangFiles } from "./bang/files.js";
+import { HookMerger } from "./bang/hook.js";
 import { BatchRunner } from "./queue/runner.js";
 import { HOST, loadConfig } from "./config.js";
 import { openDatabase } from "./db/index.js";
@@ -52,8 +53,12 @@ const bot = new MuseBot({
 
 // Hàng đợi chạy lô (CON-40). Lô đang chạy dở khi tool tắt: theo dõi nốt dòng đã gửi, không gửi lại.
 // Lô của Bảng mới (CON-52) không cần Google nên hàng đợi luôn có; lô theo sheet thì tạm dừng khi chưa nạp khoá.
-const runner = new BatchRunner(db, sheets, drive, bot, { bangFiles: new BangFiles(config.dataDir) });
+// Hook đầu video (CON-74, D30): ghép trên máy sau khi video Muse về; dòng còn chờ ghép khi tool tắt thì ghép tiếp.
+const bangFiles = new BangFiles(config.dataDir);
+const hooks = new HookMerger(db, bangFiles);
+const runner = new BatchRunner(db, sheets, drive, bot, { bangFiles, onHookJob: (id) => hooks.enqueue(id) });
 runner.recover();
+hooks.recover();
 
 // Cập nhật trong tool (D16): chỉ bản zip (Mo-MASYS.bat đặt MASYS_HOME, có thư mục phien-ban) mới cập nhật được.
 const home = process.env.MASYS_LAUNCHER === "1" && process.env.MASYS_HOME ? new InstallLayout(process.env.MASYS_HOME) : undefined;
@@ -78,6 +83,7 @@ const app = createApp(config, db, {
   thumbs,
   bot,
   runner,
+  hooks,
   keyStore,
   chromeInstalled: () => isChromeInstalled(),
   verifyKey: async (credentials) => {

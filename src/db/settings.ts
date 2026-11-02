@@ -20,14 +20,39 @@ export interface Settings {
   twoSidedTemplate: string | null;
   /** Số video chờ Muse cùng lúc ở Bảng (D28): 1 = lần lượt từng dòng như trước. */
   parallelVideos: number;
+  /** Ô "Thêm hook" trên Bảng (CON-74, D30): 1 = đang tích. */
+  hookOn: number;
+  /** Câu hook chung và ngày (giờ máy, YYYY-MM-DD) người dùng điền; sang ngày khác thì coi như trống. */
+  hookDayText: string | null;
+  hookDay: string | null;
 }
 
 export function getSettings(db: DB): Settings {
   return db
     .prepare(
-      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt, bangTemplate, bangShirtTemplate, twoSidedTemplate, parallelVideos FROM settings WHERE id = 1",
+      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt, bangTemplate, bangShirtTemplate, twoSidedTemplate, parallelVideos, hookOn, hookDayText, hookDay FROM settings WHERE id = 1",
     )
     .get() as Settings;
+}
+
+/** Ngày theo giờ máy, YYYY-MM-DD. */
+export function localDay(now = new Date()): string {
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
+}
+
+/** Ô "Thêm hook" và câu hook chung hôm nay (D30): câu điền hôm trước không dùng nữa. */
+export function getHookSettings(db: DB, now = new Date()): { on: boolean; dayText: string } {
+  const s = getSettings(db);
+  return { on: s.hookOn === 1, dayText: s.hookDay === localDay(now) ? (s.hookDayText ?? "") : "" };
+}
+
+export function setHookOn(db: DB, on: boolean): void {
+  db.prepare("UPDATE settings SET hookOn = ? WHERE id = 1").run(on ? 1 : 0);
+}
+
+export function setHookDayText(db: DB, text: string, now = new Date()): void {
+  db.prepare("UPDATE settings SET hookDayText = ?, hookDay = ? WHERE id = 1").run(text.trim() || null, localDay(now));
 }
 
 /** Ghi nhớ Muse đã đăng nhập (lúc `at`), hoặc quên đi (null) khi Muse đòi đăng nhập lại. */
