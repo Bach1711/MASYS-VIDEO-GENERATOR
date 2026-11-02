@@ -22,6 +22,7 @@ Cần: Windows 10/11, **Google Chrome**, và **file khoá Google `.json`** do ng
 
 - Bảng là trang tính của bạn: ảnh, prompt, video, trạng thái. Sửa ô bằng **✎**, thêm dòng bằng **+ Thêm dòng**, chép prompt bằng **Dải prompt ▾**; tool ghi thẳng lên sheet.
 - Tích dòng (hoặc **☑ Chọn mọi dòng chưa có video**) → **▶ Tạo video**. Mỗi dòng khoảng 3–5 phút; video xong hiện ngay trên Bảng.
+- Muốn có **hook** ở đầu video: tích **Thêm hook**, điền *Câu hook chung hôm nay*, chọn **clip hook** cho từng dòng ở cột **Hook** (+). Video về là tool tự ghép; tải bản có hook bằng ⬇ cạnh *Có hook*, bản gốc vẫn giữ.
 - Tool tạm dừng thì Bảng nói lý do và cách làm; làm xong bấm **Tiếp tục**. Tool không bao giờ gửi lại dòng đã gửi.
 - Có bản mới: trên đầu trang hiện *"Có bản mới"* → **⚙ Nâng cao → Cài đặt → Phiên bản → Cập nhật**.
 

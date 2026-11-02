@@ -6,6 +6,7 @@ import type { SheetsClient } from "../google/sheets.js";
 import type { ThumbnailCache } from "../scan/thumbnails.js";
 import type { MuseBot } from "../bot/museBot.js";
 import type { BatchRunner } from "../queue/runner.js";
+import type { HookMerger } from "../bang/hook.js";
 import type { KeyStore } from "../keyStore.js";
 import type { ServiceAccountCredentials } from "../config.js";
 import { APP_VERSION } from "../version.js";
@@ -35,6 +36,8 @@ export interface AppDeps {
   thumbs?: ThumbnailCache;
   bot?: MuseBot;
   runner?: BatchRunner;
+  /** Hàng chờ ghép hook (CON-74). */
+  hooks?: HookMerger;
   keyStore?: KeyStore;
   verifyKey?: (credentials: ServiceAccountCredentials) => Promise<void>;
   restart?: () => void;

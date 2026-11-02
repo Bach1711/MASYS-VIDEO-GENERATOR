@@ -2,6 +2,22 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v2.2.0
+
+**Mới: thêm hook vào đầu video, đúng kiểu video mẫu (clip + câu chữ, rồi mờ dần sang video người mẫu).**
+
+- Tích **Thêm hook** ở thanh nút dưới Bảng. Hiện ô **Câu hook chung hôm nay**, ví dụ *I want this shirt but I'm broke...*. Mọi video tạo trong hôm nay dùng câu này; sang ngày mới thì ô trống để điền câu mới.
+- Bảng có thêm cột **Hook**:
+  - bấm **+** (hoặc kéo clip vào ô) để chọn **clip hook** của dòng: clip bạn đã tải và cắt sẵn từ YouTube (MP4, MOV, WEBM, MKV, tối đa 300 MB). Mỗi video một clip riêng;
+  - bấm **✎** để đặt **câu hook riêng** cho dòng đó. Để trống thì dùng câu chung hôm nay.
+- Bấm **▶ Tạo video**: trang xem trước ghi rõ từng dòng dùng clip nào, câu nào. Dòng thiếu clip hoặc chưa có câu thì báo ngay, không chạy.
+- Muse làm xong video là tool **tự ghép hook** trên máy: clip hook nằm giữa khung dọc nền đen, câu hook chữ đen trên nền trắng bo góc ngay phía trên, rồi **mờ dần 0,5 giây** sang video Muse. Video ra 1080×1920, không tiếng. Ghép mất vài giây mỗi video.
+- Ở cột **Video** có thêm dòng **Có hook ▶ ⬇**: xem và tải bản có hook (tên `MASYS_<số dòng>_<ngày-giờ>_hook.mp4`). **Bản gốc vẫn giữ.**
+- Dòng đã có video: bấm **Ghép hook** (hoặc **Ghép lại hook** sau khi đổi clip / đổi câu). Không tốn lượt Muse.
+- Ghép lỗi (ví dụ clip hỏng) thì dòng ghi lý do; video gốc không bị ảnh hưởng.
+- Bỏ tích **Thêm hook** thì Bảng và video như trước; clip và câu đã chọn vẫn được giữ.
+- Clip hook bị xoá cùng dòng khi bấm **Xoá dòng đã chọn** / **Dọn tất cả**. Bản tải về nặng thêm khoảng 35 MB vì có kèm bộ ghép video.
+
 ## v2.1.0
 
 **Tạo nhiều video cùng lúc, mẫu áo hai mặt mới, tên mới: KOL Fashion MASYS Video.**

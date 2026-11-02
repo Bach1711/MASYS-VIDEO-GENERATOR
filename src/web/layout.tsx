@@ -149,6 +149,20 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
           button.slot-add:hover { color:var(--link); border-color:var(--link); }
           td.slot.over, .dropzone.over { outline:2px dashed var(--link); outline-offset:-2px; }
           td.slot.busy { opacity:.5; }
+          table.bang-moi td.hook { min-width:170px; max-width:230px; }
+          .hook-clip { white-space:nowrap; }
+          table.bang-moi td.video { min-width:140px; }
+          .hookpart .vid { white-space:nowrap; }
+          .hook-clip { margin-bottom:4px; }
+          td.hook button.slot-add { width:48px; height:48px; }
+          td.hook.over { outline:2px dashed var(--link); outline-offset:-2px; }
+          td.hook.busy { opacity:.5; }
+          .hookpart { margin-top:6px; text-align:center; }
+          .hookpart .vid { flex-direction:row; justify-content:center; gap:4px; }
+          .hookbar { flex-basis:100%; border-top:1px solid var(--border); padding-top:8px; }
+          .hookbar .hint { margin-top:2px; }
+          .hook-toggle { margin-left:6px; white-space:nowrap; }
+          .ok-text { color:var(--ok-fg); }
           .dropzone { border-style:dashed; }
           .filters { gap:6px; }
           .pager { justify-content:center; align-items:center; margin-top:12px; }

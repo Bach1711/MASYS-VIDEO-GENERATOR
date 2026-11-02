@@ -1,12 +1,13 @@
 # KOL Fashion MASYS Video (MASYS Video Generator)
 
-Đặc tả đầy đủ: `SPEC-app-tao-video-ao.md` (v6.1) — đọc trước khi làm bất cứ việc gì. Không mở lại các quyết định ở mục 3 (D1–D29) nếu chưa hỏi người phụ trách.
+Đặc tả đầy đủ: `SPEC-app-tao-video-ao.md` (v6.2) — đọc trước khi làm bất cứ việc gì. Không mở lại các quyết định ở mục 3 (D1–D30) nếu chưa hỏi người phụ trách.
 
 ## Kiến trúc (spec v6.0 mục 17, từ v2.0.0)
 - **Tool chạy trên một máy Windows:** một tiến trình Node (TypeScript) + giao diện ở `localhost` + **Playwright** điều khiển Chrome + SQLite cục bộ.
 - **Tên app** (D29, từ v2.1.0): "KOL Fashion MASYS Video" (`APP_NAME` trong `src/version.ts`); zip `KOL-Fashion-MASYS-Video-vX.Y.Z-win64.zip`. Thư mục dữ liệu `masys-video` và kho GitHub giữ tên cũ; mỗi bản phát hành đăng thêm zip tên cũ `MASYS-Video-…` cho bản trước 2.1.0 tự cập nhật.
 - **Meta Muse AI là nơi duy nhất tạo video**, điều khiển qua giao diện web bằng bot. Màn hình chính là **Bảng** (`bang_rows`, D21): 4 ô ảnh (Mẫu trước, Áo trước, Mẫu sau, Áo sau) chọn từ máy, tool chép vào `%LOCALAPPDATA%\masys-video\tep\anh`. Bot mở một cuộc trò chuyện mới cho mỗi dòng, **đính kèm ảnh** theo thứ tự cố định (D22, D24), chờ video hiện trong chat rồi **đọc video `blob:` ngay trong trang** về `tep\video` (D23). Lô của Bảng có `batches.source = 'bang'`, lượt gắn dòng qua `runs.bangRowId`.
 - Không cần Google để tạo video. **Service account** (D5) chỉ dùng cho *Nhập từ Google Sheet* (chỉ đọc) và **Bảng theo sheet** (luồng cũ v1.x, ở ⚙ Nâng cao, `/bang-sheet`: Muse lưu video lên Drive và ghi link vào sheet).
+- **Hook đầu video** (D30, từ v2.2.0): ô *Thêm hook* trên Bảng; mỗi dòng một clip hook (`tep\hook`) + câu hook (câu riêng, không có thì câu chung hôm nay). Video về thì `HookMerger` (`src/bang/hook.ts`) ghép bằng **ffmpeg đi kèm** (`phien-ban\X.Y.Z\ffmpeg\ffmpeg.exe`, khi phát triển lấy từ `ffmpeg-static`), câu hook vẽ bằng Chrome chạy ẩn; giữ bản gốc, bản có hook ở `bang_rows.hookVideoFile`.
 - Giới hạn mặc định 100 video/ngày, tối đa 150 (D25). Video và ảnh chỉ bị xoá khi người dùng bấm 🗑 / Xoá dòng / Dọn tất cả (D26).
 - Không có server, không Supabase, không gọi API video nào (Gemini, Max-Studio, Flow đã bỏ).
 - **Phát hành cho đội bằng zip** (D15): `npm run package` → `release/KOL-Fashion-MASYS-Video-vX.Y.Z-win64.zip` và zip tên cũ `MASYS-Video-…` (Node đi kèm + `Mo-MASYS.bat`). Khoá Google (chỉ cần khi dùng sheet) chọn ở trang Cài khoá, lưu mã hoá DPAPI ở `%LOCALAPPDATA%\masys-video`; biến `GOOGLE_SERVICE_ACCOUNT_JSON` (op run) luôn được ưu tiên. Số phiên bản là `version` trong `package.json`.

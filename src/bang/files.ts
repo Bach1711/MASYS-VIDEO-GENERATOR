@@ -6,6 +6,8 @@ import path from "node:path";
 
 export const IMAGE_DIR = path.join("tep", "anh");
 export const VIDEO_DIR = path.join("tep", "video");
+/** Clip hook người dùng chọn (CON-74, D30). */
+export const HOOK_DIR = path.join("tep", "hook");
 
 /** Mỗi ảnh tối đa 20 MB (17.2). */
 export const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -30,6 +32,28 @@ export function sniffVideo(data: Uint8Array): boolean {
   return data.length >= 12 && ascii(data, 4, 8) === "ftyp";
 }
 
+/** Clip hook tối đa 300 MB (D30). */
+export const MAX_CLIP_BYTES = 300 * 1024 * 1024;
+
+export type ClipExt = "mp4" | "mov" | "webm" | "mkv";
+
+/** Nhận dạng clip hook theo vài byte đầu: MP4 / MOV (hộp ftyp), WEBM / MKV (EBML). */
+export function sniffClip(data: Uint8Array): ClipExt | null {
+  if (sniffVideo(data)) return ascii(data, 8, 12) === "qt  " ? "mov" : "mp4";
+  if (data.length >= 4 && data[0] === 0x1a && data[1] === 0x45 && data[2] === 0xdf && data[3] === 0xa3) {
+    return ascii(data, 0, Math.min(data.length, 64)).includes("webm") ? "webm" : "mkv";
+  }
+  return null;
+}
+
+/** Lý do không nhận clip hook; null = nhận được. */
+export function clipProblem(data: Uint8Array): string | null {
+  if (data.length === 0) return "File trống.";
+  if (data.length > MAX_CLIP_BYTES) return `Clip quá lớn (${Math.round(data.length / 1024 / 1024)} MB), tối đa 300 MB. Cắt ngắn clip rồi chọn lại.`;
+  if (!sniffClip(data)) return "Chỉ nhận clip MP4, MOV, WEBM hoặc MKV.";
+  return null;
+}
+
 /** Lý do không nhận ảnh; null = nhận được. */
 export function imageProblem(data: Uint8Array): string | null {
   if (data.length === 0) return "File trống.";
@@ -39,8 +63,18 @@ export function imageProblem(data: Uint8Array): string | null {
 }
 
 /** Tên file trong SQLite: chỉ chữ thường, số, gạch; không có thư mục. */
-const SAFE_NAME = /^[a-z0-9-]+\.(jpg|png|webp|mp4)$/;
+const SAFE_NAME = /^[a-z0-9-]+\.(jpg|png|webp|mp4|mov|webm|mkv)$/;
 export const isSafeName = (name: string) => SAFE_NAME.test(name);
+/** Clip hook: "<dòng>-hookclip-…". */
+export const isClipName = (name: string) => isSafeName(name) && /^\d+-hookclip-/.test(name);
+
+/** Thư mục chứa một file theo tên tool đặt: clip hook → tep\hook, video → tep\video, còn lại → tep\anh. */
+export function dirOf(name: string): string {
+  if (isClipName(name)) return HOOK_DIR;
+  return name.endsWith(".mp4") ? VIDEO_DIR : IMAGE_DIR;
+}
+
+const randomPart = (now: Date) => `${now.getTime().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 export class BangFiles {
   constructor(private readonly dataDir: string) {}
@@ -93,17 +127,50 @@ export class BangFiles {
     fs.rmSync(path.join(this.dataDir, VIDEO_DIR, name), { force: true });
   }
 
-  /** Dung lượng một file ảnh / video (byte); 0 khi không còn. */
+  /** Lưu clip hook đã kiểm tra (D30); trả tên file "<dòng>-hookclip-….<đuôi>". */
+  saveClip(rowId: number, data: Uint8Array, now = new Date()): string {
+    const ext = sniffClip(data);
+    if (!ext) throw new Error("Không phải clip MP4 / MOV / WEBM / MKV");
+    const name = `${rowId}-hookclip-${randomPart(now)}.${ext}`;
+    fs.writeFileSync(path.join(this.dir(HOOK_DIR), name), data);
+    return name;
+  }
+
+  /** Đường dẫn tuyệt đối của clip hook; undefined khi tên lạ hoặc file không còn. */
+  clipPath(name: string): string | undefined {
+    if (!isClipName(name)) return undefined;
+    const p = path.join(this.dataDir, HOOK_DIR, name);
+    return fs.existsSync(p) ? p : undefined;
+  }
+
+  /** Chỗ ghi bản video có hook: tep\video\<dòng>-hook-….mp4 (file chưa có). */
+  newHookVideo(rowId: number, now = new Date()): { name: string; path: string } {
+    const name = `${rowId}-hook-${randomPart(now)}.mp4`;
+    return { name, path: path.join(this.dir(VIDEO_DIR), name) };
+  }
+
+  /** Thư mục tạm khi ghép hook (ảnh câu hook). */
+  tmpDir(): string {
+    return this.dir(path.join("tep", "tam"));
+  }
+
+  /** Xoá một file bất kỳ tool đã đặt tên (ảnh, video, clip hook). */
+  removeAny(name: string | null | undefined): void {
+    if (!name || !isSafeName(name)) return;
+    fs.rmSync(path.join(this.dataDir, dirOf(name), name), { force: true });
+  }
+
+  /** Dung lượng một file ảnh / video / clip hook (byte); 0 khi không còn. */
   fileBytes(name: string | null | undefined): number {
     if (!name || !isSafeName(name)) return 0;
-    const p = path.join(this.dataDir, name.endsWith(".mp4") ? VIDEO_DIR : IMAGE_DIR, name);
+    const p = path.join(this.dataDir, dirOf(name), name);
     return fs.existsSync(p) ? fs.statSync(p).size : 0;
   }
 
-  /** Tổng dung lượng ảnh + video (byte), để hiện "Đang dùng" (17.9). */
+  /** Tổng dung lượng ảnh + video + clip hook (byte), để hiện "Đang dùng" (17.9). */
   usedBytes(): number {
     let total = 0;
-    for (const sub of [IMAGE_DIR, VIDEO_DIR]) {
+    for (const sub of [IMAGE_DIR, VIDEO_DIR, HOOK_DIR]) {
       const d = path.join(this.dataDir, sub);
       if (!fs.existsSync(d)) continue;
       for (const f of fs.readdirSync(d)) total += fs.statSync(path.join(d, f)).size;
@@ -112,9 +179,11 @@ export class BangFiles {
   }
 }
 
+const CLIP_TYPE: Record<ClipExt, string> = { mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm", mkv: "video/x-matroska" };
+
 export function typeOf(name: string): string {
-  const ext = name.split(".").pop() as ImageExt | "mp4";
-  return ext === "mp4" ? "video/mp4" : IMAGE_TYPE[ext] ?? "application/octet-stream";
+  const ext = name.split(".").pop() ?? "";
+  return CLIP_TYPE[ext as ClipExt] ?? IMAGE_TYPE[ext as ImageExt] ?? "application/octet-stream";
 }
 
 /** 1,4 GB / 350 MB / 12 KB. */
