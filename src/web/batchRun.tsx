@@ -2,7 +2,7 @@ import type { Hono } from "hono";
 import { getBatch } from "../batch/create.js";
 import { folderLink } from "../batch/template.js";
 import type { DB } from "../db/index.js";
-import { getDailyQuota } from "../db/quota.js";
+import { getDailyQuota, getImageQuota } from "../db/quota.js";
 import { getSheetConfig, sheetName } from "../db/sheetConfigs.js";
 import { PAUSE_TEXT, type BatchRunner, type PauseReason } from "../queue/runner.js";
 import { Alert, QuotaBox, scanUrl, truncate } from "./components.js";
@@ -49,9 +49,9 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
     const id = Number(c.req.param("id"));
     const b = Number.isInteger(id) ? getBatch(db, id) : undefined;
     if (!b) return c.notFound();
-    const bang = b.source === "bang";
+    const bang = b.source === "bang" || b.source === "anh";
     const cfg = bang ? undefined : getSheetConfig(db, b.spreadsheetId, b.tab);
-    const name = bang ? "Bảng mới" : cfg ? sheetName(cfg) : b.spreadsheetId;
+    const name = b.source === "anh" ? "Bảng ảnh" : bang ? "Bảng mới" : cfg ? sheetName(cfg) : b.spreadsheetId;
     const live = runner?.runningBatchId === b.id;
     const notice = runner?.notices.get(b.id);
     const msg = c.req.query("msg");
@@ -133,12 +133,12 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
               </div>
             </div>
             {b.status === "canceled" && <Alert kind="warn">Lô đã huỷ. Các dòng chưa gửi Muse không được gửi.</Alert>}
-            {(b.status === "queued" || b.status === "paused") && <QuotaBox quota={getDailyQuota(db)} />}
+            {(b.status === "queued" || b.status === "paused") && (b.source === "anh" ? <QuotaBox quota={getImageQuota(db)} unit="ảnh" /> : <QuotaBox quota={getDailyQuota(db)} />)}
             <div class="scroll">
               <table class="scan">
                 <thead>
                   <tr>
-                    <th>{bang ? "Dòng (Bảng mới)" : "Dòng"}</th>
+                    <th>{b.source === "anh" ? "Dòng (Bảng ảnh)" : bang ? "Dòng (Bảng)" : "Dòng"}</th>
                     <th>Trạng thái</th>
                     <th>Kết quả</th>
                     <th>Yêu cầu gửi Muse</th>

@@ -2,6 +2,25 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v2.3.0
+
+**Mới: Bảng ảnh: Muse tạo ảnh nhân vật AI của bạn, luôn đúng người nhờ character sheet.**
+
+- Thanh trên cùng có thêm **Bảng ảnh** và **Nhân vật**. Bảng cũ nay tên là **Bảng video** và vẫn chạy như trước. Hai bảng độc lập với nhau.
+- **Nhân vật:** bấm **+ Thêm nhân vật**, đặt tên và chọn file **character sheet** (ảnh nhân vật nhiều góc bạn đã tự tạo; JPG, PNG, WEBP, tối đa 20 MB). Thêm bao nhiêu nhân vật cũng được. Đổi tên, đổi file, xoá ngay trên trang. File chỉ nằm trên máy này.
+- **Bảng ảnh:** mỗi dòng là một ảnh.
+  - Thêm dòng: chọn nhân vật, bấm **+ Thêm dòng**, hoặc bấm **Dán nhiều prompt** (mỗi dòng chữ thành một dòng mới).
+  - Mỗi dòng có prompt (dáng, trang phục, bối cảnh; bấm ✎ để sửa) và ô **Quay lưng**: tích ô này để có thêm một ảnh quay lưng của đúng người đó, cùng trang phục, cùng bối cảnh.
+- Tích dòng rồi bấm **▶ Tạo ảnh**. Trang xem trước cho thấy character sheet và đúng nội dung sẽ gửi Muse. Bấm **Bắt đầu**:
+  - bot mở một cuộc trò chuyện mới cho mỗi dòng, gửi character sheet kèm yêu cầu, chờ ảnh rồi tải về máy;
+  - dòng tích Quay lưng: tải xong ảnh mặt trước, bot xin thêm ảnh quay lưng trong cùng cuộc trò chuyện;
+  - chạy nhiều dòng cùng lúc theo **Số video chạy cùng lúc** ở Cài đặt.
+- **Ảnh trên dòng:** Muse trả nhiều ảnh thì bấm **◀ ▶** để xem từng ảnh, **☆** để chọn ảnh chính, **⬇** để tải về (tên `MASYS_ANH_<số dòng>_<truoc|sau>_<ngày-giờ>`), **🗑** để xoá ảnh xấu. Bấm vào ảnh để xem lớn. **Tạo lại** cho thêm ảnh mới, ảnh cũ vẫn giữ.
+- **Giới hạn ảnh mỗi ngày** đếm riêng với video: mặc định 100, cao nhất 150, chỉnh ở **Cài đặt**. Mỗi tin xin ảnh tính một lượt; dòng có Quay lưng tính 2.
+- **Cài đặt** có thêm **Mẫu tạo ảnh** và **Mẫu ảnh quay lưng** để sửa câu gửi Muse, có nút **Khôi phục bản gốc**.
+- **Dọn tất cả** trên Bảng ảnh xoá các dòng xong cùng ảnh của chúng; nhân vật không bị xoá.
+- Bản sau (2.4.0) sẽ có nút **xuất ảnh đã chọn sang Bảng video** làm ảnh người mẫu.
+
 ## v2.2.0
 
 **Mới: thêm hook vào đầu video, đúng kiểu video mẫu (clip + câu chữ, rồi mờ dần sang video người mẫu).**

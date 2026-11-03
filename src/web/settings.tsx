@@ -27,8 +27,11 @@ import {
   setBangTemplate,
   setRequestTemplate,
   setShirtTemplate,
+  setImageTemplate,
   type BangTemplateKind,
+  type ImageTemplateKind,
 } from "../db/settings.js";
+import { IMAGE_DEFAULTS, IMAGE_PLACEHOLDERS, validateImageTemplate } from "../anh/request.js";
 import { parseDriveLink, type DriveFolder } from "../google/drive.js";
 import { describeGoogleError } from "../google/errors.js";
 import { logger } from "../logger.js";
@@ -56,6 +59,7 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
       runErrors?: string[];
       runDraft?: Record<string, unknown>;
       bang?: { kind: BangTemplateKind; errors: string[]; draft: string };
+      image?: { kind: ImageTemplateKind; errors: string[]; draft: string };
     } = {},
   ) {
     const s = getSettings(db);
@@ -214,6 +218,56 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
             errors={opts.bang?.kind === sec.kind ? opts.bang.errors : undefined}
           />
         ))}
+
+        <h2 id="bang-anh">Mẫu yêu cầu cho Bảng ảnh</h2>
+        <p class="muted">
+          Bảng ảnh luôn đính kèm character sheet của nhân vật là ảnh 1. Dòng tích <em>Quay lưng</em>: tải xong ảnh mặt trước, bot gửi thêm{" "}
+          <em>mẫu ảnh quay lưng</em> trong cùng cuộc trò chuyện.
+        </p>
+        {IMAGE_SECTIONS.map((sec) => {
+          const ph = IMAGE_PLACEHOLDERS[sec.kind];
+          const err = opts.image?.kind === sec.kind ? opts.image.errors : undefined;
+          return (
+            <section class="card" id={sec.kind}>
+              <h2>{sec.title}</h2>
+              <p class="muted">
+                {s[sec.kind] ? "Đang dùng bản đã sửa." : "Đang dùng bản gốc (spec 17.13)."} {sec.note}
+              </p>
+              <ul class="placeholders">
+                {Object.entries(ph.known).map(([k, text]) => (
+                  <li>
+                    <code>{`{${k}}`}</code> — {text}
+                    {ph.required.includes(k) && <strong> (bắt buộc)</strong>}
+                  </li>
+                ))}
+              </ul>
+              {err && err.length > 0 && (
+                <Alert kind="warn">
+                  Chưa lưu vì mẫu có lỗi:
+                  <ul>
+                    {err.map((e) => (
+                      <li>{e}</li>
+                    ))}
+                  </ul>
+                </Alert>
+              )}
+              <form method="post" action="/settings/bang-anh">
+                <input type="hidden" name="kind" value={sec.kind} />
+                <textarea name="template" rows={sec.rows} class="mono">
+                  {(opts.image?.kind === sec.kind ? opts.image.draft : undefined) ?? s[sec.kind] ?? IMAGE_DEFAULTS[sec.kind]}
+                </textarea>
+                <div class="row-between">
+                  <button type="submit" name="action" value="reset" class="secondary" onclick="return confirm('Bỏ bản đã sửa và quay về bản gốc?')">
+                    Khôi phục bản gốc
+                  </button>
+                  <button type="submit" name="action" value="save">
+                    Lưu
+                  </button>
+                </div>
+              </form>
+            </section>
+          );
+        })}
       </>,
     );
   }
@@ -228,6 +282,8 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
       shirtReset: "Đã quay về đoạn ghép áo gốc.",
       bang: "Đã lưu mẫu của Bảng mới.",
       bangReset: "Đã quay về mẫu gốc của Bảng mới.",
+      anh: "Đã lưu mẫu của Bảng ảnh.",
+      anhReset: "Đã quay về mẫu gốc của Bảng ảnh.",
       run: "Đã lưu. Lô đang chạy (nếu có) dùng cài đặt mới từ dòng kế tiếp.",
     };
     const notice = saved && <Alert kind="ok">{text[saved] ?? "Đã lưu."}</Alert>;
@@ -299,7 +355,27 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
     setBangTemplate(db, kind, draft.trim() === BANG_DEFAULTS[kind].trim() ? null : draft);
     return c.redirect(`/settings?saved=bang#${kind}`, 303);
   });
+
+  app.post("/settings/bang-anh", async (c) => {
+    const body = await c.req.parseBody();
+    const kind = IMAGE_SECTIONS.find((x) => x.kind === body.kind)?.kind;
+    if (!kind) return c.text("Yêu cầu không hợp lệ", 400);
+    if (body.action === "reset") {
+      setImageTemplate(db, kind, null);
+      return c.redirect(`/settings?saved=anhReset#${kind}`, 303);
+    }
+    const draft = String(body.template ?? "").replace(/\r\n/g, "\n");
+    const errors = validateImageTemplate(kind, draft);
+    if (errors.length) return c.html(await render({ image: { kind, errors, draft } }), 400);
+    setImageTemplate(db, kind, draft.trim() === IMAGE_DEFAULTS[kind].trim() ? null : draft);
+    return c.redirect(`/settings?saved=anh#${kind}`, 303);
+  });
 }
+
+const IMAGE_SECTIONS: { kind: ImageTemplateKind; title: string; note: string; rows: number }[] = [
+  { kind: "imageTemplate", title: "Mẫu tạo ảnh", note: "Tin đầu tiên của mỗi dòng, gửi kèm character sheet.", rows: 7 },
+  { kind: "imageBackTemplate", title: "Mẫu ảnh quay lưng", note: "Tin thứ hai, chỉ dòng tích Quay lưng, gửi sau khi đã tải ảnh mặt trước.", rows: 4 },
+];
 
 const BANG_SECTIONS: { kind: BangTemplateKind; title: string; note: string; rows: number }[] = [
   { kind: "bangTemplate", title: "Mẫu thường", note: "Dòng một ảnh người mẫu, hoặc người mẫu + áo mặt trước.", rows: 11 },
@@ -404,6 +480,13 @@ function RunSettingsCard(props: { s: Record<string, unknown>; errors?: string[] 
           <label for="dailyVideoLimit">Giới hạn video mỗi ngày</label>
           <input id="dailyVideoLimit" name="dailyVideoLimit" type="number" min="1" max={String(MAX_DAILY_LIMIT)} required value={v("dailyVideoLimit")} />
           <div class="muted small">Đủ số này thì lô tự tạm dừng đến hôm sau. Mặc định {DEFAULT_DAILY_LIMIT}, cao nhất {MAX_DAILY_LIMIT}.</div>
+        </div>
+        <div class="field">
+          <label for="dailyImageLimit">Giới hạn ảnh mỗi ngày (Bảng ảnh)</label>
+          <input id="dailyImageLimit" name="dailyImageLimit" type="number" min="1" max={String(MAX_DAILY_LIMIT)} required value={v("dailyImageLimit")} />
+          <div class="muted small">
+            Đếm riêng với video. Mỗi tin xin ảnh là một lượt (dòng có Quay lưng tính 2). Mặc định {DEFAULT_DAILY_LIMIT}, cao nhất {MAX_DAILY_LIMIT}.
+          </div>
         </div>
         <div class="field">
           <label for="parallelVideos">Số video chạy cùng lúc</label>

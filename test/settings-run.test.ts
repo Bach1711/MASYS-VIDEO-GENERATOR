@@ -17,7 +17,7 @@ describe("Cài đặt chạy lô (F7)", () => {
   it("kiểm tra dữ liệu nhập", () => {
     expect(parseRunSettings(ok)).toEqual({
       ok: true,
-      value: { timeoutMinutes: 20, pauseMinSec: 20, pauseMaxSec: 60, dailyVideoLimit: 5, museUrl: null, parallelVideos: 3 },
+      value: { timeoutMinutes: 20, pauseMinSec: 20, pauseMaxSec: 60, dailyVideoLimit: 5, museUrl: null, parallelVideos: 3, dailyImageLimit: 100 },
     });
     // Số video chạy cùng lúc (D28): 1–6.
     expect(parseRunSettings({ ...ok, parallelVideos: "6" })).toMatchObject({ ok: true, value: { parallelVideos: 6 } });

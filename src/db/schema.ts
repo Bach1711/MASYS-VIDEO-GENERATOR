@@ -157,4 +157,48 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE settings ADD COLUMN hookDayText TEXT;
   ALTER TABLE settings ADD COLUMN hookDay TEXT;
   `,
+  // 12: Bảng ảnh (CON-77, spec v6.3 mục 17.13, D31–D33). Nhân vật (character sheet ở tep\nhan-vat), dòng của Bảng ảnh,
+  // ảnh Muse tạo (tep\anh-tao; mỗi dòng giữ mọi ảnh, `chosen` = ảnh chính của mặt đó). Lô của Bảng ảnh có source = 'anh';
+  // runs.anhRowId gắn lượt với dòng; anhPhase 'front' | 'back' (đang làm ảnh quay lưng, D33); anhBaseline = số ảnh trong
+  // cuộc trò chuyện ngay sau lần gửi gần nhất (ảnh mới = ảnh sau vị trí này); anhBackAt = lúc gửi tin quay lưng (tính
+  // một lượt ảnh). AUTOINCREMENT để số dòng không dùng lại (như D21).
+  `
+  CREATE TABLE nhan_vat (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    ten       TEXT NOT NULL,
+    file      TEXT NOT NULL,
+    bytes     INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    deletedAt TEXT
+  );
+  CREATE TABLE anh_rows (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    nhanVatId INTEGER,
+    prompt    TEXT NOT NULL DEFAULT '',
+    backOn    INTEGER NOT NULL DEFAULT 0,
+    deletedAt TEXT,
+    exportedBangRowId INTEGER
+  );
+  CREATE TABLE anh_files (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    anhRowId  INTEGER NOT NULL,
+    runId     INTEGER,
+    side      TEXT NOT NULL,
+    file      TEXT NOT NULL,
+    bytes     INTEGER NOT NULL DEFAULT 0,
+    chosen    INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE INDEX anh_files_row ON anh_files(anhRowId, side);
+  ALTER TABLE runs ADD COLUMN anhRowId INTEGER;
+  ALTER TABLE runs ADD COLUMN anhPhase TEXT;
+  ALTER TABLE runs ADD COLUMN anhBaseline INTEGER;
+  ALTER TABLE runs ADD COLUMN anhBackAt TEXT;
+  CREATE INDEX runs_anhRow ON runs(anhRowId);
+  ALTER TABLE settings ADD COLUMN imageTemplate TEXT;
+  ALTER TABLE settings ADD COLUMN imageBackTemplate TEXT;
+  ALTER TABLE settings ADD COLUMN dailyImageLimit INTEGER NOT NULL DEFAULT 100;
+  ALTER TABLE settings ADD COLUMN lastNhanVatId INTEGER;
+  `,
 ];

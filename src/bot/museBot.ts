@@ -57,6 +57,9 @@ export const stripQuery = (url: string) => url.split(/[?#]/)[0]!;
 
 /** Video Muse thường vài MB; quá mức này coi là lạ, không tải (giữ bộ nhớ trang và tool). */
 export const MAX_VIDEO_BYTES = 300 * 1024 * 1024;
+/** Bảng ảnh: mỗi tin Muse trả tối đa chừng này ảnh được lấy; mỗi ảnh tối đa 30 MB. */
+export const MAX_IMAGES = 8;
+export const MAX_IMAGE_DOWNLOAD_BYTES = 30 * 1024 * 1024;
 
 /**
  * Điều khiển Chrome bằng hồ sơ bot riêng (ngoài repo). Không gõ mật khẩu, không vượt captcha (D6),
@@ -161,7 +164,96 @@ export class MuseBot {
       sel.login.url.test(page.url()) || (await visible(sel.login.heading(page))) || sel.challenge.text.test(body) || (await sel.challenge.frame(page).count()) > 0;
     const approval = sel.approval.text.test(body) || (await visible(sel.approval.button(page).first()));
     const videos = await sel.chat.resultVideoCount(page).catch(() => 0);
-    return { closed: false, login, approval, notice, videos, url: page.url() };
+    const images = await sel.chat.resultImages(page).catch(() => []);
+    return { closed: false, login, approval, notice, videos, images, url: page.url() };
+  }
+
+  /**
+   * Gửi thêm một tin trong cuộc trò chuyện đang mở ở tab `tab` (Bảng ảnh: tin xin ảnh quay lưng, D33). Không mở cuộc
+   * trò chuyện mới, không đính kèm gì. Lỗi sau khi bấm Gửi luôn có `sent: true` (D9).
+   */
+  async reply(text: string, tab: string): Promise<void> {
+    if (this.busy) throw new BotError("busy", "Bot đang gửi một yêu cầu khác", false);
+    if (!this.ctx) throw new BotError("closed", STATE_TEXT.closed, false);
+    const own = this.tabs.get(tab);
+    if (!own || own.isClosed()) throw new BotError("closed", "Tab của dòng này đã bị đóng", false);
+    this.busy = true;
+    try {
+      const page = own;
+      const state = await this.classify(page);
+      if (state !== "ready") {
+        if (state === "ui_changed") return await this.fail(page, state, STATE_TEXT.ui_changed, false);
+        await page.bringToFront().catch(() => {});
+        throw new BotError(state, STATE_TEXT[state], false);
+      }
+      const noticesBefore = noticeKinds(await bodyText(page));
+      const composer = sel.chat.composer(page);
+      await composer.click();
+      await composer.fill(text);
+      if (!normalize(await composerText(composer)).includes(normalize(text).slice(0, 40))) {
+        return await this.fail(page, "ui_changed", "Không dán được yêu cầu vào ô chat Muse", false);
+      }
+      const [min, max] = this.o.pauseBeforeSendMs ?? [1500, 3000];
+      await page.waitForTimeout(min + Math.random() * (max - min));
+      const send = sel.chat.send(page);
+      if (!((await visible(send)) && (await send.isEnabled().catch(() => false)))) {
+        return await this.fail(page, "ui_changed", "Không thấy nút Gửi của Muse", false);
+      }
+      await send.click();
+      logger.info({ url: stripQuery(page.url()) }, "Đã bấm Gửi tin tiếp theo trên Muse");
+      this.sent.set(tab, { text, noticesBefore });
+      const deadline = Date.now() + (this.o.confirmTimeoutMs ?? 30_000);
+      for (;;) {
+        const body = await bodyText(page);
+        const fresh = noticeKinds(normalize(body).replace(normalize(text), " ")).filter((k) => !noticesBefore.includes(k));
+        if (fresh.includes("quota")) return await this.fail(page, "quota", "Muse báo hết lượt", true);
+        if (fresh.includes("rejected")) return await this.fail(page, "rejected", "Muse từ chối yêu cầu", true);
+        if (fresh.includes("error")) return await this.fail(page, "muse_error", "Muse báo lỗi sau khi gửi", true);
+        if (normalize(await composerText(composer)) === "" && normalize(body).includes(normalize(text).slice(0, 60))) return;
+        if (Date.now() > deadline) return await this.fail(page, "send_unconfirmed", "Đã bấm Gửi nhưng không chắc Muse đã nhận yêu cầu", true);
+        await page.waitForTimeout(500);
+      }
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /**
+   * Tải các ảnh lớn trong cuộc trò chuyện từ vị trí `from` trở đi (Bảng ảnh, CON-77). Ảnh `blob:` / `data:` đọc ngay
+   * trong trang; ảnh `https:` đọc bằng phiên của hồ sơ bot (không bị chặn khác miền). Không bấm gì, không gửi gì.
+   */
+  async downloadImages(tab: string, from: number): Promise<Uint8Array[]> {
+    if (!this.ctx) throw new BotError("ui_changed", "Trình duyệt bot đã đóng", true);
+    const page = await this.page(tab);
+    const list = (await sel.chat.resultImages(page)).slice(from, from + MAX_IMAGES);
+    if (!list.length) throw new BotError("ui_changed", "Chưa thấy ảnh mới trong cuộc trò chuyện", true);
+    const out: Uint8Array[] = [];
+    for (const img of list) {
+      if (/^https?:/i.test(img.src)) {
+        const res = await page.context().request.get(img.src, { timeout: 60_000 });
+        if (!res.ok()) throw new BotError("ui_changed", `Tải ảnh lỗi ${res.status()}`, true);
+        const body = await res.body();
+        if (body.length > MAX_IMAGE_DOWNLOAD_BYTES) throw new BotError("ui_changed", "Ảnh quá lớn", true);
+        out.push(new Uint8Array(body));
+        continue;
+      }
+      const r = await page.evaluate(async (args: { src: string; max: number }) => {
+        const g = globalThis as unknown as {
+          fetch(u: string): Promise<{ ok: boolean; status: number; arrayBuffer(): Promise<ArrayBuffer> }>;
+          btoa(s: string): string;
+        };
+        const res = await g.fetch(args.src);
+        if (!res.ok) return { error: `tải ảnh lỗi ${res.status}` };
+        const buf = new Uint8Array(await res.arrayBuffer());
+        if (buf.length > args.max) return { error: "ảnh quá lớn" };
+        let bin = "";
+        for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+        return { base64: g.btoa(bin) };
+      }, { src: img.src, max: MAX_IMAGE_DOWNLOAD_BYTES });
+      if (!("base64" in r) || r.base64 === undefined) throw new BotError("ui_changed", `Chưa tải được ảnh: ${r.error}`, true);
+      out.push(new Uint8Array(Buffer.from(r.base64, "base64")));
+    }
+    return out;
   }
 
   /**
@@ -404,6 +496,8 @@ export interface WatchResult {
   notice?: NoticeKind;
   /** Số video kết quả trong khung chat của trang đang mở (Bảng mới, spec 17.5 bước 5). */
   videos?: number;
+  /** Ảnh lớn trong khung chat theo thứ tự trên trang (Bảng ảnh, CON-77). */
+  images?: { src: string; ready: boolean }[];
   /** Địa chỉ trang đang mở (để lấy link cuộc trò chuyện khi Muse đổi /thread/new chậm). */
   url?: string;
 }
