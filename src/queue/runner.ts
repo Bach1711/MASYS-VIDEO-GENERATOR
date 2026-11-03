@@ -173,6 +173,9 @@ interface Outcome {
   sent?: boolean;
 }
 
+/** Lượt đã gửi (hoặc đang gửi) Muse, chưa có kết quả. */
+const SENT_STATES = ["sending", "waiting", "verifying", "downloading"];
+
 export class BatchRunner {
   private active?: {
     batchId: number;
@@ -271,6 +274,13 @@ export class BatchRunner {
       for (const r of this.runs(batchId, ["paused_quota"])) {
         moveRun(this.db, r.id, r.state, "failed", "Huỷ lô: đã gửi Muse nhưng Muse báo hết lượt", { doneAt: now() });
       }
+      // Dòng đang kiểm tra (chưa gửi Muse) → Đã huỷ.
+      for (const r of this.runs(batchId, ["checking_row"])) {
+        moveRun(this.db, r.id, r.state, "canceled", "Huỷ lô: dòng này chưa gửi Muse", { sentAt: null, doneAt: now() });
+      }
+      // Dòng đã gửi Muse mà lô không còn chạy (huỷ lúc đang tạm dừng): Cần xem, không gửi lại (D9). Trước 2.3.1 các dòng
+      // này giữ trạng thái đang chờ mãi và chặn cập nhật phiên bản (CON-79).
+      this.markOrphans(batchId, "Huỷ lô khi dòng đã gửi Muse và đang chờ: mở cuộc trò chuyện Muse để xem; không gửi lại (D9)");
       this.setBatch(batchId, "canceled", null);
     })();
   }
@@ -280,6 +290,17 @@ export class BatchRunner {
    * không gửi lại (§7, §12.10). Các dòng sau chờ người dùng bấm Tiếp tục.
    */
   recover(): void {
+    // Dòng kẹt ở trạng thái đang gửi / đang chờ trong lô đã huỷ hoặc đã xong (lỗi trước 2.3.1, CON-79).
+    const stuck = this.db
+      .prepare(
+        `SELECT DISTINCT r.batchId FROM runs r JOIN batches b ON b.id = r.batchId
+         WHERE b.status IN ('canceled', 'done') AND r.state IN (${SENT_STATES.map(() => "?").join(", ")})`,
+      )
+      .all(...SENT_STATES) as { batchId: number }[];
+    for (const { batchId } of stuck) {
+      this.markOrphans(batchId, "Tool mở lại: lô đã kết thúc mà dòng này vẫn đang chờ Muse; mở cuộc trò chuyện Muse để xem, không gửi lại (D9)");
+      logger.warn({ batchId }, "Đã gỡ dòng kẹt trong lô đã kết thúc");
+    }
     const batches = this.db.prepare("SELECT id FROM batches WHERE status = 'running' ORDER BY id").all() as { id: number }[];
     for (const { id } of batches) {
       for (const r of this.runs(id, ["checking_row"])) {
@@ -981,6 +1002,13 @@ export class BatchRunner {
 
   private batch(id: number): BatchRow | undefined {
     return this.db.prepare("SELECT id, spreadsheetId, tab, driveFolderId, status, pauseReason, source FROM batches WHERE id = ?").get(id) as BatchRow | undefined;
+  }
+
+  /** Dòng đã gửi (hoặc đang gửi) Muse của lô không còn chạy → Cần xem. */
+  private markOrphans(batchId: number, message: string): void {
+    for (const r of this.runs(batchId, SENT_STATES)) {
+      moveRun(this.db, r.id, r.state, "needs_review", message, { error: "lô đã huỷ khi dòng đang chờ Muse", doneAt: now() });
+    }
   }
 
   private runs(batchId: number, states: string[]): RunRow[] {
