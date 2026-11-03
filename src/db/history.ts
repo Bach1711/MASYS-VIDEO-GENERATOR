@@ -84,8 +84,12 @@ export function updateBlocker(db: DB, runningBatchId?: number): string | undefin
     runningBatchId ??
     (db.prepare("SELECT id FROM batches WHERE status = 'running' ORDER BY id DESC LIMIT 1").get() as { id: number } | undefined)?.id;
   if (running !== undefined) return `Chờ lô #${running} xong hoặc bấm Tạm dừng.`;
+  // Chỉ tính dòng của lô chưa kết thúc: dòng kẹt trong lô đã huỷ / đã xong không được chặn cập nhật mãi (CON-79).
   const inFlight = db
-    .prepare("SELECT batchId FROM runs WHERE state IN ('checking_row', 'sending', 'waiting', 'verifying', 'downloading') LIMIT 1")
+    .prepare(
+      `SELECT r.batchId FROM runs r JOIN batches b ON b.id = r.batchId
+       WHERE r.state IN ('checking_row', 'sending', 'waiting', 'verifying', 'downloading') AND b.status NOT IN ('canceled', 'done') LIMIT 1`,
+    )
     .get() as { batchId: number } | undefined;
   if (inFlight) return `Lô #${inFlight.batchId} còn dòng đang gửi hoặc đang chờ Muse; chờ dòng đó xong.`;
   return undefined;

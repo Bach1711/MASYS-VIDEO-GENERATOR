@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **03/11/2026**, CON-77 đang làm (v2.3.0: Bảng ảnh — tạo ảnh nhân vật theo character sheet). Trước đó CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **03/11/2026**, CON-79 đang làm (v2.3.1: sửa lỗi huỷ lô để lại dòng đang chờ, chặn cập nhật). Trước đó CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v6.3 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 23/25 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 5/5 🎉 · GĐ6 1/3 (CON-77 🟦 chờ duyệt, CON-78 ⬜)
+**Tổng quan:** 24/26 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 5/5 🎉 · GĐ6 2/4 (CON-79 🟦 chờ duyệt, CON-78 ⬜)
 
 ```
-[■■■■■■■■■□]  23/25 — xong CON-35…CON-52, CON-70…CON-74; đang làm CON-77
+[■■■■■■■■■□]  24/26 — xong CON-35…CON-52, CON-70…CON-74, CON-77; đang làm CON-79
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -120,7 +120,7 @@ flowchart LR
     class videodl done
     class parallel done
     class hook done
-    class anh review
+    class anh done
     class xuat todo
     class gsheets,gdrive,chrome,muse,op ext
 ```
@@ -179,12 +179,15 @@ flowchart LR
 | # | Ticket | Nội dung | Trạng thái | PR | Hoàn thành |
 |---|---|---|---|---|---|
 | 23 | [CON-74](https://linear.app/conducdaudan/issue/CON-74) | Thêm hook đầu video: clip hook + câu hook, ghép bằng ffmpeg (v2.2.0) | 🟩 Xong | [#25](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/25) | 02/11/2026 |
-| 24 | [CON-77](https://linear.app/conducdaudan/issue/CON-77) | Bảng ảnh: tạo ảnh nhân vật theo character sheet, ảnh quay lưng, giới hạn ảnh riêng (v2.3.0) | 🟦 Chờ duyệt | [#26](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/26) | |
+| 24 | [CON-77](https://linear.app/conducdaudan/issue/CON-77) | Bảng ảnh: tạo ảnh nhân vật theo character sheet, ảnh quay lưng, giới hạn ảnh riêng (v2.3.0) | 🟩 Xong | [#26](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/26) | 03/11/2026 |
 | 25 | [CON-78](https://linear.app/conducdaudan/issue/CON-78) | Xuất ảnh từ Bảng ảnh sang Bảng video (v2.4.0) | ⬜ Chưa làm | | |
+| 26 | [CON-79](https://linear.app/conducdaudan/issue/CON-79) | Sửa lỗi: huỷ lô đang tạm dừng để lại dòng đang chờ Muse, chặn cập nhật (v2.3.1) | 🟦 Chờ duyệt | [#27](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/27) | |
 
 ## Nhật ký cập nhật
 
-- **03/11/2026 · CON-77** (chờ duyệt): **v2.3.0** — **Bảng ảnh** độc lập với Bảng video (D31–D33, spec 6.3 mục 17.13). Trang **Nhân vật**: nhiều nhân vật, mỗi nhân vật một file character sheet người dùng tự thêm (lưu ở `tep\nhan-vat`, không đóng gói vào app). Bảng ảnh: mỗi dòng nhân vật + prompt + ô Quay lưng; thêm dòng / dán nhiều prompt; lọc, tìm, chia trang; ▶ Tạo ảnh → xem trước → bot gửi character sheet (ảnh 1) + yêu cầu trong cuộc trò chuyện mới, chạy song song như Bảng video; ảnh về tải xuống `tep\anh-tao` (chỉ tải khi ảnh đã xong và ổn định, bỏ ảnh trùng character sheet); dòng Quay lưng xin tin thứ hai trong cùng cuộc trò chuyện sau khi đã tải mặt trước. ◀ ▶ / ☆ chọn ảnh chính / ⬇ / 🗑; Dọn tất cả. Giới hạn ảnh mỗi ngày riêng (mặc định 100); mẫu tạo ảnh / mẫu quay lưng ở Cài đặt. 302 test đạt. **Chưa thử với Muse thật** (chưa thấy giao diện ảnh của Muse).
+- **03/11/2026 · CON-79** (chờ duyệt): **v2.3.1** — sửa lỗi người phụ trách báo: máy 2.1.0 không bấm được *Cập nhật lên v2.3.0* vì "lô 26 còn dòng đang chờ Muse" dù lô đã huỷ. Nguyên nhân: Huỷ một lô đang tạm dừng chỉ huỷ dòng chưa gửi; dòng đã gửi giữ trạng thái *đang chờ* mãi. Sửa: huỷ lô thì dòng đã gửi → **Cần xem** (không gửi lại, D9), dòng đang kiểm tra → Đã huỷ; mở tool thì gỡ dòng kẹt trong lô đã huỷ / đã xong; chặn cập nhật chỉ tính lô chưa kết thúc. Đã gỡ tay dòng kẹt trên máy người phụ trách (có sao lưu). 3 test mới.
+
+- **03/11/2026 · CON-77** (xong, đã duyệt và gộp vào main, đã phát hành v2.3.0): **v2.3.0** — **Bảng ảnh** độc lập với Bảng video (D31–D33, spec 6.3 mục 17.13). Trang **Nhân vật**: nhiều nhân vật, mỗi nhân vật một file character sheet người dùng tự thêm (lưu ở `tep\nhan-vat`, không đóng gói vào app). Bảng ảnh: mỗi dòng nhân vật + prompt + ô Quay lưng; thêm dòng / dán nhiều prompt; lọc, tìm, chia trang; ▶ Tạo ảnh → xem trước → bot gửi character sheet (ảnh 1) + yêu cầu trong cuộc trò chuyện mới, chạy song song như Bảng video; ảnh về tải xuống `tep\anh-tao` (chỉ tải khi ảnh đã xong và ổn định, bỏ ảnh trùng character sheet); dòng Quay lưng xin tin thứ hai trong cùng cuộc trò chuyện sau khi đã tải mặt trước. ◀ ▶ / ☆ chọn ảnh chính / ⬇ / 🗑; Dọn tất cả. Giới hạn ảnh mỗi ngày riêng (mặc định 100); mẫu tạo ảnh / mẫu quay lưng ở Cài đặt. 302 test đạt. **Chưa thử với Muse thật** (chưa thấy giao diện ảnh của Muse).
 
 - **02/11/2026 · CON-74** (xong, đã duyệt và gộp vào main): **v2.2.0** — **hook đầu video** theo video mẫu `2914.Fleetwood Mac Hoodie.mp4` (D30, spec 17.12). Ô **Thêm hook** trên thanh nút Bảng → ô **Câu hook chung hôm nay** (nhớ trong ngày) và cột **Hook**: clip hook riêng từng dòng (người dùng tự lấy từ YouTube) + câu hook riêng (trống = câu chung). Xem trước Tạo video báo dòng thiếu clip / câu. Video Muse về → tool ghép trên máy bằng **ffmpeg đi kèm** (clip giữa khung 1080×1920 nền đen, câu chữ đen nền trắng bo góc vẽ bằng Chrome, mờ 0,5 giây sang video, không tiếng), ghép lần lượt, tool mở lại thì ghép tiếp; **giữ bản gốc**, tải bản có hook `…_hook.mp4`; nút **Ghép hook / Ghép lại hook** không tốn lượt Muse. Đã ghép thật với đoạn sân khấu của video mẫu + `1.mp4`: ~3,5 giây/video, khung chữ khớp mẫu, tiếng Việt + emoji đúng. 286 test đạt.
 

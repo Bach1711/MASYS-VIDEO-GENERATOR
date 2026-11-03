@@ -2,6 +2,15 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v2.3.1
+
+**Sửa lỗi: không bấm được Cập nhật, báo "Lô #… còn dòng đang gửi hoặc đang chờ Muse" dù lô đó đã huỷ.**
+
+- Lỗi xảy ra khi bấm **Huỷ** một lô đang tạm dừng trong lúc có dòng đã gửi Muse và đang chờ video: dòng đó bị kẹt ở "đang chờ" mãi, và tool không cho cập nhật hay quay về phiên bản.
+- Nay huỷ lô như vậy thì dòng đã gửi Muse chuyển sang **Cần xem** (bấm **Mở trong Muse** để xem video trong cuộc trò chuyện); tool không gửi lại dòng đó. Dòng chưa gửi vẫn chuyển **Đã huỷ** như trước.
+- Dòng đã bị kẹt từ trước được tự gỡ (chuyển **Cần xem**) khi mở tool, và không chặn cập nhật nữa.
+- Máy đang ở bản 2.1.0 hoặc 2.2.0 mà gặp lỗi này thì chưa bấm Cập nhật được: tải zip bản mới ở trang phát hành và giải nén đè lên thư mục cũ (dữ liệu giữ nguyên), hoặc nhờ người phụ trách gỡ giúp.
+
 ## v2.3.0
 
 **Mới: Bảng ảnh: Muse tạo ảnh nhân vật AI của bạn, luôn đúng người nhờ character sheet.**
