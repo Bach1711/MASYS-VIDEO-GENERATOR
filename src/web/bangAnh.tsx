@@ -32,6 +32,7 @@ import {
   type AnhRow,
   type Side,
 } from "../anh/rows.js";
+import { applyExport, planExport } from "../anh/export.js";
 import { estimateAnhText, insertAnhBatch, planAnhBatch } from "../anh/run.js";
 import { ANH_TAO_DIR, BangFiles, formatBytes, imageProblem, NHAN_VAT_DIR, typeOf } from "../bang/files.js";
 import type { AppConfig } from "../config.js";
@@ -70,7 +71,9 @@ const boardUrl = (o: { filter?: AnhFilter; q?: string; page?: number; ok?: strin
   return s ? `${BASE}?${s}` : BASE;
 };
 export const anhUrl = (name: string) => `${BASE}/anh/${encodeURIComponent(name)}`;
-export const sheetUrl = (name: string) => `${NV}/anh/${encodeURIComponent(name)}`;
+/** Dòng của Bảng video (tìm theo số dòng). */
+const videoRowUrl = (id: number) => `/bang-moi?q=${id}`;
+export const sheetUrl =(name: string) => `${NV}/anh/${encodeURIComponent(name)}`;
 
 /** Tên file khi tải ảnh về: MASYS_ANH_<dòng>_<truoc|sau>_<YYYYMMDD-HHmm>.<đuôi>, theo giờ máy lúc ảnh về. */
 export function anhDownloadName(row: number, side: Side, at: string, file: string): string {
@@ -188,6 +191,17 @@ function RowView(props: { row: AnhRow; files: AnhFile[]; locked: boolean; chars:
               <li>{p}</li>
             ))}
           </ul>
+        )}
+        {r.exportedBangRowId && (
+          <div class="small">
+            {r.exportedAlive ? (
+              <a href={videoRowUrl(r.exportedBangRowId)} title="Mở dòng này trên Bảng video">
+                Đã xuất → dòng #{r.exportedBangRowId}
+              </a>
+            ) : (
+              <span class="muted">Đã xuất → dòng #{r.exportedBangRowId} (đã xoá trên Bảng video)</span>
+            )}
+          </div>
         )}
         <div class="small">
           {r.museChatUrl && (
@@ -379,6 +393,9 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
                   </button>
                 </span>
               )}
+              <button type="button" id="exportBtn" class="secondary" disabled title="Mỗi dòng đã chọn thành một dòng mới trên Bảng video, ảnh chính làm Mẫu trước / Mẫu sau">
+                📤 Xuất sang Bảng video
+              </button>
               <button type="button" id="delBtn" class="secondary" disabled>
                 🗑 Xoá dòng đã chọn
               </button>
@@ -698,6 +715,118 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
     return back("ok", `Đang tạo ảnh cho ${plan.runs.length} dòng (lô #${batchId}). Bảng tự cập nhật.${skipped}`);
   });
 
+  // ---------- Xuất sang Bảng video (D34) ----------
+
+  app.get(`${BASE}/xuat`, (c) => {
+    const ids = parseIds(c.req.query("ids") ?? "");
+    const plan = planExport(db, ids);
+    const again = plan.items.filter((it) => it.again);
+    const fresh = plan.items.length - again.length;
+    return c.html(
+      page(
+        "Xuất sang Bảng video",
+        <>
+          <h1>Xuất sang Bảng video</h1>
+          <p class="muted">
+            Mỗi dòng thành <strong>một dòng mới</strong> trên Bảng video: ảnh chính mặt trước làm <strong>Mẫu trước</strong>, ảnh chính quay lưng
+            (nếu có) làm <strong>Mẫu sau</strong>. Ảnh được chép sang, nên xoá ở bảng này không ảnh hưởng bảng kia. Prompt video, Áo trước, Áo sau bạn
+            tự thêm trên Bảng video.
+          </p>
+          {plan.rejected.length > 0 && (
+            <Alert kind="warn">
+              Không xuất được:
+              <ul>
+                {plan.rejected.map((r) => (
+                  <li>
+                    Dòng {r.id}: {r.why}
+                  </li>
+                ))}
+              </ul>
+            </Alert>
+          )}
+          {plan.items.length > 0 && (
+            <div class="scroll card">
+              <table class="bang bang-moi">
+                <thead>
+                  <tr>
+                    <th>Dòng ảnh</th>
+                    <th>Nhân vật</th>
+                    <th>Mẫu trước</th>
+                    <th>Mẫu sau</th>
+                    <th>Ghi chú</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {plan.items.map((it) => (
+                    <tr>
+                      <td>{it.row.id}</td>
+                      <td>{it.row.nhanVatTen ?? "—"}</td>
+                      <td>
+                        <img class="thumb" src={anhUrl(it.front.file)} alt={`Mẫu trước từ dòng ${it.row.id}`} loading="lazy" width="64" height="64" />
+                      </td>
+                      <td>
+                        {it.back ? (
+                          <img class="thumb" src={anhUrl(it.back.file)} alt={`Mẫu sau từ dòng ${it.row.id}`} loading="lazy" width="64" height="64" />
+                        ) : (
+                          <span class="muted small">trống</span>
+                        )}
+                      </td>
+                      <td class="small">{it.again ? <span class="warn-text">Đã xuất rồi → dòng #{it.row.exportedBangRowId}</span> : ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <form method="post" action={`${BASE}/xuat`} class="card actionbar">
+            <Hidden name="ids" value={plan.items.map((it) => it.row.id).join(",")} />
+            <div>
+              {plan.items.length === 0 ? (
+                "Không có dòng nào để xuất."
+              ) : (
+                <>
+                  Sẽ thêm <strong id="exportCount">{fresh}</strong> dòng vào Bảng video.
+                </>
+              )}
+              {again.length > 0 && (
+                <label class="inline" style="display:block;margin-top:6px">
+                  <input
+                    type="checkbox"
+                    name="lai"
+                    value="1"
+                    onchange={`document.getElementById('exportCount').textContent = this.checked ? ${plan.items.length} : ${fresh}; document.getElementById('exportGo').disabled = !this.checked && ${fresh} === 0`}
+                  />{" "}
+                  Xuất lại {again.length} dòng đã xuất (thêm dòng mới nữa trên Bảng video; dòng cũ vẫn giữ)
+                </label>
+              )}
+            </div>
+            <div class="row">
+              <a class="button secondary" href={BASE}>
+                Quay lại
+              </a>
+              <button type="submit" id="exportGo" disabled={fresh === 0}>
+                📤 Xuất
+              </button>
+            </div>
+          </form>
+        </>,
+      ),
+    );
+  });
+
+  app.post(`${BASE}/xuat`, async (c) => {
+    if (!sameSite(c)) return c.text("Yêu cầu không hợp lệ", 403);
+    const body = await c.req.parseBody();
+    const plan = planExport(db, parseIds(String(body.ids ?? "")));
+    const r = applyExport(db, files, plan, body.lai === "1");
+    logger.info({ done: r.done, failed: r.failed }, "Bảng ảnh: đã xuất sang Bảng video");
+    if (r.done.length === 0 && r.failed.length === 0) return c.redirect(boardUrl({ loi: "Không có dòng nào được xuất." }), 303);
+    const rows = r.done.map((d) => `#${d.bangRowId}`).join(", ");
+    const ok = r.done.length ? `Đã xuất ${r.done.length} dòng sang Bảng video (dòng ${rows}). Vào Bảng video để thêm prompt và ảnh áo.` : "";
+    const bad = r.failed.length ? ` Không xuất được: ${r.failed.map((f) => `dòng ${f.id} (${f.why})`).join("; ")}.` : "";
+    return c.redirect(boardUrl(ok ? { ok: ok + bad } : { loi: bad.trim() }), 303);
+  });
+
   // ---------- Nhân vật (D32) ----------
 
   app.get(`${NV}/anh/:name`, (c) => {
@@ -963,6 +1092,7 @@ const BOARD_JS = `
   function sync() {
     var n = checked().length;
     delBtn.disabled = n === 0;
+    exportBtn.disabled = n === 0;
     if (bulkGo) bulkGo.disabled = n === 0;
     if (runBtn.dataset.blocked) return;
     runBtn.disabled = n === 0;
@@ -970,6 +1100,8 @@ const BOARD_JS = `
   }
   document.querySelectorAll("input.pick-row").forEach(function (c) { c.addEventListener("change", sync); });
   runBtn.addEventListener("click", function () { location.href = "/bang-anh/chuan-bi?ids=" + checked().join(","); });
+  var exportBtn = document.getElementById("exportBtn");
+  exportBtn.addEventListener("click", function () { location.href = "/bang-anh/xuat?ids=" + checked().join(","); });
   delBtn.addEventListener("click", function () {
     var ids = checked();
     if (!ids.length || !confirm("Xoá " + ids.length + " dòng đã chọn cùng mọi ảnh của chúng? Không lấy lại được.")) return;

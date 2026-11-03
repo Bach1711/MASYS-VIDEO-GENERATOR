@@ -20,6 +20,8 @@ export interface AnhRow {
   /** Tích "Quay lưng" (D33): 1 = tạo thêm ảnh quay lưng. */
   backOn: number;
   exportedBangRowId: number | null;
+  /** 1 khi dòng Bảng video đã xuất tới còn (chưa bị xoá). */
+  exportedAlive: number;
   /** Số ảnh đang có mỗi mặt. */
   frontCount: number;
   backCount: number;
@@ -80,7 +82,7 @@ const MISSING_SQL = `(${MISSING_DATA_SQL} AND NOT ${RUNNING_SQL} AND NOT ${DONE_
 const REVIEW_SQL = `(${LAST_STATE} IN ('failed', 'needs_review') AND NOT ${DONE_SQL} AND NOT ${MISSING_DATA_SQL})`;
 const TODO_SQL = `(NOT ${RUNNING_SQL} AND NOT ${DONE_SQL} AND NOT ${MISSING_DATA_SQL})`;
 
-export const FILTERS = ["all", "today", "todo", "missing", "running", "done", "review"] as const;
+export const FILTERS = ["all", "today", "todo", "missing", "running", "done", "review", "exported"] as const;
 export type AnhFilter = (typeof FILTERS)[number];
 export const FILTER_TEXT: Record<AnhFilter, string> = {
   all: "Tất cả",
@@ -90,6 +92,7 @@ export const FILTER_TEXT: Record<AnhFilter, string> = {
   running: "Đang tạo",
   done: "Xong",
   review: "Cần xem",
+  exported: "Đã xuất",
 };
 export const isFilter = (s: unknown): s is AnhFilter => FILTERS.includes(s as AnhFilter);
 
@@ -101,6 +104,7 @@ const FILTER_SQL: Record<Exclude<AnhFilter, "all" | "today">, string> = {
   running: RUNNING_SQL,
   done: DONE_SQL,
   review: REVIEW_SQL,
+  exported: "exportedBangRowId IS NOT NULL",
 };
 
 const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -134,7 +138,8 @@ function where(filter: AnhFilter, q: string, now: Date): { sql: string; args: un
 const count = (side: Side) => `(SELECT count(*) FROM anh_files f WHERE f.anhRowId = anh_rows.id AND f.side = '${side}')`;
 const COLS = `id, createdAt, nhanVatId, ${LIVE_NV} AS nhanVatTen,
   (SELECT n.file FROM nhan_vat n WHERE n.id = anh_rows.nhanVatId AND n.deletedAt IS NULL) AS nhanVatFile,
-  prompt, backOn, exportedBangRowId, ${count("truoc")} AS frontCount, ${count("sau")} AS backCount,
+  prompt, backOn, exportedBangRowId,
+  (SELECT count(*) FROM bang_rows b WHERE b.id = anh_rows.exportedBangRowId AND b.deletedAt IS NULL) AS exportedAlive, ${count("truoc")} AS frontCount, ${count("sau")} AS backCount,
   ${LAST_STATE} AS runState, ${lastRun("error")} AS runError, ${lastRun("anhPhase")} AS runPhase, ${lastRun("museChatUrl")} AS museChatUrl`;
 
 /** Một trang của Bảng ảnh, dòng mới nhất trước. */

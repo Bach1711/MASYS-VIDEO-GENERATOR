@@ -2,6 +2,20 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## v2.4.0
+
+**Mới: xuất ảnh từ Bảng ảnh sang Bảng video, khỏi phải tải về rồi chọn lại.**
+
+- Trên **Bảng ảnh**, tích các dòng đã có ảnh rồi bấm **📤 Xuất sang Bảng video**.
+- Trang xem trước cho thấy từng dòng sẽ thành gì trên Bảng video và ghi **"Sẽ thêm N dòng"**. Dòng chưa có ảnh mặt trước, hoặc đang tạo ảnh, được báo riêng và bỏ qua.
+- Bấm **📤 Xuất**: mỗi dòng thành **một dòng mới** trên Bảng video:
+  - **ảnh chính mặt trước** (★) làm **Mẫu trước**;
+  - **ảnh chính quay lưng** (nếu có) làm **Mẫu sau**;
+  - Prompt, Áo trước, Áo sau bạn tự thêm trên Bảng video như mọi dòng khác.
+- Ảnh được **chép** sang, nên xoá dòng hoặc ảnh ở bảng này không làm mất ảnh ở bảng kia.
+- Dòng đã xuất ghi **Đã xuất → dòng #N**, bấm vào là mở đúng dòng đó trên Bảng video. Có thêm bộ lọc **Đã xuất**.
+- Xuất lại một dòng đã xuất: trang xem trước hỏi trước, phải tích **Xuất lại** mới thêm dòng mới (dòng cũ trên Bảng video vẫn giữ).
+
 ## v2.3.1
 
 **Sửa lỗi: không bấm được Cập nhật, báo "Lô #… còn dòng đang gửi hoặc đang chờ Muse" dù lô đó đã huỷ.**

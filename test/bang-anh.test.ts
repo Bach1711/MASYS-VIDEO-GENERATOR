@@ -7,6 +7,7 @@ import { DEFAULT_IMAGE_BACK_TEMPLATE } from "../src/anh/request.js";
 import { addRow, filesOf, getRow, labelOf, mainFile, splitPrompts } from "../src/anh/rows.js";
 import { insertAnhBatch, planAnhBatch } from "../src/anh/run.js";
 import { BangFiles } from "../src/bang/files.js";
+import { getRow as bangGetRow } from "../src/bang/rows.js";
 import { BotError, type WatchResult } from "../src/bot/museBot.js";
 import { getBatch } from "../src/batch/create.js";
 import { loadConfig } from "../src/config.js";
@@ -353,6 +354,57 @@ describe("trên dòng: chọn ảnh chính, tải, xoá; Dọn tất cả", () =
     expect(html).toContain("Tin thứ hai, gửi sau khi đã có ảnh mặt trước");
     expect(html).toContain(`Dòng ${bad}: Thiếu prompt`);
     expect(html).toContain("lô này dùng 2 lượt");
+  });
+});
+
+describe("Xuất sang Bảng video (D34)", () => {
+  it("chép ảnh chính mặt trước / quay lưng vào dòng Bảng video mới; hai bảng xoá độc lập; xuất lại phải xác nhận", async () => {
+    const t = setup({ perReply: 2 });
+    const both = addRow(t.db, { nhanVatId: t.nv, prompt: "x", backOn: true });
+    const front = addRow(t.db, { nhanVatId: t.nv, prompt: "y" });
+    const empty = addRow(t.db, { nhanVatId: t.nv, prompt: "z" });
+    await t.run([both, front]);
+    // Chọn ảnh thứ hai làm ảnh chính mặt trước của dòng `both`.
+    const second = filesOf(t.db, [both]).get(both)!.filter((f) => f.side === "truoc")[1]!;
+    await post(t.app, "/bang-anh/chon-anh", { file: second.id });
+
+    const preview = await (await t.app.request(`/bang-anh/xuat?ids=${both},${front},${empty}`)).text();
+    expect(preview).toContain('Sẽ thêm <strong id="exportCount">2</strong> dòng vào Bảng video.');
+    expect(preview).toContain(`Dòng ${empty}: chưa có ảnh mặt trước`);
+
+    const res = await t.app.request("/bang-anh/xuat", { method: "POST", body: form({ ids: `${both},${front}` }) });
+    expect(res.status).toBe(303);
+    expect(new URL(res.headers.get("location")!, "http://x").searchParams.get("ok")).toContain("Đã xuất 2 dòng sang Bảng video");
+    const out = (id: number) => bangGetRow(t.db, getRow(t.db, id)!.exportedBangRowId!)!;
+    const a = out(both);
+    const read = (dir: string, name: string) => fs.readFileSync(path.join(t.dataDir, "tep", dir, name));
+    expect(read("anh", a.modelFront!)).toEqual(read("anh-tao", second.file));
+    expect(read("anh", a.modelBack!)).toEqual(read("anh-tao", mainFile(filesOf(t.db, [both]).get(both)!, "sau")!.file));
+    expect(a).toMatchObject({ prompt: "", shirtFront: null, shirtBack: null });
+    expect(out(front).modelBack).toBeNull();
+
+    // Bảng ảnh: ghi Đã xuất → dòng #N, lọc Đã xuất.
+    const board = await (await t.app.request("/bang-anh?loc=exported")).text();
+    expect(board).toContain(`Đã xuất → dòng #${a.id}`);
+    expect(board).toContain("Đã xuất (2)");
+
+    // Xuất lại: không xác nhận thì không thêm dòng; có xác nhận thì thêm dòng mới, dòng cũ vẫn giữ.
+    const count = () => (t.db.prepare("SELECT count(*) n FROM bang_rows WHERE deletedAt IS NULL").get() as { n: number }).n;
+    expect(await (await t.app.request(`/bang-anh/xuat?ids=${both}`)).text()).toContain(`Đã xuất rồi → dòng #${a.id}`);
+    await t.app.request("/bang-anh/xuat", { method: "POST", body: form({ ids: String(both) }) });
+    expect(count()).toBe(2);
+    await t.app.request("/bang-anh/xuat", { method: "POST", body: form({ ids: String(both), lai: "1" }) });
+    expect(count()).toBe(3);
+    expect(getRow(t.db, both)!.exportedBangRowId).not.toBe(a.id);
+
+    // Xoá dòng ảnh: ảnh trên Bảng video còn nguyên.
+    await post(t.app, "/bang-anh/xoa", { rows: [both, front] });
+    expect(fs.existsSync(path.join(t.dataDir, "tep", "anh", a.modelFront!))).toBe(true);
+    // Xoá dòng Bảng video: Bảng ảnh ghi dòng đó đã xoá.
+    const again = addRow(t.db, { nhanVatId: t.nv, prompt: "w" });
+    t.db.prepare("UPDATE anh_rows SET exportedBangRowId = ? WHERE id = ?").run(a.id, again);
+    t.db.prepare("UPDATE bang_rows SET deletedAt = 'x' WHERE id = ?").run(a.id);
+    expect(await (await t.app.request("/bang-anh")).text()).toContain(`Đã xuất → dòng #${a.id} (đã xoá trên Bảng video)`);
   });
 });
 
