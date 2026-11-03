@@ -47,6 +47,22 @@ export const chat = {
    * Số video kết quả trong khung chat (ghi nhận 29/10/2026): thẻ <video> nguồn blob, 720×1280, rộng 280 px.
    * Ảnh đại diện động của trợ lý cũng là <video> nhưng chỉ rộng 48–128 px: bỏ mọi <video> nhỏ hơn 150 px.
    */
+  /**
+   * Ảnh lớn trong khung chat theo thứ tự trên trang (Bảng ảnh, CON-77): mọi thẻ <img> hiện rộng hoặc cao hơn 150 px
+   * (bỏ ảnh đại diện, biểu tượng). Gồm cả ảnh character sheet bot vừa đính kèm trong tin của mình: hàng đợi chỉ lấy
+   * ảnh nằm sau vị trí đếm được ngay sau lần gửi (runs.anhBaseline). `ready` = ảnh đã tải xong (không còn là ảnh mờ
+   * đang tạo). Chưa ghi nhận được giao diện ảnh của Muse: khi Muse đổi, chỉ sửa ở đây.
+   */
+  resultImages: (p: Page): Promise<{ src: string; ready: boolean }[]> =>
+    p.locator("img").evaluateAll((els) =>
+      els
+        .map((el) => el as unknown as { currentSrc: string; src: string; complete: boolean; naturalWidth: number; getBoundingClientRect(): { width: number; height: number } })
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.width > 150 || r.height > 150;
+        })
+        .map((el) => ({ src: el.currentSrc || el.src, ready: el.complete && el.naturalWidth >= 256 })),
+    ),
   resultVideoCount: (p: Page): Promise<number> =>
     p.locator("video").evaluateAll(
       (els) =>

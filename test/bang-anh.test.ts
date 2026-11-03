@@ -1,0 +1,384 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import { addNhanVat, getNhanVat, listNhanVat } from "../src/anh/nhanVat.js";
+import { DEFAULT_IMAGE_BACK_TEMPLATE } from "../src/anh/request.js";
+import { addRow, filesOf, getRow, labelOf, mainFile, splitPrompts } from "../src/anh/rows.js";
+import { insertAnhBatch, planAnhBatch } from "../src/anh/run.js";
+import { BangFiles } from "../src/bang/files.js";
+import { BotError, type WatchResult } from "../src/bot/museBot.js";
+import { getBatch } from "../src/batch/create.js";
+import { loadConfig } from "../src/config.js";
+import { openDatabase, type DB } from "../src/db/index.js";
+import { getDailyQuota, getImageQuota } from "../src/db/quota.js";
+import { getSettings } from "../src/db/settings.js";
+import { BatchRunner, type MuseDriver } from "../src/queue/runner.js";
+import { createApp } from "../src/web/app.js";
+import { anhDownloadName } from "../src/web/bangAnh.js";
+
+// Bảng ảnh: tạo ảnh nhân vật theo character sheet (CON-77, spec v6.3 mục 17.13, D31–D33).
+
+const png = (n: number) => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, n]);
+const SHEET = png(1);
+const H = { "X-Masys": "1", "Content-Type": "application/json" };
+const dirs: string[] = [];
+afterEach(() => {
+  for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
+});
+
+interface FakeOpts {
+  /** Số ảnh Muse trả mỗi tin. */
+  perReply?: number;
+  /** Muse chỉ trả lại ảnh giống hệt character sheet. */
+  echoSheet?: boolean;
+  /** reply() ném lỗi này (tin quay lưng). */
+  replyError?: BotError;
+  /** Ảnh hiện mờ (chưa xong) ở lần xem đầu tiên sau mỗi tin. */
+  blurFirst?: boolean;
+}
+
+function setup(o: FakeOpts = {}) {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "masys-banganh-"));
+  dirs.push(dataDir);
+  const files = new BangFiles(dataDir);
+  const db = openDatabase(":memory:");
+  const nv = addNhanVat(db, "Linh", (id) => ({ file: files.saveNhanVat(id, SHEET), bytes: SHEET.length }));
+  const log: { kind: "send" | "reply"; text: string; files?: string[]; tab: string }[] = [];
+  const opened: string[] = [];
+  /** Ảnh trên trang của từng tab: src + dữ liệu. */
+  const pages = new Map<string, { src: string; data: Uint8Array; ready: boolean }[]>();
+  const pending = new Map<string, number>();
+  let counter = 10;
+  const produce = (tab: string) => {
+    const list = pages.get(tab) ?? [];
+    const n = o.perReply ?? 1;
+    for (let i = 0; i < n; i++) {
+      const data = o.echoSheet ? SHEET : png(counter++);
+      list.push({ src: `blob:muse/${counter}-${i}`, data, ready: !o.blurFirst });
+    }
+    pages.set(tab, list);
+  };
+  const bot: MuseDriver = {
+    isOpen: true,
+    async open() {},
+    async send(text: string, f: string[] = [], tab = "") {
+      log.push({ kind: "send", text, files: f, tab });
+      // Tin của mình hiện kèm ảnh character sheet (ảnh lớn đầu tiên trong khung chat).
+      pages.set(tab, [{ src: "blob:me/sheet", data: SHEET, ready: true }]);
+      pending.set(tab, 2);
+      return { chatUrl: `https://muse.ai/thread/t${log.length}abcd` };
+    },
+    async reply(text: string, tab: string) {
+      log.push({ kind: "reply", text, tab });
+      if (o.replyError) throw o.replyError;
+      pending.set(tab, 2);
+    },
+    async watch(tab?: string): Promise<WatchResult> {
+      const t = tab ?? "";
+      const left = pending.get(t) ?? 0;
+      if (left > 0) {
+        pending.set(t, left - 1);
+        if (left === 1) produce(t);
+      } else for (const img of pages.get(t) ?? []) img.ready = true;
+      return { closed: false, login: false, approval: false, images: (pages.get(t) ?? []).map((i) => ({ src: i.src, ready: i.ready })) };
+    },
+    async openChat(url: string, tab?: string) {
+      opened.push(url);
+      if (!pages.has(tab ?? "")) {
+        pages.set(tab ?? "", [{ src: "blob:me/sheet", data: SHEET, ready: true }]);
+        produce(tab ?? "");
+      }
+    },
+    async bringToFront() {},
+    async downloadVideo() {
+      throw new Error("không dùng");
+    },
+    async downloadImages(tab: string, from: number) {
+      return (pages.get(tab) ?? []).slice(from).map((i) => i.data);
+    },
+  };
+  const runner = new BatchRunner(db, undefined, undefined, bot, { pollMs: 2, minuteMs: 60, secondMs: 1, random: () => 0, bangFiles: files });
+  const app = createApp(loadConfig({ MASYS_DATA_DIR: dataDir }), db, { runner });
+  db.prepare("UPDATE settings SET pauseMinSec = 0, pauseMaxSec = 0").run();
+  const run = async (ids: number[]) => {
+    const batchId = insertAnhBatch(db, "", planAnhBatch(db, ids, getSettings(db), "").runs);
+    runner.start(batchId);
+    await runner.idle();
+    return batchId;
+  };
+  return { db, files, dataDir, nv, runner, app, log, opened, pages, run };
+}
+
+const lastRun = (db: DB, row: number) =>
+  db.prepare("SELECT id, state, error, anhPhase, museChatUrl FROM runs WHERE anhRowId = ? ORDER BY id DESC").get(row) as Record<string, string | number | null>;
+const events = (db: DB, runId: number) => (db.prepare("SELECT message FROM run_events WHERE runId = ? ORDER BY id").all(runId) as { message: string }[]).map((e) => e.message);
+const post = (app: ReturnType<typeof createApp>, url: string, body: unknown) => app.request(url, { method: "POST", headers: H, body: JSON.stringify(body) });
+const form = (fields: Record<string, string | Blob>) => {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+  return fd;
+};
+
+describe("Nhân vật (D32)", () => {
+  it("thêm / đổi tên / đổi file / xoá; file nằm trong tep\\nhan-vat, không đóng gói vào app", async () => {
+    const { app, db, dataDir } = setup();
+    const add = await app.request("/nhan-vat/them", { method: "POST", body: form({ ten: " Mai ", file: new File([png(2)], "mai.png") }) });
+    expect(add.status).toBe(303);
+    const mai = listNhanVat(db).find((n) => n.ten === "Mai")!;
+    expect(mai.file).toMatch(/^nv\d+-[a-z0-9]+\.png$/);
+    expect(fs.existsSync(path.join(dataDir, "tep", "nhan-vat", mai.file))).toBe(true);
+
+    await app.request(`/nhan-vat/${mai.id}/ten`, { method: "POST", body: form({ ten: "Mai 2" }) });
+    expect(getNhanVat(db, mai.id)!.ten).toBe("Mai 2");
+
+    await app.request(`/nhan-vat/${mai.id}/file`, { method: "POST", body: form({ file: new File([png(3)], "x.png") }) });
+    const after = getNhanVat(db, mai.id)!;
+    expect(after.file).not.toBe(mai.file);
+    expect(fs.existsSync(path.join(dataDir, "tep", "nhan-vat", mai.file))).toBe(false);
+
+    const bad = await app.request("/nhan-vat/them", { method: "POST", body: form({ ten: "X", file: new File(["chữ"], "a.txt") }) });
+    expect(bad.status).toBe(400);
+    expect(await bad.text()).toContain("Chỉ nhận ảnh JPG, PNG hoặc WEBP.");
+
+    await app.request(`/nhan-vat/${mai.id}/xoa`, { method: "POST" });
+    expect(getNhanVat(db, mai.id)).toBeUndefined();
+    expect(fs.existsSync(path.join(dataDir, "tep", "nhan-vat", after.file))).toBe(false);
+    const html = await (await app.request("/nhan-vat")).text();
+    expect(html).toContain("Linh");
+    expect(html).not.toContain("Mai 2");
+  });
+
+  it("dòng chọn nhân vật đã xoá thành Thiếu dữ liệu", async () => {
+    const { db, nv, app } = setup();
+    const id = addRow(db, { nhanVatId: nv, prompt: "đứng cạnh cửa sổ" });
+    expect(labelOf(getRow(db, id)!).label).toBe("ready");
+    await app.request(`/nhan-vat/${nv}/xoa`, { method: "POST" });
+    expect(labelOf(getRow(db, id)!)).toEqual({ label: "missing_data", problems: ["Nhân vật đã bị xoá: chọn nhân vật khác"] });
+  });
+});
+
+describe("Bảng ảnh: thêm và sửa dòng (D31)", () => {
+  it("dán nhiều prompt → mỗi dòng chữ một dòng; sửa prompt, nhân vật, Quay lưng; lọc", async () => {
+    const { app, db, nv } = setup();
+    expect(splitPrompts("  a \n\n b\r\nc  ")).toEqual(["a", "b", "c"]);
+    const r = (await (await post(app, "/bang-anh/them", { nhanVatId: nv, prompts: "mặc áo phông trắng\nngồi trên sofa", backOn: true })).json()) as { ok: boolean; ids: number[] };
+    expect(r.ok).toBe(true);
+    expect(r.ids).toHaveLength(2);
+    expect(getRow(db, r.ids[0]!)).toMatchObject({ prompt: "mặc áo phông trắng", backOn: 1, nhanVatTen: "Linh" });
+    expect(getSettings(db).lastNhanVatId).toBe(nv);
+
+    const added = (await (await post(app, "/bang-anh/them", { nhanVatId: nv, prompts: "" })).json()) as { ids: number[] };
+    const one = added.ids[0]!;
+    expect(labelOf(getRow(db, one)!).label).toBe("missing_data");
+    await post(app, "/bang-anh/prompt", { row: one, prompt: "  cười  " });
+    expect(getRow(db, one)!.prompt).toBe("cười");
+    await post(app, "/bang-anh/quay-lung", { row: one, on: true });
+    expect(getRow(db, one)!.backOn).toBe(1);
+
+    const noNv = await (await post(app, "/bang-anh/them", { nhanVatId: 999, prompts: "x" })).json();
+    expect(noNv).toEqual({ ok: false, message: "Chọn nhân vật trước (trang Nhân vật)." });
+    expect(await (await post(app, "/bang-anh/them", { nhanVatId: nv })).json()).toMatchObject({ ok: true });
+    expect((await app.request("/bang-anh/them", { method: "POST", body: "{}" })).status).toBe(403);
+
+    const html = await (await app.request("/bang-anh")).text();
+    expect(html).toContain("Bảng ảnh");
+    expect(html).toContain("Chưa tạo (3)");
+    expect(html).toContain("Hôm nay 0/100 ảnh");
+    expect(html).toContain('href="/bang-anh"');
+  });
+
+  it("chưa có nhân vật: Bảng ảnh nhắc thêm nhân vật trước", async () => {
+    const { app, db, nv } = setup();
+    db.prepare("UPDATE nhan_vat SET deletedAt = 'x' WHERE id = ?").run(nv);
+    expect(await (await app.request("/bang-anh")).text()).toContain("Chưa có nhân vật nào.");
+  });
+});
+
+describe("tạo ảnh trên Muse (17.13)", () => {
+  it("một ảnh: đính kèm character sheet, chờ ảnh mới sau ảnh của mình, tải về tep\\anh-tao, ảnh đầu là ảnh chính", async () => {
+    const t = setup({ perReply: 3 });
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "đứng ở quán cà phê" });
+    const batchId = await t.run([id]);
+    expect(t.log).toHaveLength(1);
+    expect(t.log[0]!.text).toContain("character sheet của nhân vật Linh");
+    expect(t.log[0]!.text).toContain("đứng ở quán cà phê");
+    expect(t.log[0]!.files).toEqual([t.files.nhanVatPath(getRow(t.db, id)!.nhanVatFile!)]);
+    const list = filesOf(t.db, [id]).get(id)!;
+    expect(list).toHaveLength(3);
+    expect(list.every((f) => f.side === "truoc" && fs.existsSync(path.join(t.dataDir, "tep", "anh-tao", f.file)))).toBe(true);
+    expect(mainFile(list, "truoc")!.file).toBe(list[0]!.file);
+    expect(lastRun(t.db, id).state).toBe("done");
+    expect(events(t.db, lastRun(t.db, id).id as number).at(-1)).toMatch(/^Đã tải 3 ảnh mặt trước về máy/);
+    expect(labelOf(getRow(t.db, id)!).label).toBe("done");
+    expect(getBatch(t.db, batchId)!.status).toBe("done");
+    // Đếm vào giới hạn ảnh, không đụng giới hạn video.
+    expect(getImageQuota(t.db).used).toBe(1);
+    expect(getDailyQuota(t.db).used).toBe(0);
+  });
+
+  it("Quay lưng: tải xong mặt trước mới gửi tin thứ hai trong cùng tab, ảnh quay lưng vào cột riêng, tính 2 lượt", async () => {
+    const t = setup();
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "mặc áo phông trơn", backOn: true });
+    await t.run([id]);
+    expect(t.log.map((l) => l.kind)).toEqual(["send", "reply"]);
+    expect(t.log[1]).toMatchObject({ text: DEFAULT_IMAGE_BACK_TEMPLATE, tab: t.log[0]!.tab });
+    const list = filesOf(t.db, [id]).get(id)!;
+    expect(list.map((f) => f.side)).toEqual(["truoc", "sau"]);
+    expect(lastRun(t.db, id)).toMatchObject({ state: "done", anhPhase: "back" });
+    expect(events(t.db, lastRun(t.db, id).id as number)).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^Đã tải 1 ảnh mặt trước về máy .*; gửi tin xin ảnh quay lưng/), expect.stringMatching(/^Đã tải 1 ảnh quay lưng về máy/)]),
+    );
+    expect(getImageQuota(t.db).used).toBe(2);
+  });
+
+  it("ảnh còn mờ thì chưa tải; chỉ tải khi ảnh đã xong và không đổi giữa hai lần xem", async () => {
+    const t = setup({ blurFirst: true });
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "x" });
+    await t.run([id]);
+    expect(lastRun(t.db, id).state).toBe("done");
+    expect(filesOf(t.db, [id]).get(id)).toHaveLength(1);
+  });
+
+  it("chỉ thấy lại ảnh character sheet → không lưu, Cần xem, không gửi lại", async () => {
+    const t = setup({ echoSheet: true });
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "x" });
+    await t.run([id]);
+    expect(t.log).toHaveLength(1);
+    expect(lastRun(t.db, id)).toMatchObject({ state: "needs_review", error: "không tải được ảnh mặt trước" });
+    expect(filesOf(t.db, [id]).get(id)).toBeUndefined();
+    expect(labelOf(getRow(t.db, id)!).label).toBe("review");
+  });
+
+  it("tin quay lưng chưa gửi được (Muse đòi đăng nhập): giữ ảnh mặt trước, dòng Cần xem, lô tạm dừng", async () => {
+    const t = setup({ replyError: new BotError("login", "Cần đăng nhập Muse", false) });
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "x", backOn: true });
+    const id2 = addRow(t.db, { nhanVatId: t.nv, prompt: "y" });
+    db_parallel(t.db, 1);
+    const batchId = await t.run([id, id2]);
+    expect(lastRun(t.db, id)).toMatchObject({ state: "needs_review", error: "chưa có ảnh quay lưng" });
+    expect(filesOf(t.db, [id]).get(id)!.map((f) => f.side)).toEqual(["truoc"]);
+    expect(getBatch(t.db, batchId)).toMatchObject({ status: "paused", pauseReason: "login" });
+    expect(lastRun(t.db, id2).state).toBe("queued");
+    // Tin quay lưng chưa gửi thì không tính lượt.
+    expect(getImageQuota(t.db).used).toBe(1);
+  });
+
+  it("dữ liệu dòng đổi sau khi bấm Tạo ảnh → không gửi, Cần xem", async () => {
+    const t = setup();
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "x" });
+    const batchId = insertAnhBatch(t.db, "", planAnhBatch(t.db, [id], getSettings(t.db), "").runs);
+    t.db.prepare("UPDATE anh_rows SET prompt = 'khác' WHERE id = ?").run(id);
+    t.runner.start(batchId);
+    await t.runner.idle();
+    expect(t.log).toHaveLength(0);
+    expect(lastRun(t.db, id)).toMatchObject({ state: "needs_review", error: "dữ liệu dòng đã đổi" });
+  });
+
+  it("giới hạn ảnh mỗi ngày: dòng có Quay lưng cần 2 lượt; thiếu thì không gửi, lô tạm dừng", async () => {
+    const t = setup();
+    t.db.prepare("UPDATE settings SET dailyImageLimit = 1").run();
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "x", backOn: true });
+    expect(planAnhBatch(t.db, [id], getSettings(t.db), "").turns).toBe(2);
+    const batchId = await t.run([id]);
+    expect(t.log).toHaveLength(0);
+    expect(getBatch(t.db, batchId)).toMatchObject({ status: "paused", pauseReason: "image_limit" });
+  });
+});
+
+describe("tool mở lại giữa chừng (D9)", () => {
+  const stuck = (t: ReturnType<typeof setup>, id: number, fields: string) => {
+    const batchId = insertAnhBatch(t.db, "", planAnhBatch(t.db, [id], getSettings(t.db), "").runs);
+    t.db.prepare("UPDATE batches SET status = 'running' WHERE id = ?").run(batchId);
+    t.db.prepare(`UPDATE runs SET sentAt = ?, museChatUrl = 'https://muse.ai/thread/old1', ${fields}`).run(new Date().toISOString());
+    t.runner.recover();
+    return t.runner.idle();
+  };
+
+  it("đang chờ ảnh: mở lại đúng cuộc trò chuyện, tải ảnh, không gửi gì", async () => {
+    const t = setup();
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "x" });
+    await stuck(t, id, "state = 'waiting', anhPhase = 'front', anhBaseline = 1");
+    expect(t.opened).toEqual(["https://muse.ai/thread/old1"]);
+    expect(t.log).toEqual([]);
+    expect(lastRun(t.db, id).state).toBe("done");
+    expect(filesOf(t.db, [id]).get(id)).toHaveLength(1);
+  });
+
+  it("tắt đúng lúc gửi tin xin ảnh quay lưng → không biết đã gửi chưa: Cần xem, không gửi lại", async () => {
+    const t = setup();
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "x", backOn: true });
+    await stuck(t, id, "state = 'sending', anhPhase = 'back', anhBackAt = sentAt");
+    expect(t.log).toEqual([]);
+    expect(lastRun(t.db, id)).toMatchObject({ state: "needs_review", error: "chưa rõ đã xin ảnh quay lưng" });
+  });
+});
+
+describe("trên dòng: chọn ảnh chính, tải, xoá; Dọn tất cả", () => {
+  it("★ đổi ảnh chính, ⬇ có tên MASYS_ANH_…, 🗑 xoá ảnh (ảnh chính chuyển sang ảnh còn lại), dọn xoá cả file", async () => {
+    const t = setup({ perReply: 2 });
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "x" });
+    await t.run([id]);
+    const [a, b] = filesOf(t.db, [id]).get(id)!;
+    expect(await (await post(t.app, "/bang-anh/chon-anh", { file: b!.id })).json()).toEqual({ ok: true });
+    expect(mainFile(filesOf(t.db, [id]).get(id)!, "truoc")!.id).toBe(b!.id);
+
+    const dl = await t.app.request(`/bang-anh/anh/${b!.file}?tai=1`);
+    expect(dl.status).toBe(200);
+    expect(dl.headers.get("content-disposition")).toBe(`attachment; filename="${anhDownloadName(id, "truoc", b!.createdAt, b!.file)}"`);
+    expect(anhDownloadName(7, "sau", "2026-11-03T08:05:00", "a7-sau-x.png")).toBe("MASYS_ANH_7_sau_20261103-0805.png");
+    expect((await t.app.request("/bang-anh/anh/..%2Fdata.db")).status).toBe(404);
+
+    await post(t.app, "/bang-anh/xoa-anh", { file: b!.id });
+    expect(fs.existsSync(path.join(t.dataDir, "tep", "anh-tao", b!.file))).toBe(false);
+    expect(mainFile(filesOf(t.db, [id]).get(id)!, "truoc")!.id).toBe(a!.id);
+
+    const html = await (await t.app.request("/bang-anh/don")).text();
+    expect(html).toContain("Sẽ xoá <strong>1 dòng</strong>");
+    const done = await t.app.request("/bang-anh/don", { method: "POST", body: form({}) });
+    expect(done.status).toBe(303);
+    expect(getRow(t.db, id)).toBeUndefined();
+    expect(fs.readdirSync(path.join(t.dataDir, "tep", "anh-tao"))).toEqual([]);
+    // Nhân vật không bị xoá khi dọn.
+    expect(listNhanVat(t.db)).toHaveLength(1);
+  });
+
+  it("trang xem trước: cho thấy character sheet, hai tin gửi Muse, số lượt; dòng thiếu dữ liệu bị loại", async () => {
+    const t = setup();
+    const ok = addRow(t.db, { nhanVatId: t.nv, prompt: "x", backOn: true });
+    const bad = addRow(t.db, { nhanVatId: t.nv, prompt: "" });
+    const html = await (await t.app.request(`/bang-anh/chuan-bi?ids=${ok},${bad}`)).text();
+    expect(html).toContain("Tạo ảnh · 1 dòng");
+    expect(html).toContain("mặt trước + quay lưng");
+    expect(html).toContain("Tin thứ hai, gửi sau khi đã có ảnh mặt trước");
+    expect(html).toContain(`Dòng ${bad}: Thiếu prompt`);
+    expect(html).toContain("lô này dùng 2 lượt");
+  });
+});
+
+describe("Cài đặt: mẫu yêu cầu và giới hạn ảnh", () => {
+  it("lưu / khôi phục mẫu tạo ảnh; mẫu thiếu {prompt} bị từ chối; giới hạn ảnh lưu riêng", async () => {
+    const t = setup();
+    const save = await t.app.request("/settings/bang-anh", { method: "POST", body: form({ kind: "imageTemplate", action: "save", template: "Ảnh của {ten_nhan_vat}: {prompt}" }) });
+    expect(save.status).toBe(303);
+    expect(getSettings(t.db).imageTemplate).toBe("Ảnh của {ten_nhan_vat}: {prompt}");
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "cười" });
+    expect(planAnhBatch(t.db, [id], getSettings(t.db), "").runs[0]!.text).toBe("Ảnh của Linh: cười");
+    const bad = await t.app.request("/settings/bang-anh", { method: "POST", body: form({ kind: "imageTemplate", action: "save", template: "không có chỗ trống" }) });
+    expect(bad.status).toBe(400);
+    expect(await bad.text()).toContain("Mẫu phải có: {prompt}");
+    await t.app.request("/settings/bang-anh", { method: "POST", body: form({ kind: "imageTemplate", action: "reset" }) });
+    expect(getSettings(t.db).imageTemplate).toBeNull();
+
+    await t.app.request("/settings/run", {
+      method: "POST",
+      body: form({ timeoutMinutes: "20", pauseMinSec: "0", pauseMaxSec: "0", dailyVideoLimit: "100", dailyImageLimit: "40", parallelVideos: "3", museUrl: "" }),
+    });
+    expect(getSettings(t.db)).toMatchObject({ dailyImageLimit: 40, dailyVideoLimit: 100 });
+    expect(await (await t.app.request("/settings")).text()).toContain("Mẫu yêu cầu cho Bảng ảnh");
+  });
+});
+
+function db_parallel(db: DB, n: number) {
+  db.prepare("UPDATE settings SET parallelVideos = ?").run(n);
+}

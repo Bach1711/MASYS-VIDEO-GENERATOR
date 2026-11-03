@@ -25,14 +25,29 @@ export interface Settings {
   /** Câu hook chung và ngày (giờ máy, YYYY-MM-DD) người dùng điền; sang ngày khác thì coi như trống. */
   hookDayText: string | null;
   hookDay: string | null;
+  /** Bảng ảnh (CON-77, D31–D33): mẫu tạo ảnh, mẫu ảnh quay lưng (null = mặc định), giới hạn ảnh mỗi ngày, nhân vật dùng gần nhất. */
+  imageTemplate: string | null;
+  imageBackTemplate: string | null;
+  dailyImageLimit: number;
+  lastNhanVatId: number | null;
 }
 
 export function getSettings(db: DB): Settings {
   return db
     .prepare(
-      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt, bangTemplate, bangShirtTemplate, twoSidedTemplate, parallelVideos, hookOn, hookDayText, hookDay FROM settings WHERE id = 1",
+      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt, bangTemplate, bangShirtTemplate, twoSidedTemplate, parallelVideos, hookOn, hookDayText, hookDay, imageTemplate, imageBackTemplate, dailyImageLimit, lastNhanVatId FROM settings WHERE id = 1",
     )
     .get() as Settings;
+}
+
+export type ImageTemplateKind = "imageTemplate" | "imageBackTemplate";
+
+export function setImageTemplate(db: DB, kind: ImageTemplateKind, template: string | null): void {
+  db.prepare(`UPDATE settings SET ${kind} = ? WHERE id = 1`).run(template);
+}
+
+export function setLastNhanVat(db: DB, id: number | null): void {
+  db.prepare("UPDATE settings SET lastNhanVatId = ? WHERE id = 1").run(id);
 }
 
 /** Ngày theo giờ máy, YYYY-MM-DD. */
@@ -85,7 +100,7 @@ export function setBangTemplate(db: DB, kind: BangTemplateKind, template: string
 }
 
 /** Các cài đặt chạy lô của trang Cài đặt (F7). */
-export type RunSettings = Pick<Settings, "timeoutMinutes" | "pauseMinSec" | "pauseMaxSec" | "dailyVideoLimit" | "museUrl" | "parallelVideos">;
+export type RunSettings = Pick<Settings, "timeoutMinutes" | "pauseMinSec" | "pauseMaxSec" | "dailyVideoLimit" | "museUrl" | "parallelVideos" | "dailyImageLimit">;
 
 /** Giới hạn ngày mặc định (D25, v6.0; trước là 5 theo D13) và mức cao nhất cho đặt. */
 export const DEFAULT_DAILY_LIMIT = 100;
@@ -107,12 +122,14 @@ export function parseRunSettings(form: Record<string, unknown>): { ok: true; val
   const dailyVideoLimit = int(form.dailyVideoLimit);
   // Form cũ không có ô này: giữ mặc định.
   const parallelVideos = form.parallelVideos === undefined ? DEFAULT_PARALLEL_VIDEOS : int(form.parallelVideos);
+  const dailyImageLimit = form.dailyImageLimit === undefined ? DEFAULT_DAILY_LIMIT : int(form.dailyImageLimit);
   if (!(timeoutMinutes >= 1 && timeoutMinutes <= 120)) errors.push("Thời gian chờ phải là số phút từ 1 đến 120.");
   if (!(pauseMinSec >= 0 && pauseMinSec <= 600)) errors.push("Nghỉ ít nhất phải là số giây từ 0 đến 600.");
   if (!(pauseMaxSec >= 0 && pauseMaxSec <= 600)) errors.push("Nghỉ nhiều nhất phải là số giây từ 0 đến 600.");
   else if (pauseMaxSec < pauseMinSec) errors.push("Nghỉ nhiều nhất phải lớn hơn hoặc bằng nghỉ ít nhất.");
   if (!(dailyVideoLimit >= 1 && dailyVideoLimit <= MAX_DAILY_LIMIT)) errors.push(`Giới hạn video mỗi ngày phải là số từ 1 đến ${MAX_DAILY_LIMIT}.`);
   if (!(parallelVideos >= 1 && parallelVideos <= MAX_PARALLEL_VIDEOS)) errors.push(`Số video chạy cùng lúc phải là số từ 1 đến ${MAX_PARALLEL_VIDEOS}.`);
+  if (!(dailyImageLimit >= 1 && dailyImageLimit <= MAX_DAILY_LIMIT)) errors.push(`Giới hạn ảnh mỗi ngày phải là số từ 1 đến ${MAX_DAILY_LIMIT}.`);
 
   let museUrl: string | null = null;
   const rawUrl = String(form.museUrl ?? "").trim();
@@ -128,11 +145,11 @@ export function parseRunSettings(form: Record<string, unknown>): { ok: true; val
     } else museUrl = u.href;
   }
   if (errors.length) return { ok: false, errors };
-  return { ok: true, value: { timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, parallelVideos } };
+  return { ok: true, value: { timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, parallelVideos, dailyImageLimit } };
 }
 
 export function saveRunSettings(db: DB, s: RunSettings): void {
   db.prepare(
-    "UPDATE settings SET timeoutMinutes = ?, pauseMinSec = ?, pauseMaxSec = ?, dailyVideoLimit = ?, museUrl = ?, parallelVideos = ? WHERE id = 1",
-  ).run(s.timeoutMinutes, s.pauseMinSec, s.pauseMaxSec, s.dailyVideoLimit, s.museUrl, s.parallelVideos);
+    "UPDATE settings SET timeoutMinutes = ?, pauseMinSec = ?, pauseMaxSec = ?, dailyVideoLimit = ?, museUrl = ?, parallelVideos = ?, dailyImageLimit = ? WHERE id = 1",
+  ).run(s.timeoutMinutes, s.pauseMinSec, s.pauseMaxSec, s.dailyVideoLimit, s.museUrl, s.parallelVideos, s.dailyImageLimit);
 }

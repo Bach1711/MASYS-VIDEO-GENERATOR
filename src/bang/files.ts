@@ -8,6 +8,10 @@ export const IMAGE_DIR = path.join("tep", "anh");
 export const VIDEO_DIR = path.join("tep", "video");
 /** Clip hook người dùng chọn (CON-74, D30). */
 export const HOOK_DIR = path.join("tep", "hook");
+/** Character sheet của các nhân vật (CON-77, D32): người dùng tự thêm, không đóng gói vào app. */
+export const NHAN_VAT_DIR = path.join("tep", "nhan-vat");
+/** Ảnh Muse tạo cho Bảng ảnh (CON-77, D31). */
+export const ANH_TAO_DIR = path.join("tep", "anh-tao");
 
 /** Mỗi ảnh tối đa 20 MB (17.2). */
 export const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -67,10 +71,16 @@ const SAFE_NAME = /^[a-z0-9-]+\.(jpg|png|webp|mp4|mov|webm|mkv)$/;
 export const isSafeName = (name: string) => SAFE_NAME.test(name);
 /** Clip hook: "<dòng>-hookclip-…". */
 export const isClipName = (name: string) => isSafeName(name) && /^\d+-hookclip-/.test(name);
+const IMAGE_EXT = /\.(jpg|png|webp)$/;
+/** Character sheet: "nv<số>-…"; ảnh Muse tạo: "a<dòng>-truoc-…" / "a<dòng>-sau-…" (CON-77). */
+export const isNhanVatName = (name: string) => isSafeName(name) && /^nv\d+-/.test(name) && IMAGE_EXT.test(name);
+export const isAnhTaoName = (name: string) => isSafeName(name) && /^a\d+-(truoc|sau)-/.test(name) && IMAGE_EXT.test(name);
 
 /** Thư mục chứa một file theo tên tool đặt: clip hook → tep\hook, video → tep\video, còn lại → tep\anh. */
 export function dirOf(name: string): string {
   if (isClipName(name)) return HOOK_DIR;
+  if (isNhanVatName(name)) return NHAN_VAT_DIR;
+  if (isAnhTaoName(name)) return ANH_TAO_DIR;
   return name.endsWith(".mp4") ? VIDEO_DIR : IMAGE_DIR;
 }
 
@@ -167,10 +177,43 @@ export class BangFiles {
     return fs.existsSync(p) ? fs.statSync(p).size : 0;
   }
 
-  /** Tổng dung lượng ảnh + video + clip hook (byte), để hiện "Đang dùng" (17.9). */
-  usedBytes(): number {
+  /** Lưu character sheet đã kiểm tra (D32); trả tên file "nv<id>-….<đuôi>". */
+  saveNhanVat(id: number, data: Uint8Array, now = new Date()): string {
+    const ext = sniffImage(data);
+    if (!ext) throw new Error("Không phải ảnh JPG / PNG / WEBP");
+    const name = `nv${id}-${randomPart(now)}.${ext}`;
+    fs.writeFileSync(path.join(this.dir(NHAN_VAT_DIR), name), data);
+    return name;
+  }
+
+  /** Đường dẫn tuyệt đối của character sheet; undefined khi tên lạ hoặc file không còn. */
+  nhanVatPath(name: string | null | undefined): string | undefined {
+    if (!name || !isNhanVatName(name)) return undefined;
+    const p = path.join(this.dataDir, NHAN_VAT_DIR, name);
+    return fs.existsSync(p) ? p : undefined;
+  }
+
+  /** Lưu một ảnh Muse tạo cho dòng Bảng ảnh; trả tên file. Không phải ảnh thì báo lỗi. */
+  saveAnhTao(rowId: number, side: "truoc" | "sau", data: Uint8Array, now = new Date()): string {
+    if (data.length === 0) throw new Error("file ảnh trống");
+    const ext = sniffImage(data);
+    if (!ext) throw new Error("file tải về không phải ảnh JPG / PNG / WEBP");
+    const name = `a${rowId}-${side}-${randomPart(now)}.${ext}`;
+    fs.writeFileSync(path.join(this.dir(ANH_TAO_DIR), name), data);
+    return name;
+  }
+
+  /** Đường dẫn tuyệt đối của ảnh Muse tạo; undefined khi tên lạ hoặc file không còn. */
+  anhTaoPath(name: string): string | undefined {
+    if (!isAnhTaoName(name)) return undefined;
+    const p = path.join(this.dataDir, ANH_TAO_DIR, name);
+    return fs.existsSync(p) ? p : undefined;
+  }
+
+  /** Tổng dung lượng (byte) các thư mục `subs`, để hiện "Đang dùng" (17.9). Mặc định: ảnh + video + clip hook của Bảng video. */
+  usedBytes(subs: string[] = [IMAGE_DIR, VIDEO_DIR, HOOK_DIR]): number {
     let total = 0;
-    for (const sub of [IMAGE_DIR, VIDEO_DIR, HOOK_DIR]) {
+    for (const sub of subs) {
       const d = path.join(this.dataDir, sub);
       if (!fs.existsSync(d)) continue;
       for (const f of fs.readdirSync(d)) total += fs.statSync(path.join(d, f)).size;

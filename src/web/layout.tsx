@@ -186,7 +186,9 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
               <img src={logoUrl("icon-64.png")} alt="" />
               {APP_NAME}
             </a>
-            <a href="/">Bảng</a>
+            <a href="/">Bảng video</a>
+            <a href="/bang-anh">Bảng ảnh</a>
+            <a href="/nhan-vat">Nhân vật</a>
             <details class="menu">
               <summary>⚙ Nâng cao</summary>
               <div class="menu-items">

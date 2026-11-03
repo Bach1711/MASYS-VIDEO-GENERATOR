@@ -9,11 +9,11 @@ export function Alert(props: { kind: "warn" | "ok"; children: Child }) {
   );
 }
 
-export function QuotaBox(props: { quota: DailyQuota }) {
+export function QuotaBox(props: { quota: DailyQuota; unit?: string }) {
   const q = props.quota;
   return (
     <div class="card quota">
-      Hôm nay: <strong>{q.used}/{q.limit} video</strong>
+      Hôm nay: <strong>{q.used}/{q.limit} {props.unit ?? "video"}</strong>
       <span class="muted"> · còn {q.remaining} lượt (giới hạn mỗi ngày, D13)</span>
     </div>
   );

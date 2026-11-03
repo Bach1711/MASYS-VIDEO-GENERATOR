@@ -1,9 +1,12 @@
+import fs from "node:fs";
+import { addFiles as addAnhFiles, getRow as getAnhRow } from "../anh/rows.js";
+import type { AnhSnapshot } from "../anh/run.js";
 import { formatBytes, type BangFiles } from "../bang/files.js";
 import { getRow, queueHook, setRowVideo } from "../bang/rows.js";
 import { BotError, type WatchResult } from "../bot/museBot.js";
 import { chat as chatSel } from "../bot/museSelectors.js";
 import type { DB } from "../db/index.js";
-import { getDailyQuota } from "../db/quota.js";
+import { getDailyQuota, getImageQuota } from "../db/quota.js";
 import { logRunEvent, moveRun } from "../db/runs.js";
 import { getSettings, setMuseReady } from "../db/settings.js";
 import { getSheetConfig, type SheetConfig } from "../db/sheetConfigs.js";
@@ -36,9 +39,13 @@ export interface MuseDriver {
   /** Đóng tab riêng của một lượt đã xong. */
   closeTab?(tab: string): Promise<void>;
   bringToFront(): Promise<void>;
+  /** Bảng ảnh (CON-77): gửi thêm một tin trong cuộc trò chuyện đang mở ở tab (tin xin ảnh quay lưng, D33). */
+  reply?(text: string, tab: string): Promise<void>;
+  /** Bảng ảnh: tải các ảnh lớn trong cuộc trò chuyện từ vị trí `from` trở đi. */
+  downloadImages?(tab: string, from: number): Promise<Uint8Array[]>;
 }
 
-export type PauseReason = "user" | "login" | "ui" | "quota" | "limit" | "row_shift" | "other_cells" | "google" | "restart";
+export type PauseReason = "user" | "login" | "ui" | "quota" | "limit" | "image_limit" | "row_shift" | "other_cells" | "google" | "restart";
 
 export const PAUSE_TEXT: Record<PauseReason, string> = {
   user: "Bạn đã bấm Tạm dừng.",
@@ -46,6 +53,7 @@ export const PAUSE_TEXT: Record<PauseReason, string> = {
   ui: "Giao diện Muse thay đổi: bot không tìm thấy ô chat hoặc nút Gửi (hoặc trình duyệt bot bị tắt). Xem ảnh chụp trong Nhật ký.",
   quota: "Muse hết lượt / hết token. Khi Muse có lượt trở lại, bấm Tiếp tục.",
   limit: "Đã đủ video trong ngày (giới hạn ở Cài đặt, D13). Ngày mai bấm Tiếp tục.",
+  image_limit: "Đã đủ ảnh trong ngày (giới hạn ảnh ở Cài đặt). Ngày mai bấm Tiếp tục.",
   row_shift: "Một dòng trong sheet đã bị đổi so với lúc tạo lô (lệch dòng). Kiểm tra sheet rồi bấm Tiếp tục.",
   other_cells: "Muse sửa nhầm ô: có ô khác trong sheet bị đổi trong lúc chạy. Kiểm tra sheet rồi bấm Tiếp tục.",
   google: "Không đọc hoặc ghi được Google Sheet. Kiểm tra mạng / quyền chia sẻ rồi bấm Tiếp tục.",
@@ -59,6 +67,7 @@ export const PAUSE_SHORT: Record<PauseReason, string> = {
   ui: "Giao diện Muse thay đổi",
   quota: "Muse hết lượt / hết token",
   limit: "Đã đủ video trong ngày",
+  image_limit: "Đã đủ ảnh trong ngày",
   row_shift: "Lệch dòng trong sheet",
   other_cells: "Muse sửa nhầm ô",
   google: "Lỗi Google Sheet",
@@ -82,8 +91,8 @@ export interface RunnerOptions {
   minuteMs?: number;
   secondMs?: number;
   random?: () => number;
-  /** Ảnh của Bảng mới trên máy (CON-52). */
-  bangFiles?: Pick<BangFiles, "imagePath" | "saveVideo" | "removeAny">;
+  /** Ảnh của Bảng mới trên máy (CON-52); character sheet và ảnh Muse tạo của Bảng ảnh (CON-77). */
+  bangFiles?: Pick<BangFiles, "imagePath" | "saveVideo" | "removeAny" | "nhanVatPath" | "saveAnhTao">;
   /** Video của dòng vừa về và lô có thêm hook (CON-74, D30): xếp dòng vào hàng chờ ghép. */
   onHookJob?: (rowId: number) => void;
 }
@@ -101,6 +110,9 @@ interface RunRow {
   museChatUrl: string | null;
   /** Câu hook lúc bấm Tạo video (CON-74, D30); null = không thêm hook. */
   hookText?: string | null;
+  /** Bảng ảnh (CON-77): 'front' | 'back' (đang làm ảnh quay lưng); số ảnh trong cuộc trò chuyện ngay sau lần gửi gần nhất. */
+  anhPhase?: string | null;
+  anhBaseline?: number | null;
 }
 
 interface BatchRow {
@@ -134,6 +146,8 @@ interface Inflight {
   deadline: number;
   approval: boolean;
   loginNoted: boolean;
+  /** Bảng ảnh: danh sách ảnh mới thấy ở lần xem trước; giống hệt lần này thì coi như Muse đã tạo xong (không còn đổi). */
+  seen?: string;
 }
 
 /** Kết quả một lần xem tab của một dòng đang chờ. */
@@ -204,7 +218,7 @@ export class BatchRunner {
   start(batchId: number): { ok: true } | { ok: false; message: string } {
     const b = this.batch(batchId);
     // Tool vừa mở lại và đang chờ nốt video đã gửi của chính lô này (Bảng): Tiếp tục thì gửi luôn các dòng còn lại.
-    const upgrade = this.active?.batchId === batchId && this.active.mode === "watch" && b?.source === "bang" && b.status === "paused";
+    const upgrade = this.active?.batchId === batchId && this.active.mode === "watch" && isTabbed(b?.source) && b?.status === "paused";
     if (this.active && !upgrade) return { ok: false, message: `Đang chạy lô #${this.active.batchId}. Mỗi lúc chỉ chạy một lô.` };
     if (!b) return { ok: false, message: "Không có lô này." };
     if (b.status !== "queued" && b.status !== "paused") return { ok: false, message: "Lô này không ở trạng thái chờ chạy hoặc tạm dừng." };
@@ -313,7 +327,7 @@ export class BatchRunner {
 
   private async loop(batchId: number, mode: "full" | "watch"): Promise<void> {
     const batch = this.batch(batchId)!;
-    if (batch.source === "bang") return this.loopBang(batch);
+    if (isTabbed(batch.source)) return this.loopBang(batch);
     const flow = this.flowFor(batch);
     if ("pause" in flow) return this.setBatch(batchId, "paused", flow.pause);
 
@@ -534,6 +548,14 @@ export class BatchRunner {
     // Dòng đã gửi trước khi tool tắt: mở lại đúng cuộc trò chuyện trong tab riêng, chờ tiếp, không gửi lại.
     for (const r of this.runs(batch.id, ["sending", "waiting", "verifying", "downloading"])) {
       const msg = "Tool mở lại: theo dõi tiếp cuộc trò chuyện Muse, không gửi lại (D9)";
+      if (r.state === "sending" && r.anhPhase === "back") {
+        // Bảng ảnh: tool tắt đúng lúc gửi tin xin ảnh quay lưng → không biết đã gửi chưa; ảnh mặt trước vẫn giữ (D9).
+        moveRun(this.db, r.id, r.state, "needs_review", "Tool tắt lúc đang gửi tin xin ảnh quay lưng nên không biết đã gửi chưa; không gửi lại (D9). Ảnh mặt trước vẫn giữ", {
+          error: "chưa rõ đã xin ảnh quay lưng",
+          doneAt: now(),
+        });
+        continue;
+      }
       if (!chatSel.isThreadUrl(r.museChatUrl)) {
         moveRun(this.db, r.id, r.state, "needs_review", "Tool tắt lúc đang gửi nên không biết cuộc trò chuyện Muse; không gửi lại (D9)", {
           error: "không rõ đã gửi chưa",
@@ -553,7 +575,7 @@ export class BatchRunner {
     try {
       for (;;) {
         for (const f of [...inflight.values()]) {
-          const out = await this.pollBang(f);
+          const out = await this.pollBang(f, batch.source === "anh");
           if (out.pause) blocked ??= out.pause;
           if (out.finished) {
             inflight.delete(f.run.id);
@@ -565,7 +587,7 @@ export class BatchRunner {
         const room = inflight.size < this.parallel();
         const next = sending && room ? this.runs(batch.id, ["queued"])[0] : undefined;
         if (next && Date.now() >= nextSendAt) {
-          const out = await this.sendBang(next);
+          const out = batch.source === "anh" ? await this.sendAnh(next) : await this.sendBang(next);
           if (out.pause) blocked = out.pause;
           if (out.inflight) inflight.set(next.id, out.inflight);
           // Nghỉ ngẫu nhiên giữa hai lần gửi (D7).
@@ -629,7 +651,49 @@ export class BatchRunner {
     const files = snap.attachments.map((n) => this.o.bangFiles?.imagePath(n));
     if (files.some((f) => !f)) return review("Không còn file ảnh của dòng này trên máy", "thiếu file ảnh");
 
-    // Bước 2–4: sentAt ghi trước khi bấm Gửi; bot mở cuộc trò chuyện mới trong tab riêng, đính kèm ảnh, chỉ gửi khi Muse hiện đủ ảnh.
+    return this.sendNew(run, files as string[]);
+  }
+
+  /**
+   * Bảng ảnh (CON-77, spec 17.13): đọc lại dòng, còn file character sheet, đủ lượt ảnh trong ngày (dòng có Quay lưng
+   * cần 2 lượt), rồi gửi như Bảng video với character sheet là ảnh 1. Gửi xong thì nhớ số ảnh đang có trong cuộc trò
+   * chuyện: ảnh Muse tạo là các ảnh sau vị trí này.
+   */
+  private async sendAnh(run: RunRow): Promise<{ pause?: PauseReason; sent?: boolean; inflight?: Inflight }> {
+    const snap = JSON.parse(run.inputSnapshot) as AnhSnapshot;
+    if (getImageQuota(this.db).remaining < (snap.back ? 2 : 1)) {
+      moveRun(this.db, run.id, "queued", "paused_limit", "Đủ giới hạn ảnh hôm nay");
+      return { pause: "image_limit" };
+    }
+    moveRun(this.db, run.id, "queued", "checking_row", "Đọc lại dòng trên Bảng ảnh");
+    const review = (why: string, error: string) => {
+      moveRun(this.db, run.id, "checking_row", "needs_review", `${why}; không gửi Muse`, { error, doneAt: now() });
+      return {};
+    };
+    const row = getAnhRow(this.db, run.rowNumber);
+    if (!row) return review("Dòng đã bị xoá khỏi Bảng ảnh", "dòng đã bị xoá");
+    if (row.nhanVatId !== snap.nhanVatId || row.nhanVatFile !== snap.nhanVatFile || row.prompt.trim() !== snap.prompt || !!row.backOn !== snap.back) {
+      return review("Nhân vật, prompt hoặc ô Quay lưng của dòng đã đổi sau lúc bấm Tạo ảnh", "dữ liệu dòng đã đổi");
+    }
+    const sheet = this.o.bangFiles?.nhanVatPath(snap.nhanVatFile);
+    if (!sheet) return review("Không còn file character sheet của nhân vật trên máy", "thiếu character sheet");
+    const out = await this.sendNew(run, [sheet], "ảnh");
+    if (out.inflight) {
+      const baseline = await this.imageCount(out.inflight.tab);
+      this.db.prepare("UPDATE runs SET anhBaseline = ? WHERE id = ?").run(baseline, run.id);
+      out.inflight.run.anhBaseline = baseline;
+    }
+    return out;
+  }
+
+  /** Số ảnh lớn đang có trong tab (không xem được thì 0). */
+  private async imageCount(tab: string): Promise<number> {
+    const w = await this.bot.watch(tab).catch(() => undefined);
+    return w?.images?.length ?? 0;
+  }
+
+  /** Spec 17.5 bước 2–4: sentAt ghi trước khi bấm Gửi; bot mở cuộc trò chuyện mới trong tab riêng, đính kèm ảnh, chỉ gửi khi Muse hiện đủ ảnh. */
+  private async sendNew(run: RunRow, files: string[], what = "video"): Promise<{ pause?: PauseReason; sent?: boolean; inflight?: Inflight }> {
     if (!this.bot.isOpen) await this.bot.open();
     const tab = tabOf(run.id);
     const waiting = (): Inflight => ({ run: { ...run, state: "waiting" }, tab, deadline: Date.now() + this.timeoutMs(), approval: false, loginNoted: false });
@@ -642,7 +706,7 @@ export class BatchRunner {
         run.id,
         "sending",
         "waiting",
-        known ? "Đã gửi Muse, chờ video trong cuộc trò chuyện" : "Đã gửi Muse, chờ video; Muse chưa đổi sang link riêng của cuộc trò chuyện",
+        known ? `Đã gửi Muse, chờ ${what} trong cuộc trò chuyện` : `Đã gửi Muse, chờ ${what}; Muse chưa đổi sang link riêng của cuộc trò chuyện`,
         { museChatUrl: known ? chatUrl : null },
       );
       setMuseReady(this.db, now());
@@ -665,7 +729,7 @@ export class BatchRunner {
         return { sent: true };
       }
       // Không chắc Muse đã nhận: không gửi lại, vẫn chờ video trên trang đến hết giờ.
-      moveRun(this.db, run.id, "sending", "waiting", `${err.message}. Không gửi lại; vẫn chờ video trong cuộc trò chuyện`, {}, err.screenshot);
+      moveRun(this.db, run.id, "sending", "waiting", `${err.message}. Không gửi lại; vẫn chờ ${what} trong cuộc trò chuyện`, {}, err.screenshot);
     }
     return { sent: true, inflight: waiting() };
   }
@@ -716,7 +780,7 @@ export class BatchRunner {
   }
 
   /** Spec 17.5 bước 5 (Bảng): xem tab của một dòng đang chờ một lần; có video thì tải về (bước 6–8). */
-  private async pollBang(f: Inflight): Promise<PollOutcome> {
+  private async pollBang(f: Inflight, anh = false): Promise<PollOutcome> {
     const run = f.run;
     const w = await this.bot.watch(f.tab).catch(() => ({ closed: true, login: false, approval: false }) as WatchResult);
     // Muse đổi /thread/new sang link riêng chậm: lấy link ngay khi thấy, để mở lại được khi tool tắt giữa chừng.
@@ -724,12 +788,21 @@ export class BatchRunner {
       this.db.prepare("UPDATE runs SET museChatUrl = ? WHERE id = ?").run(w.url, run.id);
       logRunEvent(this.db, run.id, "waiting", "Đã có link cuộc trò chuyện Muse");
     }
-    if ((w.videos ?? 0) > 0) {
+    if (anh) {
+      // Bảng ảnh: ảnh mới = ảnh sau vị trí đếm lúc gửi. Muse có thể hiện ảnh mờ rồi mới thay ảnh thật: chỉ tải khi mọi ảnh
+      // mới đã tải xong và danh sách không đổi giữa hai lần xem.
+      const fresh = (w.images ?? []).slice(run.anhBaseline ?? 0);
+      if (fresh.length && fresh.every((i) => i.ready)) {
+        const key = fresh.map((i) => i.src).join("\n");
+        if (f.seen === key) return this.downloadAnh(f);
+        f.seen = key;
+      } else f.seen = undefined;
+    } else if ((w.videos ?? 0) > 0) {
       await this.downloadBang(run, f.tab);
       return { finished: true };
     }
     if (Date.now() >= f.deadline) {
-      moveRun(this.db, run.id, "waiting", "needs_review", "Quá thời gian chờ mà Muse chưa gửi video; không gửi lại (D9)", {
+      moveRun(this.db, run.id, "waiting", "needs_review", `Quá thời gian chờ mà Muse chưa gửi ${anh ? "ảnh" : "video"}; không gửi lại (D9)`, {
         error: "quá thời gian",
         doneAt: now(),
       });
@@ -769,6 +842,85 @@ export class BatchRunner {
       });
       return { finished: true };
     }
+    return { finished: false };
+  }
+
+  /**
+   * Bảng ảnh (17.13): tải các ảnh mới về tep\anh-tao, gắn vào dòng (ảnh đầu là ảnh chính). Ảnh giống hệt character
+   * sheet (ảnh bot vừa đính kèm) bị bỏ. Dòng có Quay lưng và vừa xong mặt trước: gửi tin xin ảnh quay lưng ngay trong
+   * cuộc trò chuyện đó rồi chờ tiếp (D33). Thử tải 3 lần; không được thì Cần xem, không gửi lại (D9).
+   */
+  private async downloadAnh(f: Inflight): Promise<PollOutcome> {
+    const run = f.run;
+    const snap = JSON.parse(run.inputSnapshot) as AnhSnapshot;
+    const back = run.anhPhase === "back";
+    const side = back ? "sau" : "truoc";
+    const what = back ? "ảnh quay lưng" : "ảnh mặt trước";
+    moveRun(this.db, run.id, "waiting", "downloading", `Muse đã gửi ${what} trong cuộc trò chuyện; đang tải về máy`);
+    const files = this.o.bangFiles;
+    let why = "";
+    let saved: { file: string; bytes: number }[] = [];
+    for (let attempt = 1; attempt <= 3 && !saved.length; attempt++) {
+      try {
+        if (!files || !this.bot.downloadImages) throw new Error("thiếu thư mục dữ liệu");
+        const sheet = files.nhanVatPath(snap.nhanVatFile);
+        const sheetBytes = sheet ? fs.readFileSync(sheet) : undefined;
+        const list = (await this.bot.downloadImages(f.tab, run.anhBaseline ?? 0)).filter((d) => !sheetBytes || !Buffer.from(d).equals(sheetBytes));
+        if (!list.length) throw new Error("chỉ thấy ảnh character sheet, chưa có ảnh Muse tạo");
+        saved = list.map((d) => ({ file: files.saveAnhTao(run.rowNumber, side, d), bytes: d.length }));
+      } catch (e) {
+        why = errText(e);
+        logger.warn({ err: e, runId: run.id, attempt }, "Chưa tải được ảnh từ Muse");
+        if (attempt < 3) await this.sleep(5 * (this.o.secondMs ?? 1000), false);
+      }
+    }
+    if (!saved.length) {
+      moveRun(this.db, run.id, "downloading", "needs_review", `Không tải được ${what} (${why}). Bấm "Mở trong Muse" để tải tay; không gửi lại (D9)`, {
+        error: `không tải được ${what}`,
+        doneAt: now(),
+      });
+      return { finished: true };
+    }
+    addAnhFiles(this.db, run.rowNumber, run.id, side, saved);
+    const total = formatBytes(saved.reduce((n, s) => n + s.bytes, 0));
+    const got = `Đã tải ${saved.length} ${what} về máy (${total})`;
+    if (back || !snap.back || !snap.backText) {
+      moveRun(this.db, run.id, "downloading", "done", got, { doneAt: now() });
+      return { finished: true };
+    }
+
+    // D33: tin thứ hai trong cùng cuộc trò chuyện. anhBackAt ghi trước khi bấm Gửi (tính một lượt ảnh).
+    moveRun(this.db, run.id, "downloading", "sending", `${got}; gửi tin xin ảnh quay lưng trong cùng cuộc trò chuyện`, { anhPhase: "back", anhBackAt: now() });
+    run.anhPhase = "back";
+    try {
+      if (!this.bot.reply) throw new BotError("ui_changed", "Bot chưa gửi được tin tiếp theo", false);
+      await this.bot.reply(snap.backText, f.tab);
+    } catch (e) {
+      const err = e instanceof BotError ? e : new BotError("send_unconfirmed", `Lỗi khi gửi: ${errText(e)}`, true);
+      const keep = "Ảnh mặt trước vẫn giữ";
+      if (!err.sent) {
+        const login = err.code === "login" || err.code === "challenge";
+        moveRun(this.db, run.id, "sending", "needs_review", `Chưa gửi tin xin ảnh quay lưng: ${err.message}. ${keep}; bấm Tạo lại nếu cần`, {
+          anhBackAt: null,
+          error: "chưa có ảnh quay lưng",
+          doneAt: now(),
+        }, err.screenshot);
+        if (login) setMuseReady(this.db, null);
+        return { finished: true, pause: login ? "login" : "ui" };
+      }
+      if (err.code === "quota" || err.code === "rejected" || err.code === "muse_error") {
+        const msg = err.code === "quota" ? "Muse hết lượt" : err.message;
+        moveRun(this.db, run.id, "sending", "failed", `${msg} khi xin ảnh quay lưng. ${keep}`, { error: msg, doneAt: now() }, err.screenshot);
+        return { finished: true, pause: err.code === "quota" ? "quota" : undefined };
+      }
+      logRunEvent(this.db, run.id, "sending", `${err.message}. Không gửi lại; vẫn chờ ảnh quay lưng trong cuộc trò chuyện`, err.screenshot);
+    }
+    const baseline = await this.imageCount(f.tab);
+    moveRun(this.db, run.id, "sending", "waiting", "Đã gửi tin xin ảnh quay lưng, chờ ảnh trong cuộc trò chuyện", { anhBaseline: baseline });
+    run.anhBaseline = baseline;
+    run.state = "waiting";
+    f.seen = undefined;
+    f.deadline = Date.now() + this.timeoutMs();
     return { finished: false };
   }
 
@@ -834,7 +986,7 @@ export class BatchRunner {
   private runs(batchId: number, states: string[]): RunRow[] {
     return this.db
       .prepare(
-        `SELECT id, batchId, rowNumber, state, inputSnapshot, requestText, overwrite, sentAt, tabSnapshot, museChatUrl, hookText FROM runs
+        `SELECT id, batchId, rowNumber, state, inputSnapshot, requestText, overwrite, sentAt, tabSnapshot, museChatUrl, hookText, anhPhase, anhBaseline FROM runs
          WHERE batchId = ? AND state IN (${states.map(() => "?").join(", ")}) ORDER BY rowNumber`,
       )
       .all(batchId, ...states) as RunRow[];
@@ -863,6 +1015,9 @@ function pick(row: string[], cfg: SheetConfig): InputSnapshot {
 
 /** Ô tool ghi theo yêu cầu người dùng trong khoảng này trước lúc gửi vẫn được tính (tab được chụp trước rồi mới gửi). */
 const TOOL_EDIT_MARGIN_MS = 10 * 60_000;
+
+/** Lô chạy kiểu Bảng (gửi lần lượt, mỗi dòng một tab riêng, chờ song song, D28): Bảng video và Bảng ảnh. */
+const isTabbed = (source: string | undefined) => source === "bang" || source === "anh";
 
 /** Tab riêng của một lượt trong cửa sổ bot (D28). */
 const tabOf = (runId: number) => `run-${runId}`;
