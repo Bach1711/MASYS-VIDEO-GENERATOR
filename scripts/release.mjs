@@ -1,6 +1,6 @@
 // Phát hành bản mới lên GitHub Releases (spec D16). Chạy sau khi PR đã gộp vào main:
 //   npm run release
-// Số phiên bản đã được nâng trong PR (package.json) và ghi chú tiếng Việt viết trong CHANGELOG.md (mục "## vX.Y.Z").
+// Số phiên bản được nâng trong PR phát hành (release/vX.Y.Z, gom các ticket đã gộp) và ghi chú tiếng Việt viết trong CHANGELOG.md (mục "## vX.Y.Z").
 // Lệnh không sửa code hay commit gì: chỉ đóng gói đúng commit đang ở main rồi đăng zip + SHA-256.
 import { execFileSync, execSync } from "node:child_process";
 import fs from "node:fs";

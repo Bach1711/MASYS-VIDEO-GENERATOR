@@ -15,8 +15,11 @@
 - **Cập nhật trong tool** (D16): máy người dùng tải bản mới từ GitHub Releases của repo này (công khai), chỉ khi bấm nút. Zip có `phien-ban\X.Y.Z` + `hien-tai.txt`; `Mo-MASYS.bat` chạy bản ghi trong đó, mã thoát 76 = đổi bản, bản mới không lên thì tự quay về.
 
 ## Quy trình phát hành (D16)
-- Ticket nào đổi gì trong tool thì **trong chính PR đó**: nâng `version` trong `package.json` (sửa lỗi `x.y.Z`, tính năng `x.Y.0`) và viết mục `## vX.Y.Z` trong `CHANGELOG.md` bằng tiếng Việt cho người dùng đọc.
-- Sau khi người phụ trách nói "gộp" và PR đã gộp: `git checkout main && git pull` rồi `npm run release`. Báo link bản phát hành cho người phụ trách.
+**Gom nhiều ticket vào một bản** (từ 03/11/2026, theo yêu cầu người phụ trách):
+- Ticket nào đổi gì trong tool thì **trong chính PR đó** viết ghi chú tiếng Việt cho người dùng đọc dưới mục `## Chưa phát hành` ở đầu `CHANGELOG.md` (chưa có thì tạo). **Không** nâng `version` trong PR ticket.
+- Người phụ trách nói **"gộp"**: chỉ gộp PR (`gh pr merge N --squash --delete-branch`, rồi `git checkout main && git pull`), **chưa phát hành**. Báo những gì đang chờ phát hành.
+- Người phụ trách nói **"phát hành"**: nhánh `release/vX.Y.Z` nâng `version` trong `package.json` + `package-lock.json` (có tính năng mới → `x.Y.0`, chỉ sửa lỗi → `x.y.Z`), đổi `## Chưa phát hành` thành `## vX.Y.Z` và viết lại thành một ghi chú gọn; PR, tự gộp (câu "phát hành" là lời duyệt), `git checkout main && git pull` rồi `npm run release` (khoảng 10 phút). Báo link bản phát hành.
+- **Lỗi khẩn** (chặn cập nhật, chặn tạo video…): hỏi người phụ trách có phát hành riêng ngay không; đồng ý thì làm ticket và phát hành liền.
 - Migration SQLite **chỉ được thêm** bảng/cột, không xoá hay đổi tên, để bản cũ vẫn mở được dữ liệu khi người dùng bấm Quay về.
 
 ## Cổng làm việc
