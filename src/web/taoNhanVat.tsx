@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import type { Context, Hono } from "hono";
-import { addNhanVat, tenProblem } from "../anh/nhanVat.js";
+import { tenProblem } from "../anh/nhanVat.js";
 import {
   addDraft,
   buildCore,
@@ -19,13 +19,16 @@ import {
   insertNvBatch,
   isNvKind,
   listDrafts,
-  markDraftSaved,
   MAX_AGE,
   MIN_AGE,
+  NV_FULL_TURNS,
   NV_KIND_TEXT,
+  NV_KINDS,
   parseFillAnswer,
   readCriteria,
   REGIONS,
+  saveDraft,
+  syncSavedImage,
   type Criteria,
   type NvDraft,
   type NvDraftFile,
@@ -37,7 +40,6 @@ import type { AppConfig } from "../config.js";
 import { activeBatch } from "../db/history.js";
 import type { DB } from "../db/index.js";
 import { getImageQuota } from "../db/quota.js";
-import { getSettings, setLastNhanVat } from "../db/settings.js";
 import { logger } from "../logger.js";
 import type { BatchRunner } from "../queue/runner.js";
 import { APP_NAME } from "../version.js";
@@ -121,9 +123,9 @@ function CriteriaForm(props: { ten: string; values: Criteria; blocked: string })
       <h2 style="margin-top:20px">Mô tả sẽ gửi Muse</h2>
       <p id="corePreview" class="muted">Điền đủ tiêu chí để xem mô tả.</p>
       <div class="row-between">
-        <span class="small muted">{props.blocked || "Bot gửi prompt cho Muse, không kèm ảnh. Mỗi lần tạo tính 1 lượt ảnh."}</span>
+        <span class="small muted">{props.blocked || `Bot tự tạo đủ ảnh master, turnaround và face rồi thêm nhân vật vào thư viện. Tốn ${NV_FULL_TURNS} lượt ảnh.`}</span>
         <button type="submit" disabled={!!props.blocked}>
-          ▶ Tạo ảnh master
+          ▶ Tạo nhân vật
         </button>
       </div>
       <script dangerouslySetInnerHTML={{ __html: ascii(FORM_JS) }} />
@@ -172,14 +174,12 @@ function KindCard(props: { draft: NvDraft; kind: NvKind; files: NvDraftFile[]; r
         </div>
       )}
       <div class="row" style="margin-top:10px;align-items:center">
-        {!draft.nhanVatId && (
-          <form method="post" action={`${BASE}/${draft.id}/chay`}>
-            <input type="hidden" name="kind" value={kind} />
-            <button type="submit" class={list.length ? "secondary" : ""} disabled={!props.canRun || running}>
-              {list.length ? "↻ Tạo lại ảnh này" : `▶ Tạo ${NV_KIND_TEXT[kind].toLowerCase()}`}
-            </button>
-          </form>
-        )}
+        <form method="post" action={`${BASE}/${draft.id}/chay`}>
+          <input type="hidden" name="kind" value={kind} />
+          <button type="submit" class={list.length ? "secondary" : ""} disabled={!props.canRun || running}>
+            {list.length ? "↻ Tạo lại ảnh này" : `▶ Tạo ${NV_KIND_TEXT[kind].toLowerCase()}`}
+          </button>
+        </form>
         {run && (
           <a class="small" href={`/batch/${run.batchId}`}>
             Xem lô #{run.batchId}
@@ -191,6 +191,49 @@ function KindCard(props: { draft: NvDraft; kind: NvKind; files: NvDraftFile[]; r
           </a>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Mục Đang tạo trên trang Nhân vật (CON-82): bản nháp chưa thành nhân vật, hoặc đang tạo lại ảnh. */
+export function NvDraftsCard(props: { db: DB }) {
+  const { db } = props;
+  const drafts = listDrafts(db).filter((d) => !d.nhanVatId || draftBusy(db, d.id));
+  if (!drafts.length) return null;
+  const busy = drafts.some((d) => draftBusy(db, d.id));
+  return (
+    <div class="card" id="dang-tao">
+      <h2>Đang tạo</h2>
+      {drafts.map((d) => {
+        const list = draftFiles(db, d.id);
+        const runs = draftRuns(db, d.id);
+        const stillBusy = draftBusy(db, d.id);
+        return (
+          <div class="row" style="align-items:center;gap:12px;margin-bottom:10px">
+            <a href={`${BASE}/${d.id}`}>
+              <strong>{d.ten}</strong>
+            </a>
+            {NV_KINDS.map((kind) => {
+              const f = chosenFile(list, kind);
+              const run = runs[kind];
+              const text = f ? "Đã có" : run ? RUN_STATE_TEXT[run.state] ?? run.state : stillBusy ? "Chờ tới lượt" : "Chưa tạo";
+              return (
+                <figure style="margin:0;text-align:center">
+                  {f ? <img class="thumb" src={fileUrl(f.file)} alt={NV_KIND_TEXT[kind]} loading="lazy" width="64" height="64" /> : <div class="thumb" style="width:64px;height:64px;border-radius:4px;background:var(--border)"></div>}
+                  <figcaption class="small muted">
+                    {NV_KIND_TEXT[kind].replace("Ảnh ", "")}: {text}
+                  </figcaption>
+                </figure>
+              );
+            })}
+            {NV_KINDS.map((kind) => (!chosenFile(list, kind) && runs[kind]?.error ? <span class="small warn-text">{runs[kind]!.error}</span> : ""))}
+            <a class="small" href={`${BASE}/${d.id}`}>
+              {stillBusy ? "Xem chi tiết" : "Làm tiếp"}
+            </a>
+          </div>
+        );
+      })}
+      {busy && <script dangerouslySetInnerHTML={{ __html: REFRESH_JS }} />}
     </div>
   );
 }
@@ -211,6 +254,7 @@ export function registerTaoNhanVatRoutes(app: Hono, deps: TaoNhanVatDeps) {
     if (getImageQuota(db).remaining < 1) return "Hôm nay đã đủ giới hạn ảnh (đổi ở Cài đặt).";
     return "";
   };
+  const lowQuota = () => (getImageQuota(db).remaining < NV_FULL_TURNS ? `Hôm nay chỉ còn ${getImageQuota(db).remaining} lượt ảnh, tạo nhân vật cần ${NV_FULL_TURNS} lượt.` : "");
 
   const formPage = (c: Context, o: { ten?: string; values?: Criteria; err?: string } = {}, status: 200 | 400 = 200) =>
     c.html(
@@ -224,8 +268,8 @@ export function registerTaoNhanVatRoutes(app: Hono, deps: TaoNhanVatDeps) {
             </a>
           </div>
           <p class="muted">
-            Điền mô tả, bot nhờ Muse tạo <strong>ảnh master</strong>. Bạn chọn ảnh ưng ý, bot tạo tiếp <strong>ảnh turnaround</strong> và{" "}
-            <strong>ảnh face</strong>, rồi bạn bấm <strong>Lưu</strong> để thêm vào thư viện Nhân vật. Phong cách luôn là ảnh chân thực (photorealistic).
+            Điền mô tả rồi bấm <strong>Tạo nhân vật</strong>. Bot tự tạo <strong>ảnh master</strong>, <strong>ảnh turnaround</strong> và{" "}
+            <strong>ảnh face</strong>, nhân vật tự hiện ở trang Nhân vật. Phong cách luôn là ảnh chân thực (photorealistic).
           </p>
           {(o.err ?? c.req.query("loi")) && <Alert kind="warn">{o.err ?? c.req.query("loi")}</Alert>}
           {c.req.query("ok") && <Alert kind="ok">{c.req.query("ok")}</Alert>}
@@ -287,12 +331,13 @@ export function registerTaoNhanVatRoutes(app: Hono, deps: TaoNhanVatDeps) {
     const values = readCriteria(body);
     const problem = tenProblem(ten) ?? criteriaProblems(values).join(" ");
     if (problem) return formPage(c, { ten, values, err: problem }, 400);
-    const blocked = blockedText();
+    const blocked = blockedText() || lowQuota();
     if (blocked) return formPage(c, { ten, values, err: blocked }, 400);
     const id = addDraft(db, ten, values);
     const started = deps.runner!.start(insertNvBatch(db, getDraft(db, id)!, ["master"], null));
     logger.info({ draftId: id }, "Đã bắt đầu tạo nhân vật");
-    return c.redirect(draftUrl(id, started.ok ? {} : { loi: started.message }), 303);
+    if (!started.ok) return c.redirect(draftUrl(id, { loi: started.message }), 303);
+    return c.redirect(`/nhan-vat?${new URLSearchParams({ ok: `Đang tạo nhân vật ${ten.trim()}. Xem tiến độ ở mục Đang tạo.` }).toString()}`, 303);
   });
 
   app.get(`${BASE}/:id`, (c) => {
@@ -307,7 +352,7 @@ export function registerTaoNhanVatRoutes(app: Hono, deps: TaoNhanVatDeps) {
     const master = chosenFile(list, "master");
     const turnaround = chosenFile(list, "turnaround");
     const face = chosenFile(list, "face");
-    const ready = !!master && !!turnaround && !!face && !busy;
+    const ready = !!master && !!turnaround && !busy;
     const msg = c.req.query("loi");
     return c.html(
       page(
@@ -325,7 +370,7 @@ export function registerTaoNhanVatRoutes(app: Hono, deps: TaoNhanVatDeps) {
           {blocked && <Alert kind="warn">{blocked}</Alert>}
           {draft.nhanVatId && (
             <Alert kind="ok">
-              Đã lưu vào <a href="/nhan-vat">thư viện Nhân vật</a>. Nhân vật dùng được trên Bảng ảnh.
+              Đã lưu vào <a href="/nhan-vat">thư viện Nhân vật</a>. Nhân vật dùng được trên Bảng ảnh.{!face && !busy && " Còn thiếu ảnh face: bấm Tạo ảnh face ở bên dưới."} Tạo lại ảnh ở đây thì nhân vật dùng ảnh mới.
             </Alert>
           )}
           <div class="card">
@@ -335,10 +380,10 @@ export function registerTaoNhanVatRoutes(app: Hono, deps: TaoNhanVatDeps) {
             </p>
             {live && <div class="muted small">Trang tự cập nhật 5 giây một lần.</div>}
           </div>
-          <KindCard draft={draft} kind="master" files={list} run={runs.master} canRun={canRun} hint="Chọn ảnh ưng ý nhất. Ảnh turnaround và ảnh face đều tạo từ ảnh đang chọn." />
+          <KindCard draft={draft} kind="master" files={list} run={runs.master} canRun={canRun} hint={`Ảnh turnaround và ảnh face đều tạo từ ảnh đang chọn. Tạo lại ảnh này thì bot tạo lại cả 3 ảnh, tốn ${NV_FULL_TURNS} lượt.`} />
           {master && (
             <>
-              {!draft.nhanVatId && !turnaround && !face && (
+              {!busy && !turnaround && !face && (
                 <form method="post" action={`${BASE}/${draft.id}/chay`} class="card row-between">
                   <span>Dùng ảnh master đang chọn để tạo cả hai ảnh còn lại. Tốn 2 lượt ảnh.</span>
                   <input type="hidden" name="kind" value="ca-hai" />
@@ -377,14 +422,14 @@ export function registerTaoNhanVatRoutes(app: Hono, deps: TaoNhanVatDeps) {
     const draft = draftOf(c);
     if (!draft) return c.notFound();
     const back = (loi: string) => c.redirect(draftUrl(draft.id, { loi }), 303);
-    if (draft.nhanVatId) return back("Nhân vật này đã lưu.");
     if (draftBusy(db, draft.id)) return back("Bản nháp này đang tạo ảnh.");
     const blocked = blockedText();
     if (blocked) return back(blocked);
     const k = String((await c.req.parseBody()).kind ?? "");
     const kinds: NvKind[] = k === "ca-hai" ? ["turnaround", "face"] : isNvKind(k) ? [k] : [];
     if (!kinds.length) return back("Yêu cầu không hợp lệ.");
-    if (kinds.length > getImageQuota(db).remaining) return back(`Hôm nay chỉ còn ${getImageQuota(db).remaining} lượt ảnh.`);
+    const need = k === "master" ? NV_FULL_TURNS : kinds.length;
+    if (need > getImageQuota(db).remaining) return back(`Hôm nay chỉ còn ${getImageQuota(db).remaining} lượt ảnh, việc này cần ${need} lượt.`);
     const master = chosenFile(draftFiles(db, draft.id), "master")?.file ?? null;
     if (k !== "master" && !master) return back("Tạo ảnh master trước.");
     if (k !== "master" && !files.nvTaoPath(master)) return back("Không còn file ảnh master trên máy. Tạo lại ảnh master.");
@@ -397,34 +442,22 @@ export function registerTaoNhanVatRoutes(app: Hono, deps: TaoNhanVatDeps) {
     const draft = draftOf(c);
     if (!draft) return c.notFound();
     const f = getDraftFile(db, Number(c.req.param("file")));
-    if (f?.draftId === draft.id && !draftBusy(db, draft.id) && !draft.nhanVatId) chooseDraftFile(db, f.id);
+    if (f?.draftId === draft.id && !draftBusy(db, draft.id)) {
+      chooseDraftFile(db, f.id);
+      if (draft.nhanVatId) syncSavedImage(db, files, draft, f.kind);
+    }
     return c.redirect(draftUrl(draft.id), 303);
   });
 
-  /** Chép 3 ảnh đang chọn sang thư viện Nhân vật; bản nháp giữ nguyên đến khi người dùng xoá (D26). */
+  /** Lưu tay, cho bản nháp có đủ ảnh từ trước CON-82; bản nháp giữ nguyên đến khi người dùng xoá (D26). */
   app.post(`${BASE}/:id/luu`, (c) => {
     if (!sameSite(c)) return c.text("Yêu cầu không hợp lệ", 403);
     const draft = draftOf(c);
     if (!draft) return c.notFound();
     if (draft.nhanVatId) return c.redirect(draftUrl(draft.id), 303);
     if (draftBusy(db, draft.id)) return c.redirect(draftUrl(draft.id, { loi: "Bản nháp này đang tạo ảnh." }), 303);
-    const list = draftFiles(db, draft.id);
-    const read = (kind: NvKind) => {
-      const p = files.nvTaoPath(chosenFile(list, kind)?.file);
-      return p ? new Uint8Array(fs.readFileSync(p)) : null;
-    };
-    const [master, turnaround, face] = [read("master"), read("turnaround"), read("face")];
-    if (!master || !turnaround || !face) return c.redirect(draftUrl(draft.id, { loi: "Cần đủ ảnh master, turnaround và face." }), 303);
-    const id = addNhanVat(db, draft.ten, (nvId) => ({
-      file: files.saveNhanVat(nvId, turnaround),
-      bytes: turnaround.length,
-      faceFile: files.saveNhanVat(nvId, face),
-      faceBytes: face.length,
-      masterFile: files.saveNhanVat(nvId, master),
-      masterBytes: master.length,
-    }));
-    markDraftSaved(db, draft.id, id);
-    if (!getSettings(db).lastNhanVatId) setLastNhanVat(db, id);
+    const id = saveDraft(db, files, draft);
+    if (!id) return c.redirect(draftUrl(draft.id, { loi: "Cần có ảnh master và ảnh turnaround." }), 303);
     logger.info({ draftId: draft.id, nhanVatId: id }, "Đã lưu nhân vật từ bản nháp");
     return c.redirect(`/nhan-vat?${new URLSearchParams({ ok: `Đã lưu nhân vật ${draft.ten}.` }).toString()}`, 303);
   });
@@ -438,6 +471,15 @@ export function registerTaoNhanVatRoutes(app: Hono, deps: TaoNhanVatDeps) {
     return c.redirect(`${BASE}?${new URLSearchParams({ ok: `Đã xoá bản nháp ${draft.ten}.` }).toString()}`, 303);
   });
 }
+
+/** Tự tải lại mục Đang tạo, trừ khi người dùng đang gõ hoặc đã chọn file ở form trên trang. */
+const REFRESH_JS = `
+setInterval(function () {
+  var a = document.activeElement;
+  var picked = Array.prototype.some.call(document.querySelectorAll("input[type=file]"), function (i) { return i.files.length > 0; });
+  if (!picked && !(a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA"))) location.reload();
+}, 5000);
+`;
 
 const FORM_JS = `
 (function () {

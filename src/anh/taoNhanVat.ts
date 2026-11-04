@@ -1,9 +1,14 @@
+import fs from "node:fs";
+import type { BangFiles } from "../bang/files.js";
 import { FINAL_RUN_STATES } from "../batch/create.js";
 import type { DB } from "../db/index.js";
+import { getSettings, setLastNhanVat } from "../db/settings.js";
+import { addNhanVat, fileInUse, getNhanVat, setNhanVatFace, setNhanVatFile, setNhanVatMaster } from "./nhanVat.js";
 
 // Tạo nhân vật ngay trong app (CON-81, spec 17.14, D35), đúng quy trình người phụ trách dùng trên Flow:
 // 12 tiêu chí → mô tả nhân vật → ảnh master (không kèm ảnh) → đính kèm master tạo ảnh turnaround và ảnh face.
-// Bản nháp nằm ở nv_drafts, ảnh Muse tạo ở nv_draft_files (tep\anh-tao); bấm Lưu mới chép sang thư viện Nhân vật.
+// Bản nháp nằm ở nv_drafts, ảnh Muse tạo ở nv_draft_files (tep\anh-tao). Từ CON-82 một lần bấm chạy đủ các bước: có master
+// thì tự tạo tiếp, có turnaround thì tự chép sang thư viện Nhân vật (có face thì kèm, face về sau thì thêm vào).
 
 export const REGIONS = ["Western European", "American", "East Asian", "Vietnamese"] as const;
 export const GENDERS = ["woman", "man"] as const;
@@ -143,6 +148,8 @@ export const isNvKind = (s: unknown): s is NvKind => NV_KINDS.includes(s as NvKi
 export const NV_KIND_TEXT: Record<NvKind, string> = { master: "Ảnh master", turnaround: "Ảnh turnaround", face: "Ảnh face" };
 
 export const NV_BATCH_TAB = "Tạo nhân vật";
+/** Số lượt ảnh của một lần tạo trọn vẹn: master, turnaround, face. */
+export const NV_FULL_TURNS = 3;
 
 export interface NvDraft {
   id: number;
@@ -234,6 +241,11 @@ export function draftRuns(db: DB, draftId: number): Partial<Record<NvKind, NvRun
   return out;
 }
 
+/** Bản nháp đã lưu thành nhân vật này. */
+export function draftOfNhanVat(db: DB, nhanVatId: number): NvDraft | undefined {
+  return db.prepare("SELECT id, ten, criteria, core, createdAt, nhanVatId FROM nv_drafts WHERE nhanVatId = ? AND deletedAt IS NULL").get(nhanVatId) as NvDraft | undefined;
+}
+
 /** Bản nháp còn lượt chưa xong trong lô chưa kết thúc: chưa sửa, chưa xoá được. */
 export function draftBusy(db: DB, draftId: number): boolean {
   const row = db
@@ -246,26 +258,78 @@ export function draftBusy(db: DB, draftId: number): boolean {
   return !!row;
 }
 
-/** Ghi lô + các lượt (queued) trong một transaction. Mỗi loại ảnh một lượt, một cuộc trò chuyện mới (D7). */
+/** Thêm các lượt (queued) vào một lô. Mỗi loại ảnh một lượt, một cuộc trò chuyện mới (D7). */
+export function insertNvRuns(db: DB, batchId: number, draft: NvDraft, kinds: NvKind[], masterFile: string | null): void {
+  const insertRun = db.prepare(
+    `INSERT INTO runs (batchId, rowNumber, nvDraftId, inputSnapshot, promptSent, requestText, overwrite, state)
+     VALUES (?, ?, ?, ?, ?, ?, 0, 'queued')`,
+  );
+  const insertEvent = db.prepare("INSERT INTO run_events (runId, fromState, toState, message) VALUES (?, NULL, 'queued', ?)");
+  for (const kind of kinds) {
+    const snap: NvSnapshot = { draftId: draft.id, kind, masterFile: kind === "master" ? null : masterFile };
+    const text = kind === "master" ? masterPrompt(draft.core) : kind === "turnaround" ? TURNAROUND_PROMPT : FACE_PROMPT;
+    const { lastInsertRowid: runId } = insertRun.run(batchId, draft.id, draft.id, JSON.stringify(snap), `${NV_KIND_TEXT[kind]} · ${draft.ten}`, text);
+    insertEvent.run(runId, `Lô #${batchId}: ${NV_KIND_TEXT[kind].toLowerCase()} của nhân vật ${draft.ten}`);
+  }
+}
+
+/** Ghi lô + các lượt (queued) trong một transaction. */
 export function insertNvBatch(db: DB, draft: NvDraft, kinds: NvKind[], masterFile: string | null): number {
   return db.transaction(() => {
     const { lastInsertRowid } = db
       .prepare("INSERT INTO batches (spreadsheetId, tab, driveFolderId, status, source) VALUES ('', ?, '', 'queued', 'nv')")
       .run(NV_BATCH_TAB);
     const batchId = Number(lastInsertRowid);
-    const insertRun = db.prepare(
-      `INSERT INTO runs (batchId, rowNumber, nvDraftId, inputSnapshot, promptSent, requestText, overwrite, state)
-       VALUES (?, ?, ?, ?, ?, ?, 0, 'queued')`,
-    );
-    const insertEvent = db.prepare("INSERT INTO run_events (runId, fromState, toState, message) VALUES (?, NULL, 'queued', ?)");
-    for (const kind of kinds) {
-      const snap: NvSnapshot = { draftId: draft.id, kind, masterFile: kind === "master" ? null : masterFile };
-      const text = kind === "master" ? masterPrompt(draft.core) : kind === "turnaround" ? TURNAROUND_PROMPT : FACE_PROMPT;
-      const { lastInsertRowid: runId } = insertRun.run(batchId, draft.id, draft.id, JSON.stringify(snap), `${NV_KIND_TEXT[kind]} · ${draft.ten}`, text);
-      insertEvent.run(runId, `Tạo lô #${batchId}: ${NV_KIND_TEXT[kind].toLowerCase()} của nhân vật ${draft.ten}`);
-    }
+    insertNvRuns(db, batchId, draft, kinds, masterFile);
     return batchId;
   })();
+}
+
+type DraftStore = Pick<BangFiles, "nvTaoPath" | "saveNhanVat" | "removeAny">;
+
+function readChosen(db: DB, files: DraftStore, draftId: number, kind: NvKind): Uint8Array | null {
+  const p = files.nvTaoPath(chosenFile(draftFiles(db, draftId), kind)?.file);
+  return p ? new Uint8Array(fs.readFileSync(p)) : null;
+}
+
+/** Chép ảnh đang chọn sang thư viện Nhân vật. Cần master và turnaround; face có thì kèm. Trả số nhân vật, null = chưa đủ ảnh. */
+export function saveDraft(db: DB, files: DraftStore, draft: NvDraft): number | null {
+  const master = readChosen(db, files, draft.id, "master");
+  const turnaround = readChosen(db, files, draft.id, "turnaround");
+  const face = readChosen(db, files, draft.id, "face");
+  if (!master || !turnaround) return null;
+  const id = addNhanVat(db, draft.ten, (nvId) => ({
+    file: files.saveNhanVat(nvId, turnaround),
+    bytes: turnaround.length,
+    masterFile: files.saveNhanVat(nvId, master),
+    masterBytes: master.length,
+    ...(face ? { faceFile: files.saveNhanVat(nvId, face), faceBytes: face.length } : {}),
+  }));
+  markDraftSaved(db, draft.id, id);
+  if (!getSettings(db).lastNhanVatId) setLastNhanVat(db, id);
+  return id;
+}
+
+/** Nhân vật đã lưu dùng ảnh đang chọn của loại này (ảnh tạo lại, hoặc face về sau). */
+export function syncSavedImage(db: DB, files: DraftStore, draft: NvDraft, kind: NvKind): void {
+  const nv = getNhanVat(db, draft.nhanVatId);
+  const data = readChosen(db, files, draft.id, kind);
+  if (!nv || !data) return;
+  const name = files.saveNhanVat(nv.id, data);
+  const set = kind === "turnaround" ? setNhanVatFile : kind === "face" ? setNhanVatFace : setNhanVatMaster;
+  const old = set(db, nv.id, name, data.length);
+  if (old && !fileInUse(db, old)) files.removeAny(old);
+}
+
+/**
+ * Sau khi một ảnh về bản nháp (CON-82): ảnh turnaround của bản nháp chưa lưu thì lưu nhân vật ngay, không chờ face, để
+ * face lỗi vẫn có nhân vật; bản nháp đã lưu thì nhân vật dùng ảnh mới.
+ */
+export function draftImageArrived(db: DB, files: DraftStore, draftId: number, kind: NvKind): void {
+  const draft = getDraft(db, draftId);
+  if (!draft) return;
+  if (draft.nhanVatId) syncSavedImage(db, files, draft, kind);
+  else if (kind === "turnaround") saveDraft(db, files, draft);
 }
 
 export function markDraftSaved(db: DB, draftId: number, nhanVatId: number): void {

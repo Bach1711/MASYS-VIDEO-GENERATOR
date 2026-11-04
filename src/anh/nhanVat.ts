@@ -68,12 +68,32 @@ export function setNhanVatFace(db: DB, id: number, file: string | null, bytes: n
   return old && old !== file ? old : null;
 }
 
+/** Đặt ảnh master (nhân vật tạo trong app, CON-82); trả tên file cũ để xoá. */
+export function setNhanVatMaster(db: DB, id: number, file: string, bytes: number): string | null {
+  const old = getNhanVat(db, id)?.masterFile ?? null;
+  db.prepare("UPDATE nhan_vat SET masterFile = ?, masterBytes = ? WHERE id = ? AND deletedAt IS NULL").run(file, bytes, id);
+  return old && old !== file ? old : null;
+}
+
 /** Xoá nhân vật (người dùng bấm, D26); trả các tên file để xoá khỏi máy. */
 export function deleteNhanVat(db: DB, id: number, at = new Date().toISOString()): string[] {
   const nv = getNhanVat(db, id);
   if (!nv) return [];
   db.prepare("UPDATE nhan_vat SET deletedAt = ? WHERE id = ?").run(at, id);
   return [nv.file, nv.faceFile, nv.masterFile].filter((f): f is string => !!f);
+}
+
+/** Còn lượt chưa xong của Bảng ảnh dùng file ảnh nhân vật này không (ảnh 4 góc hoặc ảnh mặt). */
+export function fileInUse(db: DB, file: string): boolean {
+  const row = db
+    .prepare(
+      `SELECT 1 FROM runs r JOIN batches b ON b.id = r.batchId
+       WHERE r.anhRowId IS NOT NULL AND b.status IN ('queued', 'running', 'paused')
+         AND r.state NOT IN ('done', 'failed', 'needs_review', 'skipped_has_video', 'canceled')
+         AND ? IN (json_extract(r.inputSnapshot, '$.nhanVatFile'), json_extract(r.inputSnapshot, '$.nhanVatFaceFile')) LIMIT 1`,
+    )
+    .get(file);
+  return !!row;
 }
 
 /** Số dòng Bảng ảnh (chưa xoá) đang chọn nhân vật này. */
