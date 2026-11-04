@@ -2,6 +2,10 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+- Prompt tạo nhân vật có quy định khung ảnh rõ ràng: ảnh master dọc 9:16, ảnh turnaround ngang 16:9, ảnh face vuông 1:1. Ảnh đã tạo giữ nguyên.
+
 ## v2.7.0
 
 **Tạo nhân vật giờ chỉ cần bấm một nút.**

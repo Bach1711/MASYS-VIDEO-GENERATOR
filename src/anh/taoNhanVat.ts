@@ -70,7 +70,7 @@ const IN_CHAT = "Send the finished image directly in this chat.";
 export function masterPrompt(core: string): string {
   return `Full-body character design of ${core}.
 Standing straight facing the camera, neutral expression, arms relaxed at the sides, hands empty.
-Plain light grey background, flat even studio lighting, no harsh shadows.
+Plain light grey background, flat even studio lighting, no harsh shadows, tall vertical 9:16 layout.
 Photorealistic.
 No text, no logo, no extra people, no props.
 ${IN_CHAT}`;
@@ -86,7 +86,7 @@ ${IN_CHAT}`;
 
 export const FACE_PROMPT = `Using the attached image as the exact reference, create a close-up portrait of the same character, head and shoulders, facing the camera, neutral expression.
 Keep the face shape, eyes, skin tone, hair and distinctive marks identical to the reference.
-Plain light grey background, soft even lighting, sharp focus on the face.
+Plain light grey background, soft even lighting, sharp focus on the face, square 1:1 layout.
 No text, no extra people.
 ${IN_CHAT}`;
 
