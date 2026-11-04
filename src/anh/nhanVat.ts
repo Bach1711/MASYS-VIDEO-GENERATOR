@@ -12,6 +12,9 @@ export interface NhanVat {
   /** Ảnh mặt; null = nhân vật chỉ có ảnh 4 góc. */
   faceFile: string | null;
   faceBytes: number;
+  /** Ảnh master khi nhân vật được tạo trong app (CON-81); chỉ để lưu giữ, không gửi Muse trên Bảng ảnh. */
+  masterFile: string | null;
+  masterBytes: number;
   createdAt: string;
 }
 
@@ -26,23 +29,23 @@ export function tenProblem(ten: string): string | null {
 }
 
 export function listNhanVat(db: DB): NhanVat[] {
-  return db.prepare("SELECT id, ten, file, bytes, faceFile, faceBytes, createdAt FROM nhan_vat WHERE deletedAt IS NULL ORDER BY id").all() as NhanVat[];
+  return db.prepare("SELECT id, ten, file, bytes, faceFile, faceBytes, masterFile, masterBytes, createdAt FROM nhan_vat WHERE deletedAt IS NULL ORDER BY id").all() as NhanVat[];
 }
 
 export function getNhanVat(db: DB, id: number | null | undefined): NhanVat | undefined {
   if (!id) return undefined;
-  return db.prepare("SELECT id, ten, file, bytes, faceFile, faceBytes, createdAt FROM nhan_vat WHERE id = ? AND deletedAt IS NULL").get(id) as NhanVat | undefined;
+  return db.prepare("SELECT id, ten, file, bytes, faceFile, faceBytes, masterFile, masterBytes, createdAt FROM nhan_vat WHERE id = ? AND deletedAt IS NULL").get(id) as NhanVat | undefined;
 }
 
 /**
  * Thêm nhân vật. File character sheet đặt tên theo số nhân vật nên cần số trước: ghi tên tạm, lưu file bằng
  * `save(id)`, rồi gắn tên file. `save` ném lỗi thì không thêm gì.
  */
-export function addNhanVat(db: DB, ten: string, save: (id: number) => { file: string; bytes: number; faceFile?: string; faceBytes?: number }): number {
+export function addNhanVat(db: DB, ten: string, save: (id: number) => { file: string; bytes: number; faceFile?: string; faceBytes?: number; masterFile?: string; masterBytes?: number }): number {
   return db.transaction(() => {
     const id = Number(db.prepare("INSERT INTO nhan_vat (ten, file) VALUES (?, '')").run(ten.trim()).lastInsertRowid);
     const f = save(id);
-    db.prepare("UPDATE nhan_vat SET file = ?, bytes = ?, faceFile = ?, faceBytes = ? WHERE id = ?").run(f.file, f.bytes, f.faceFile ?? null, f.faceBytes ?? 0, id);
+    db.prepare("UPDATE nhan_vat SET file = ?, bytes = ?, faceFile = ?, faceBytes = ?, masterFile = ?, masterBytes = ? WHERE id = ?").run(f.file, f.bytes, f.faceFile ?? null, f.faceBytes ?? 0, f.masterFile ?? null, f.masterBytes ?? 0, id);
     return id;
   })();
 }
@@ -70,7 +73,7 @@ export function deleteNhanVat(db: DB, id: number, at = new Date().toISOString())
   const nv = getNhanVat(db, id);
   if (!nv) return [];
   db.prepare("UPDATE nhan_vat SET deletedAt = ? WHERE id = ?").run(at, id);
-  return [nv.file, nv.faceFile].filter((f): f is string => !!f);
+  return [nv.file, nv.faceFile, nv.masterFile].filter((f): f is string => !!f);
 }
 
 /** Số dòng Bảng ảnh (chưa xoá) đang chọn nhân vật này. */

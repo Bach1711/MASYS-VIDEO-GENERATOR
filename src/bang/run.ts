@@ -104,7 +104,7 @@ export function insertBangBatch(db: DB, extra: string, runs: BangPlannedRun[]): 
 /** Phút trung bình một lượt gần đây (gửi → xong, 20 lượt gần nhất); chưa có thì 5 phút. */
 export function recentRunMinutes(db: DB): number {
   const rows = db
-    .prepare("SELECT sentAt, doneAt FROM runs WHERE state = 'done' AND sentAt IS NOT NULL AND doneAt IS NOT NULL AND anhRowId IS NULL ORDER BY id DESC LIMIT 20")
+    .prepare("SELECT sentAt, doneAt FROM runs WHERE state = 'done' AND sentAt IS NOT NULL AND doneAt IS NOT NULL AND anhRowId IS NULL AND nvDraftId IS NULL ORDER BY id DESC LIMIT 20")
     .all() as { sentAt: string; doneAt: string }[];
   const mins = rows.map((r) => (Date.parse(r.doneAt) - Date.parse(r.sentAt)) / 60_000).filter((m) => m > 0 && m < 120);
   return mins.length ? mins.reduce((a, b) => a + b, 0) / mins.length : 5;

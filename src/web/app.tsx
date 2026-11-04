@@ -11,6 +11,7 @@ import type { KeyStore } from "../keyStore.js";
 import type { ServiceAccountCredentials } from "../config.js";
 import { APP_VERSION } from "../version.js";
 import { registerBangAnhRoutes } from "./bangAnh.js";
+import { registerTaoNhanVatRoutes } from "./taoNhanVat.js";
 import { registerBangMoiRoutes } from "./bangMoi.js";
 import { registerBatchRoutes } from "./batch.js";
 import { registerBatchRunRoutes } from "./batchRun.js";
@@ -66,6 +67,7 @@ export function createApp(config: AppConfig, db: DB, deps: AppDeps = {}) {
   registerTableRoutes(app, { config, db, ...deps }, startPage);
   registerGuideRoutes(app);
   registerBangMoiRoutes(app, { config, db, ...deps });
+  registerTaoNhanVatRoutes(app, { config, db, runner: deps.runner });
   registerBangAnhRoutes(app, { config, db, runner: deps.runner });
 
   registerSheetRoutes(app, { config, db, sheets: deps.sheets });

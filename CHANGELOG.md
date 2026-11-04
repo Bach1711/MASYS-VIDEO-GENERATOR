@@ -2,6 +2,16 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+**Mới: tạo nhân vật ngay trong app.**
+
+- Vào **Nhân vật**, bấm **✨ Tạo nhân vật** và điền 12 tiêu chí: tuổi, khu vực, giới tính, vóc dáng, da, khuôn mặt, mắt, tóc, phụ kiện, áo, quần, giày.
+- Chưa nghĩ ra áo, quần, giày? Bấm **📋 Sao chép prompt nhờ AI điền**, dán sang ChatGPT, Claude hoặc Gemini, rồi dán câu trả lời lại app. App chỉ điền các ô còn trống.
+- Bot nhờ Muse tạo **ảnh master** để bạn chọn, rồi tạo tiếp **ảnh turnaround** và **ảnh face**. Ảnh nào chưa đẹp thì chỉ cần tạo lại ảnh đó.
+- Bấm **💾 Lưu nhân vật** là dùng được ngay trên **Bảng ảnh**.
+- Mỗi lần tạo tính 1 lượt ảnh trong giới hạn ảnh mỗi ngày, không trừ giới hạn video.
+
 ## v2.5.0
 
 **Nhân vật có 2 ảnh: ảnh 4 góc và ảnh mặt.**

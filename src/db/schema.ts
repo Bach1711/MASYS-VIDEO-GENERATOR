@@ -206,4 +206,32 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE nhan_vat ADD COLUMN faceFile TEXT;
   ALTER TABLE nhan_vat ADD COLUMN faceBytes INTEGER NOT NULL DEFAULT 0;
   `,
+  // 14: tạo nhân vật ngay trong app (CON-81, D35, spec 17.14). Bản nháp + ảnh Muse tạo (tep\anh-tao); lô có source = 'nv';
+  // runs.nvDraftId gắn lượt với bản nháp, loại ảnh nằm trong inputSnapshot; nhân vật lưu thêm ảnh master.
+  `
+  CREATE TABLE nv_drafts (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    ten       TEXT NOT NULL,
+    criteria  TEXT NOT NULL,
+    core      TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    nhanVatId INTEGER,
+    deletedAt TEXT
+  );
+  CREATE TABLE nv_draft_files (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    draftId   INTEGER NOT NULL,
+    runId     INTEGER,
+    kind      TEXT NOT NULL,
+    file      TEXT NOT NULL,
+    bytes     INTEGER NOT NULL DEFAULT 0,
+    chosen    INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE INDEX nv_draft_files_draft ON nv_draft_files(draftId, kind);
+  ALTER TABLE runs ADD COLUMN nvDraftId INTEGER;
+  CREATE INDEX runs_nvDraft ON runs(nvDraftId);
+  ALTER TABLE nhan_vat ADD COLUMN masterFile TEXT;
+  ALTER TABLE nhan_vat ADD COLUMN masterBytes INTEGER NOT NULL DEFAULT 0;
+  `,
 ];

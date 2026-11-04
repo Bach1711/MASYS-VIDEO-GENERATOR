@@ -851,12 +851,17 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
         <>
           <div class="bang-head">
             <h1 style="margin:0">Nhân vật</h1>
-            <a class="button secondary" href={BASE}>
-              ← Bảng ảnh
-            </a>
+            <div class="row">
+              <a class="button" href={`${NV}/tao`}>
+                ✨ Tạo nhân vật
+              </a>
+              <a class="button secondary" href={BASE}>
+                ← Bảng ảnh
+              </a>
+            </div>
           </div>
           <p class="muted">
-            Mỗi nhân vật có <strong>ảnh 4 góc</strong> (character sheet toàn thân do bạn tự tạo) và <strong>ảnh mặt</strong> (cận mặt, không bắt buộc
+            Mỗi nhân vật có <strong>ảnh 4 góc</strong> (character sheet toàn thân, tự thêm vào đây hoặc bấm <strong>Tạo nhân vật</strong> để bot tạo bằng Muse) và <strong>ảnh mặt</strong> (cận mặt, không bắt buộc
             nhưng nên có). Khi tạo ảnh, bot gửi ảnh 4 góc rồi tới ảnh mặt cho Muse để Muse giữ đúng mặt, tóc, da và dáng của nhân vật. File chỉ nằm
             trên máy này. Đổi ảnh chỉ ảnh hưởng các lần tạo sau.
           </p>
@@ -940,7 +945,7 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
                         <button
                           type="submit"
                           class="danger small"
-                          onclick={`return confirm(${JSON.stringify(`Xoá nhân vật ${ch.ten}? Ảnh 4 góc và ảnh mặt trên máy sẽ bị xoá. Ảnh đã tạo vẫn giữ; ${used} dòng đang chọn nhân vật này cần chọn nhân vật khác.`)})`}
+                          onclick={`return confirm(${JSON.stringify(`Xoá nhân vật ${ch.ten}? Ảnh của nhân vật trên máy sẽ bị xoá. Ảnh đã tạo vẫn giữ; ${used} dòng đang chọn nhân vật này cần chọn nhân vật khác.`)})`}
                         >
                           Xoá nhân vật
                         </button>

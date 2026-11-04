@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { addFiles as addAnhFiles, getRow as getAnhRow } from "../anh/rows.js";
 import type { AnhSnapshot } from "../anh/run.js";
+import { addDraftFiles, getDraft, NV_KIND_TEXT, type NvSnapshot } from "../anh/taoNhanVat.js";
 import { formatBytes, type BangFiles } from "../bang/files.js";
 import { getRow, queueHook, setRowVideo } from "../bang/rows.js";
 import { BotError, type WatchResult } from "../bot/museBot.js";
@@ -92,7 +93,7 @@ export interface RunnerOptions {
   secondMs?: number;
   random?: () => number;
   /** Ảnh của Bảng mới trên máy (CON-52); character sheet và ảnh Muse tạo của Bảng ảnh (CON-77). */
-  bangFiles?: Pick<BangFiles, "imagePath" | "saveVideo" | "removeAny" | "nhanVatPath" | "saveAnhTao">;
+  bangFiles?: Pick<BangFiles, "imagePath" | "saveVideo" | "removeAny" | "nhanVatPath" | "saveAnhTao" | "saveNvTao" | "nvTaoPath">;
   /** Video của dòng vừa về và lô có thêm hook (CON-74, D30): xếp dòng vào hàng chờ ghép. */
   onHookJob?: (rowId: number) => void;
 }
@@ -113,6 +114,8 @@ interface RunRow {
   /** Bảng ảnh (CON-77): 'front' | 'back' (đang làm ảnh quay lưng); số ảnh trong cuộc trò chuyện ngay sau lần gửi gần nhất. */
   anhPhase?: string | null;
   anhBaseline?: number | null;
+  /** Tạo nhân vật (CON-81): số bản nháp; null = không phải lượt tạo nhân vật. */
+  nvDraftId?: number | null;
 }
 
 interface BatchRow {
@@ -596,7 +599,7 @@ export class BatchRunner {
     try {
       for (;;) {
         for (const f of [...inflight.values()]) {
-          const out = await this.pollBang(f, batch.source === "anh");
+          const out = await this.pollBang(f, batch.source === "anh" || batch.source === "nv");
           if (out.pause) blocked ??= out.pause;
           if (out.finished) {
             inflight.delete(f.run.id);
@@ -608,7 +611,7 @@ export class BatchRunner {
         const room = inflight.size < this.parallel();
         const next = sending && room ? this.runs(batch.id, ["queued"])[0] : undefined;
         if (next && Date.now() >= nextSendAt) {
-          const out = batch.source === "anh" ? await this.sendAnh(next) : await this.sendBang(next);
+          const out = batch.source === "anh" ? await this.sendAnh(next) : batch.source === "nv" ? await this.sendNv(next) : await this.sendBang(next);
           if (out.pause) blocked = out.pause;
           if (out.inflight) inflight.set(next.id, out.inflight);
           // Nghỉ ngẫu nhiên giữa hai lần gửi (D7).
@@ -709,6 +712,33 @@ export class BatchRunner {
     return out;
   }
 
+  /**
+   * Tạo nhân vật (CON-81, spec 17.14): đủ lượt ảnh trong ngày, bản nháp còn, còn file master (trừ lượt tạo master, không
+   * kèm ảnh), rồi gửi trong một cuộc trò chuyện mới (D7). Gửi xong nhớ số ảnh đang có như Bảng ảnh.
+   */
+  private async sendNv(run: RunRow): Promise<{ pause?: PauseReason; sent?: boolean; inflight?: Inflight }> {
+    const snap = JSON.parse(run.inputSnapshot) as NvSnapshot;
+    if (getImageQuota(this.db).remaining < 1) {
+      moveRun(this.db, run.id, "queued", "paused_limit", "Đủ giới hạn ảnh hôm nay");
+      return { pause: "image_limit" };
+    }
+    moveRun(this.db, run.id, "queued", "checking_row", "Đọc lại bản nháp nhân vật");
+    const review = (why: string, error: string) => {
+      moveRun(this.db, run.id, "checking_row", "needs_review", `${why}; không gửi Muse`, { error, doneAt: now() });
+      return {};
+    };
+    if (!getDraft(this.db, snap.draftId)) return review("Bản nháp nhân vật đã bị xoá", "bản nháp đã bị xoá");
+    const master = snap.masterFile ? this.o.bangFiles?.nvTaoPath(snap.masterFile) : undefined;
+    if (snap.masterFile && !master) return review("Không còn file ảnh master trên máy", "thiếu ảnh master");
+    const out = await this.sendNew(run, master ? [master] : [], "ảnh");
+    if (out.inflight) {
+      const baseline = await this.imageCount(out.inflight.tab);
+      this.db.prepare("UPDATE runs SET anhBaseline = ? WHERE id = ?").run(baseline, run.id);
+      out.inflight.run.anhBaseline = baseline;
+    }
+    return out;
+  }
+
   /** Số ảnh lớn đang có trong tab (không xem được thì 0). */
   private async imageCount(tab: string): Promise<number> {
     const w = await this.bot.watch(tab).catch(() => undefined);
@@ -720,7 +750,7 @@ export class BatchRunner {
     if (!this.bot.isOpen) await this.bot.open();
     const tab = tabOf(run.id);
     const waiting = (): Inflight => ({ run: { ...run, state: "waiting" }, tab, deadline: Date.now() + this.timeoutMs(), approval: false, loginNoted: false });
-    moveRun(this.db, run.id, "checking_row", "sending", `Gửi yêu cầu cho Muse kèm ${files.length} ảnh (cuộc trò chuyện mới)`, { sentAt: now() });
+    moveRun(this.db, run.id, "checking_row", "sending", `Gửi yêu cầu cho Muse ${files.length ? `kèm ${files.length} ảnh` : "không kèm ảnh"} (cuộc trò chuyện mới)`, { sentAt: now() });
     try {
       const { chatUrl } = await this.bot.send(run.requestText, files as string[], tab);
       const known = chatSel.isThreadUrl(chatUrl);
@@ -817,7 +847,7 @@ export class BatchRunner {
       const fresh = (w.images ?? []).slice(run.anhBaseline ?? 0);
       if (fresh.length && fresh.every((i) => i.ready)) {
         const key = fresh.map((i) => i.src).join("\n");
-        if (f.seen === key) return this.downloadAnh(f);
+        if (f.seen === key) return run.nvDraftId ? this.downloadNv(f) : this.downloadAnh(f);
         f.seen = key;
       } else f.seen = undefined;
     } else if ((w.videos ?? 0) > 0) {
@@ -947,6 +977,41 @@ export class BatchRunner {
     return { finished: false };
   }
 
+  /** Tạo nhân vật (17.14): tải các ảnh mới vào bản nháp, bỏ ảnh master bot vừa đính kèm. Thử 3 lần; không được thì Cần xem, không gửi lại (D9). */
+  private async downloadNv(f: Inflight): Promise<PollOutcome> {
+    const run = f.run;
+    const snap = JSON.parse(run.inputSnapshot) as NvSnapshot;
+    const what = NV_KIND_TEXT[snap.kind].toLowerCase();
+    moveRun(this.db, run.id, "waiting", "downloading", `Muse đã gửi ${what} trong cuộc trò chuyện; đang tải về máy`);
+    const files = this.o.bangFiles;
+    let why = "";
+    let saved: { file: string; bytes: number }[] = [];
+    for (let attempt = 1; attempt <= 3 && !saved.length; attempt++) {
+      try {
+        if (!files || !this.bot.downloadImages) throw new Error("thiếu thư mục dữ liệu");
+        const masterPath = files.nvTaoPath(snap.masterFile);
+        const mine = masterPath ? fs.readFileSync(masterPath) : undefined;
+        const list = (await this.bot.downloadImages(f.tab, run.anhBaseline ?? 0)).filter((d) => !mine || !Buffer.from(d).equals(mine));
+        if (!list.length) throw new Error("chỉ thấy ảnh mình đính kèm, chưa có ảnh Muse tạo");
+        saved = list.map((d) => ({ file: files.saveNvTao(snap.draftId, snap.kind, d), bytes: d.length }));
+      } catch (e) {
+        why = errText(e);
+        logger.warn({ err: e, runId: run.id, attempt }, "Chưa tải được ảnh nhân vật từ Muse");
+        if (attempt < 3) await this.sleep(5 * (this.o.secondMs ?? 1000), false);
+      }
+    }
+    if (!saved.length) {
+      moveRun(this.db, run.id, "downloading", "needs_review", `Không tải được ${what} (${why}). Bấm "Mở trong Muse" để xem; không gửi lại (D9)`, {
+        error: `không tải được ${what}`,
+        doneAt: now(),
+      });
+      return { finished: true };
+    }
+    addDraftFiles(this.db, snap.draftId, run.id, snap.kind, saved);
+    moveRun(this.db, run.id, "downloading", "done", `Đã tải ${saved.length} ${what} về máy (${formatBytes(saved.reduce((n, s) => n + s.bytes, 0))})`, { doneAt: now() });
+    return { finished: true };
+  }
+
   private chatUrl(runId: number): string | null {
     return (this.db.prepare("SELECT museChatUrl FROM runs WHERE id = ?").get(runId) as { museChatUrl: string | null }).museChatUrl;
   }
@@ -1016,7 +1081,7 @@ export class BatchRunner {
   private runs(batchId: number, states: string[]): RunRow[] {
     return this.db
       .prepare(
-        `SELECT id, batchId, rowNumber, state, inputSnapshot, requestText, overwrite, sentAt, tabSnapshot, museChatUrl, hookText, anhPhase, anhBaseline FROM runs
+        `SELECT id, batchId, rowNumber, state, inputSnapshot, requestText, overwrite, sentAt, tabSnapshot, museChatUrl, hookText, anhPhase, anhBaseline, nvDraftId FROM runs
          WHERE batchId = ? AND state IN (${states.map(() => "?").join(", ")}) ORDER BY rowNumber`,
       )
       .all(batchId, ...states) as RunRow[];
@@ -1047,7 +1112,7 @@ function pick(row: string[], cfg: SheetConfig): InputSnapshot {
 const TOOL_EDIT_MARGIN_MS = 10 * 60_000;
 
 /** Lô chạy kiểu Bảng (gửi lần lượt, mỗi dòng một tab riêng, chờ song song, D28): Bảng video và Bảng ảnh. */
-const isTabbed = (source: string | undefined) => source === "bang" || source === "anh";
+const isTabbed = (source: string | undefined) => source === "bang" || source === "anh" || source === "nv";
 
 /** Tab riêng của một lượt trong cửa sổ bot (D28). */
 const tabOf = (runId: number) => `run-${runId}`;

@@ -1,6 +1,6 @@
 # KOL Fashion MASYS Video (MASYS Video Generator)
 
-Đặc tả đầy đủ: `SPEC-app-tao-video-ao.md` (v6.3) — đọc trước khi làm bất cứ việc gì. Không mở lại các quyết định ở mục 3 (D1–D34) nếu chưa hỏi người phụ trách.
+Đặc tả đầy đủ: `SPEC-app-tao-video-ao.md` (v6.3) — đọc trước khi làm bất cứ việc gì. Không mở lại các quyết định ở mục 3 (D1–D35) nếu chưa hỏi người phụ trách.
 
 ## Kiến trúc (spec v6.0 mục 17, từ v2.0.0)
 - **Tool chạy trên một máy Windows:** một tiến trình Node (TypeScript) + giao diện ở `localhost` + **Playwright** điều khiển Chrome + SQLite cục bộ.
@@ -9,6 +9,7 @@
 - Không cần Google để tạo video. **Service account** (D5) chỉ dùng cho *Nhập từ Google Sheet* (chỉ đọc) và **Bảng theo sheet** (luồng cũ v1.x, ở ⚙ Nâng cao, `/bang-sheet`: Muse lưu video lên Drive và ghi link vào sheet).
 - **Hook đầu video** (D30, từ v2.2.0): ô *Thêm hook* trên Bảng; mỗi dòng một clip hook (`tep\hook`) + câu hook (câu riêng, không có thì câu chung hôm nay). Video về thì `HookMerger` (`src/bang/hook.ts`) ghép bằng **ffmpeg đi kèm** (`phien-ban\X.Y.Z\ffmpeg\ffmpeg.exe`, khi phát triển lấy từ `ffmpeg-static`), câu hook vẽ bằng Chrome chạy ẩn; giữ bản gốc, bản có hook ở `bang_rows.hookVideoFile`.
 - **Bảng ảnh** (D31–D33, từ v2.3.0): `/bang-anh` (`src/web/bangAnh.tsx`, `src/anh/`), độc lập với Bảng video; bảng `anh_rows` / `anh_files`, lô `batches.source = 'anh'`, lượt gắn dòng qua `runs.anhRowId`. Trang **Nhân vật** (`/nhan-vat`, bảng `nhan_vat`): người dùng tự thêm **ảnh 4 góc** (character sheet, `file`) và **ảnh mặt** (`faceFile`, tuỳ chọn, từ CON-80), lưu `tep\nhan-vat`, **không bao giờ đóng gói vào app/repo** (repo công khai); ảnh 4 góc luôn đính kèm là ảnh 1, ảnh mặt là ảnh 2. Ảnh Muse tạo tải về `tep\anh-tao`. Dòng tích Quay lưng: tải xong ảnh mặt trước mới gửi tin thứ hai trong cùng cuộc trò chuyện. Giới hạn ảnh mỗi ngày riêng (`dailyImageLimit`, mặc định 100, tối đa 150). **Xuất sang Bảng video** (D34, từ v2.4.0, `src/anh/export.ts`): chép ảnh chính vào `tepnh` thành Mẫu trước / Mẫu sau của dòng `bang_rows` mới, ghi `anh_rows.exportedBangRowId`; xuất lại phải xác nhận.
+- **Tạo nhân vật trong app** (D35, CON-81, `/nhan-vat/tao`, `src/web/taoNhanVat.tsx`, `src/anh/taoNhanVat.ts`): 12 tiêu chí → ảnh master → đính kèm master tạo turnaround + face (mỗi ảnh một cuộc trò chuyện) → Lưu vào `nhan_vat`. Bản nháp `nv_drafts` / `nv_draft_files`, lô `batches.source = 'nv'`, lượt gắn qua `runs.nvDraftId`, tính vào giới hạn ảnh. Prompt là nguyên văn của người phụ trách, không sửa nếu chưa hỏi.
 - Giới hạn mặc định 100 video/ngày, tối đa 150 (D25). Video và ảnh chỉ bị xoá khi người dùng bấm 🗑 / Xoá dòng / Dọn tất cả (D26).
 - Không có server, không Supabase, không gọi API video nào (Gemini, Max-Studio, Flow đã bỏ).
 - **Phát hành cho đội bằng zip** (D15): `npm run package` → `release/KOL-Fashion-MASYS-Video-vX.Y.Z-win64.zip` và zip tên cũ `MASYS-Video-…` (Node đi kèm + `Mo-MASYS.bat`). Khoá Google (chỉ cần khi dùng sheet) chọn ở trang Cài khoá, lưu mã hoá DPAPI ở `%LOCALAPPDATA%\masys-video`; biến `GOOGLE_SERVICE_ACCOUNT_JSON` (op run) luôn được ưu tiên. Số phiên bản là `version` trong `package.json`.
