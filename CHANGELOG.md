@@ -2,11 +2,13 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
-## Chưa phát hành
+## v2.8.0
 
-- Nhân vật tạo trong app có nút **Xem prompt**: xem mô tả nhân vật và các prompt đã gửi Muse, bấm **Sao chép** để dùng lại.
-- Mỗi thẻ trên trang **Nhân vật** hiện đủ 3 ảnh: **Ảnh gốc**, **Ảnh 4 góc**, **Ảnh mặt**. Ô ảnh 4 góc đổi sang khung ngang để thấy đúng ảnh turnaround.
+**Trang Nhân vật xem được đủ ảnh và prompt.**
+
+- Mỗi thẻ hiện đủ 3 ảnh: **Ảnh gốc**, **Ảnh 4 góc**, **Ảnh mặt**. Ô ảnh 4 góc đổi sang khung ngang để thấy đúng ảnh turnaround.
 - Nhân vật chưa có ảnh gốc thì bấm **Thêm ảnh gốc** ngay trên thẻ. Ảnh gốc chỉ để lưu giữ, không gửi Muse khi tạo ảnh.
+- Nhân vật tạo trong app có nút **Xem prompt**: xem mô tả nhân vật và các prompt đã gửi Muse, bấm **Sao chép** để dùng lại.
 - Prompt tạo nhân vật có quy định khung ảnh rõ ràng: ảnh master dọc 9:16, ảnh turnaround ngang 16:9, ảnh face vuông 1:1. Ảnh đã tạo giữ nguyên.
 
 ## v2.7.0
