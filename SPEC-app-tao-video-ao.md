@@ -660,4 +660,5 @@ Không đạt mục 1 hoặc 2 → **dừng, báo người phụ trách**, chố
 - **Trang Nhân vật:** mục **Đang tạo** hiện bản nháp chưa thành nhân vật hoặc đang tạo lại ảnh, tiến độ từng ảnh và lỗi; nhân vật thiếu face có link tạo lại (CON-82).
 - **Lưu:** tự động khi có ảnh turnaround (CON-82); bản nháp đã lưu thì ảnh tạo lại hoặc ảnh đổi lập tức thay ảnh của nhân vật. Chép ảnh đang chọn sang `tep\nhan-vat` (turnaround = `file`, face = `faceFile`, master = `masterFile`, không gửi Muse trên Bảng ảnh). Bản nháp giữ đến khi người dùng xoá (D26).
 - **Dữ liệu (migration 14, chỉ thêm):** bảng `nv_drafts`, `nv_draft_files`; `runs.nvDraftId`; `nhan_vat.masterFile`, `masterBytes`. Ảnh bản nháp ở `tep\anh-tao`, tên `nt<bản nháp>-<loại>-…`.
+- **Ảnh gốc trên thẻ (CON-84):** thẻ nhân vật hiện Ảnh gốc (`masterFile`), Ảnh 4 góc (khung ngang), Ảnh mặt; thêm / đổi ảnh gốc ngay trên thẻ, kể cả nhân vật thêm bằng tay. Ảnh gốc không gửi Muse trên Bảng ảnh.
 - **Khung ảnh (CON-83):** prompt ghi rõ master dọc 9:16, turnaround ngang 16:9, face vuông 1:1. Muse thật làm đúng 16:9 của turnaround (2048 × 1152, lô #36, 04/11/2026); khung 9:16 và 1:1 ghi trong prompt chưa thử với Muse thật.
