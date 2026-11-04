@@ -201,4 +201,9 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE settings ADD COLUMN dailyImageLimit INTEGER NOT NULL DEFAULT 100;
   ALTER TABLE settings ADD COLUMN lastNhanVatId INTEGER;
   `,
+  // 13: nhân vật có thêm ảnh mặt (CON-80, D32); `file` là ảnh 4 góc. Nhân vật cũ để trống, vẫn chạy với 1 ảnh.
+  `
+  ALTER TABLE nhan_vat ADD COLUMN faceFile TEXT;
+  ALTER TABLE nhan_vat ADD COLUMN faceBytes INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
