@@ -2,6 +2,15 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+**Tạo nhân vật giờ chỉ cần bấm một nút.**
+
+- Điền thông tin rồi bấm **▶ Tạo nhân vật**: bot tự tạo ảnh master, ảnh turnaround và ảnh face, không phải bấm thêm gì. Mỗi nhân vật tốn 3 lượt ảnh.
+- Trang **Nhân vật** có mục **Đang tạo** để xem tiến độ. Có ảnh turnaround là nhân vật tự vào thư viện.
+- Ảnh face lỗi thì nhân vật vẫn được lưu, tool báo thiếu để bạn tạo lại sau. Ảnh lỗi không được tự gửi lại.
+- Tạo lại một ảnh sau khi đã lưu thì nhân vật dùng ngay ảnh mới. Tạo lại ảnh master sẽ tạo lại cả 3 ảnh.
+
 ## v2.6.0
 
 **Mới: tạo nhân vật ngay trong app.**

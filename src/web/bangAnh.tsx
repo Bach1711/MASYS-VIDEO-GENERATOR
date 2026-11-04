@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import type { Context, Hono } from "hono";
 import type { Child } from "hono/jsx";
-import { addNhanVat, deleteNhanVat, getNhanVat, listNhanVat, nhanVatUsage, renameNhanVat, setNhanVatFace, setNhanVatFile, tenProblem, type NhanVat } from "../anh/nhanVat.js";
+import { addNhanVat, deleteNhanVat, fileInUse, getNhanVat, listNhanVat, nhanVatUsage, renameNhanVat, setNhanVatFace, setNhanVatFile, tenProblem, type NhanVat } from "../anh/nhanVat.js";
 import {
   addRow,
   ANH_LABEL_TEXT,
@@ -45,6 +45,8 @@ import type { BatchRunner } from "../queue/runner.js";
 import { APP_NAME } from "../version.js";
 import { Alert, Hidden, truncate } from "./components.js";
 import { Layout } from "./layout.js";
+import { draftOfNhanVat } from "../anh/taoNhanVat.js";
+import { NvDraftsCard } from "./taoNhanVat.js";
 
 // Bảng ảnh và trang Nhân vật (CON-77, spec v6.3 mục 17.13, D31–D33): chạy độc lập với Bảng video; Muse tạo ảnh theo
 // character sheet của nhân vật, ảnh tải về máy (tep\anh-tao), người dùng chọn ảnh chính.
@@ -867,6 +869,7 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
           </p>
           {ok && <Alert kind="ok">{ok}</Alert>}
           {err && <Alert kind="warn">{err}</Alert>}
+          <NvDraftsCard db={db} />
           <form method="post" action={`${NV}/them`} enctype="multipart/form-data" class="card">
             <h2>+ Thêm nhân vật</h2>
             <div class="row" style="align-items:center">
@@ -888,6 +891,7 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
           ) : (
             chars.map((ch) => {
               const used = nhanVatUsage(db, ch.id);
+              const draft = draftOfNhanVat(db, ch.id);
               return (
                 <div class="card" id={`nv-${ch.id}`}>
                   <div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
@@ -934,6 +938,11 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
                           {ch.faceFile ? "Đổi ảnh mặt" : "Thêm ảnh mặt"}
                         </button>
                       </form>
+                      {draft && (
+                        <a class="small" href={`${NV}/tao/${draft.id}`}>
+                          {ch.faceFile ? "Xem ảnh gốc, tạo lại ảnh" : "Thiếu ảnh face: tạo lại ảnh face"}
+                        </a>
+                      )}
                       {ch.faceFile && (
                         <form method="post" action={`${NV}/${ch.id}/mat/xoa`}>
                           <button type="submit" class="secondary small" onclick={`return confirm(${JSON.stringify(`Xoá ảnh mặt của ${ch.ten}? Các lần tạo sau chỉ gửi ảnh 4 góc.`)})`}>
@@ -1019,7 +1028,7 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
     const name = files.saveNhanVat(nv.id, r.data);
     const old = setNhanVatFile(db, nv.id, name, r.data.length);
     // Lô đang chờ gửi vẫn cần file cũ để so khớp: chỉ xoá khi không còn lượt nào chưa gửi dùng nó.
-    if (old && !pendingUses(db, old)) files.removeAny(old);
+    if (old && !fileInUse(db, old)) files.removeAny(old);
     return toNv(c, { ok: `Đã đổi ảnh 4 góc của ${nv.ten}. Các lần tạo ảnh sau dùng ảnh mới.` });
   });
 
@@ -1030,7 +1039,7 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
     const r = await readSheet(c);
     if ("err" in r) return toNv(c, { loi: r.err });
     const old = setNhanVatFace(db, nv.id, files.saveNhanVat(nv.id, r.data), r.data.length);
-    if (old && !pendingUses(db, old)) files.removeAny(old);
+    if (old && !fileInUse(db, old)) files.removeAny(old);
     return toNv(c, { ok: `Đã lưu ảnh mặt của ${nv.ten}. Các lần tạo ảnh sau dùng ảnh mới.` });
   });
 
@@ -1039,7 +1048,7 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
     const nv = getNhanVat(db, Number(c.req.param("id")));
     if (!nv) return toNv(c, { loi: "Không có nhân vật này." });
     const old = setNhanVatFace(db, nv.id, null, 0);
-    if (old && !pendingUses(db, old)) files.removeAny(old);
+    if (old && !fileInUse(db, old)) files.removeAny(old);
     return toNv(c, { ok: `Đã xoá ảnh mặt của ${nv.ten}.` });
   });
 
@@ -1047,24 +1056,11 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
     if (!sameSite(c)) return c.text("Yêu cầu không hợp lệ", 403);
     const nv = getNhanVat(db, Number(c.req.param("id")));
     if (!nv) return toNv(c, { loi: "Không có nhân vật này." });
-    if (pendingUses(db, nv.file) || (nv.faceFile && pendingUses(db, nv.faceFile))) return toNv(c, { loi: `Nhân vật ${nv.ten} đang được dùng trong lô chưa xong. Đợi lô xong rồi xoá.` });
+    if (fileInUse(db, nv.file) || (nv.faceFile && fileInUse(db, nv.faceFile))) return toNv(c, { loi: `Nhân vật ${nv.ten} đang được dùng trong lô chưa xong. Đợi lô xong rồi xoá.` });
     deleteNhanVat(db, nv.id).forEach((f) => files.removeAny(f));
     logger.info({ nhanVatId: nv.id }, "Đã xoá nhân vật");
     return toNv(c, { ok: `Đã xoá nhân vật ${nv.ten}.` });
   });
-}
-
-/** Còn lượt chưa xong của Bảng ảnh dùng file ảnh nhân vật này không (ảnh 4 góc hoặc ảnh mặt). */
-function pendingUses(db: DB, file: string): boolean {
-  const row = db
-    .prepare(
-      `SELECT 1 FROM runs r JOIN batches b ON b.id = r.batchId
-       WHERE r.anhRowId IS NOT NULL AND b.status IN ('queued', 'running', 'paused')
-         AND r.state NOT IN ('done', 'failed', 'needs_review', 'skipped_has_video', 'canceled')
-         AND ? IN (json_extract(r.inputSnapshot, '$.nhanVatFile'), json_extract(r.inputSnapshot, '$.nhanVatFaceFile')) LIMIT 1`,
-    )
-    .get(file);
-  return !!row;
 }
 
 // Không dùng dấu ` hay ${ } trong đoạn này. Chữ có dấu được đổi sang \uXXXX lúc gửi trang (ascii()).

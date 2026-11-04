@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { addFiles as addAnhFiles, getRow as getAnhRow } from "../anh/rows.js";
 import type { AnhSnapshot } from "../anh/run.js";
-import { addDraftFiles, getDraft, NV_KIND_TEXT, type NvSnapshot } from "../anh/taoNhanVat.js";
+import { addDraftFiles, chosenFile, draftFiles, draftImageArrived, getDraft, insertNvRuns, NV_KIND_TEXT, type NvSnapshot } from "../anh/taoNhanVat.js";
 import { formatBytes, type BangFiles } from "../bang/files.js";
 import { getRow, queueHook, setRowVideo } from "../bang/rows.js";
 import { BotError, type WatchResult } from "../bot/museBot.js";
@@ -93,7 +93,7 @@ export interface RunnerOptions {
   secondMs?: number;
   random?: () => number;
   /** Ảnh của Bảng mới trên máy (CON-52); character sheet và ảnh Muse tạo của Bảng ảnh (CON-77). */
-  bangFiles?: Pick<BangFiles, "imagePath" | "saveVideo" | "removeAny" | "nhanVatPath" | "saveAnhTao" | "saveNvTao" | "nvTaoPath">;
+  bangFiles?: Pick<BangFiles, "imagePath" | "saveVideo" | "removeAny" | "nhanVatPath" | "saveAnhTao" | "saveNvTao" | "nvTaoPath" | "saveNhanVat">;
   /** Video của dòng vừa về và lô có thêm hook (CON-74, D30): xếp dòng vào hàng chờ ghép. */
   onHookJob?: (rowId: number) => void;
 }
@@ -1009,6 +1009,16 @@ export class BatchRunner {
     }
     addDraftFiles(this.db, snap.draftId, run.id, snap.kind, saved);
     moveRun(this.db, run.id, "downloading", "done", `Đã tải ${saved.length} ${what} về máy (${formatBytes(saved.reduce((n, s) => n + s.bytes, 0))})`, { doneAt: now() });
+    try {
+      if (files) draftImageArrived(this.db, files, snap.draftId, snap.kind);
+    } catch (e) {
+      logger.warn({ err: e, runId: run.id }, "Chưa lưu được nhân vật");
+      logRunEvent(this.db, run.id, "done", `Chưa lưu được nhân vật: ${errText(e)}`);
+    }
+    // Có master thì tự tạo tiếp hai ảnh còn lại (CON-82); bấm Huỷ thì thôi.
+    const draft = snap.kind === "master" && !this.active?.cancelRequested ? getDraft(this.db, snap.draftId) : undefined;
+    const master = draft && chosenFile(draftFiles(this.db, draft.id), "master");
+    if (draft && master) insertNvRuns(this.db, run.batchId, draft, ["turnaround", "face"], master.file);
     return { finished: true };
   }
 
