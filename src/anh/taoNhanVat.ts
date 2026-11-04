@@ -246,6 +246,25 @@ export function draftOfNhanVat(db: DB, nhanVatId: number): NvDraft | undefined {
   return db.prepare("SELECT id, ten, criteria, core, createdAt, nhanVatId FROM nv_drafts WHERE nhanVatId = ? AND deletedAt IS NULL").get(nhanVatId) as NvDraft | undefined;
 }
 
+/**
+ * Prompt tạo nên nhân vật (CON-85): với mỗi loại, prompt của lần tạo ra ảnh đang chọn; không tìm được thì lần xong gần
+ * nhất. Đọc cả bản nháp đã xoá vì lượt vẫn còn trong lịch sử. null = nhân vật thêm bằng tay, không có prompt.
+ */
+export function promptsOfNhanVat(db: DB, nhanVatId: number): { core: string; items: { kind: NvKind; text: string }[] } | null {
+  const draft = db.prepare("SELECT id, core FROM nv_drafts WHERE nhanVatId = ? ORDER BY id DESC LIMIT 1").get(nhanVatId) as { id: number; core: string } | undefined;
+  if (!draft) return null;
+  const files = draftFiles(db, draft.id);
+  const byRun = db.prepare("SELECT requestText FROM runs WHERE id = ?");
+  const lastDone = db.prepare("SELECT requestText FROM runs WHERE nvDraftId = ? AND state = 'done' AND json_extract(inputSnapshot, '$.kind') = ? ORDER BY id DESC LIMIT 1");
+  const items: { kind: NvKind; text: string }[] = [];
+  for (const kind of NV_KINDS) {
+    const runId = (db.prepare("SELECT runId FROM nv_draft_files WHERE id = ?").get(chosenFile(files, kind)?.id ?? 0) as { runId: number | null } | undefined)?.runId;
+    const row = (byRun.get(runId ?? 0) ?? lastDone.get(draft.id, kind)) as { requestText: string } | undefined;
+    if (row) items.push({ kind, text: row.requestText });
+  }
+  return { core: draft.core, items };
+}
+
 /** Bản nháp còn lượt chưa xong trong lô chưa kết thúc: chưa sửa, chưa xoá được. */
 export function draftBusy(db: DB, draftId: number): boolean {
   const row = db

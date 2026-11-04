@@ -60,6 +60,7 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
           nav .nav-in { max-width: 1100px; }
           button:disabled { opacity:.45; cursor:not-allowed; }
           button.secondary, a.button.secondary { background:var(--card); color:var(--fg); border-color:var(--border); }
+          .nv-prompts > summary { display:inline-block; cursor:pointer; list-style:none; padding:4px 8px; font-size:.85rem; border-radius:6px; background:var(--card); color:var(--fg); border:1px solid var(--border); }
           a.button { display:inline-block; padding:6px 10px; border-radius:6px; background:var(--accent); color:#fff; text-decoration:none; border:1px solid var(--accent); }
           input[type=checkbox] { width:18px; height:18px; padding:0; }
           label.inline { display:inline-flex; align-items:center; gap:6px; font-weight:normal; margin:0; }

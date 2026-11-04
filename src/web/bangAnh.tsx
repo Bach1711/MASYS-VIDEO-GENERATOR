@@ -46,7 +46,7 @@ import { APP_NAME } from "../version.js";
 import { Alert, Hidden, truncate } from "./components.js";
 import { Layout } from "./layout.js";
 import { draftOfNhanVat } from "../anh/taoNhanVat.js";
-import { NvDraftsCard } from "./taoNhanVat.js";
+import { COPY_PROMPT_JS, NvDraftsCard, NvPromptsBox } from "./taoNhanVat.js";
 
 // Bảng ảnh và trang Nhân vật (CON-77, spec v6.3 mục 17.13, D31–D33): chạy độc lập với Bảng video; Muse tạo ảnh theo
 // character sheet của nhân vật, ảnh tải về máy (tep\anh-tao), người dùng chọn ảnh chính.
@@ -956,6 +956,7 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
                           {ch.faceFile ? "Đổi ảnh mặt" : "Thêm ảnh mặt"}
                         </button>
                       </form>
+                      <NvPromptsBox db={db} nhanVatId={ch.id} />
                       {draft && (
                         <a class="small" href={`${NV}/tao/${draft.id}`}>
                           {ch.faceFile ? "Xem ảnh gốc, tạo lại ảnh" : "Thiếu ảnh face: tạo lại ảnh face"}
@@ -983,6 +984,7 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
               );
             })
           )}
+          <script dangerouslySetInnerHTML={{ __html: COPY_PROMPT_JS }} />
         </>,
       ),
       status,

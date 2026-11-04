@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **04/11/2026**, sau CON-84 (chưa phát hành: thẻ nhân vật có ảnh gốc). Trước đó CON-83 (chưa phát hành: thêm khung ảnh vào prompt tạo nhân vật). Trước đó CON-82 (v2.7.0 đã phát hành: tạo nhân vật chạy tự động đến hết). Trước đó CON-81 (v2.6.0 đã phát hành: tạo nhân vật ngay trong app bằng Muse). Trước đó CON-80 (v2.5.0 đã phát hành: nhân vật có ảnh 4 góc + ảnh mặt). Trước đó CON-78 (v2.4.0 đã phát hành: xuất ảnh từ Bảng ảnh sang Bảng video). Từ nay nhiều ticket gom vào một bản phát hành khi người phụ trách nói "phát hành". Trước đó CON-79 (v2.3.1 đã phát hành: sửa lỗi huỷ lô chặn cập nhật), CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **04/11/2026**, sau CON-85 (chưa phát hành: nút Xem prompt). Trước đó CON-84 (chưa phát hành: thẻ nhân vật có ảnh gốc). Trước đó CON-83 (chưa phát hành: thêm khung ảnh vào prompt tạo nhân vật). Trước đó CON-82 (v2.7.0 đã phát hành: tạo nhân vật chạy tự động đến hết). Trước đó CON-81 (v2.6.0 đã phát hành: tạo nhân vật ngay trong app bằng Muse). Trước đó CON-80 (v2.5.0 đã phát hành: nhân vật có ảnh 4 góc + ảnh mặt). Trước đó CON-78 (v2.4.0 đã phát hành: xuất ảnh từ Bảng ảnh sang Bảng video). Từ nay nhiều ticket gom vào một bản phát hành khi người phụ trách nói "phát hành". Trước đó CON-79 (v2.3.1 đã phát hành: sửa lỗi huỷ lô chặn cập nhật), CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v6.3 · Linear: project **MASYS Video Generator**
 
 **Tổng quan:** 26/26 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 5/5 🎉 · GĐ6 4/4 🎉
 
 ```
-[■■■■■■■■■■]  30/32 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-83; CON-84 chờ duyệt; CON-85 chưa làm
+[■■■■■■■■■■]  32/32 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-85
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -52,6 +52,7 @@ flowchart LR
         tudong["Tạo nhân vật tự động<br/>đến hết<br/>CON-82"]
         khung["Khung ảnh trong prompt<br/>tạo nhân vật<br/>CON-83"]
         anhgoc["Thẻ nhân vật có<br/>ảnh gốc<br/>CON-84"]
+        xemprompt["Nút Xem prompt<br/>trên nhân vật<br/>CON-85"]
         logo["Logo MASYS: tab Chrome,<br/>thanh trên cùng, Trang chủ<br/>CON-48"]
         shirt["Ghép ảnh áo: cột Ảnh áo,<br/>ảnh thu nhỏ, đoạn ghép áo<br/>trong yêu cầu gửi Muse<br/>CON-46"]
     end
@@ -101,6 +102,7 @@ flowchart LR
     taonv --> tudong
     tudong --> khung
     tudong --> anhgoc
+    anhgoc --> xemprompt
     scan --> shirt
     editor --> shirt
 
@@ -136,7 +138,8 @@ flowchart LR
     class taonv done
     class tudong done
     class khung done
-    class anhgoc review
+    class anhgoc done
+    class xemprompt done
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -201,11 +204,13 @@ flowchart LR
 | 28 | [CON-81](https://linear.app/conducdaudan/issue/CON-81) | Tạo nhân vật ngay trong app bằng Muse (v2.6.0) | 🟩 Xong | [#32](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/32) | 04/11/2026 |
 | 29 | [CON-82](https://linear.app/conducdaudan/issue/CON-82) | Tạo nhân vật chạy tự động đến hết (v2.7.0) | 🟩 Xong | [#34](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/34) | 04/11/2026 |
 | 30 | [CON-83](https://linear.app/conducdaudan/issue/CON-83) | Thêm khung ảnh vào prompt tạo nhân vật (chưa phát hành) | 🟩 Xong | [#36](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/36) | 04/11/2026 |
-| 31 | [CON-84](https://linear.app/conducdaudan/issue/CON-84) | Thẻ nhân vật có ảnh gốc (chưa phát hành) | 🟦 Chờ duyệt | — | 04/11/2026 |
+| 31 | [CON-84](https://linear.app/conducdaudan/issue/CON-84) | Thẻ nhân vật có ảnh gốc (chưa phát hành) | 🟩 Xong | [#37](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/37) | 04/11/2026 |
+| 32 | [CON-85](https://linear.app/conducdaudan/issue/CON-85) | Nút Xem prompt trên nhân vật (chưa phát hành) | 🟩 Xong | [#38](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/38) | 04/11/2026 |
 
 ## Nhật ký cập nhật
 
-- **04/11/2026 · CON-84** (chờ duyệt, chưa phát hành): thẻ nhân vật hiện ảnh gốc, ảnh 4 góc khung ngang, ảnh mặt; thêm / đổi ảnh gốc ngay trên thẻ. Không thêm cột dữ liệu.
+- **04/11/2026 · CON-85** (xong, đã gộp vào main, chưa phát hành): nhân vật tạo trong app có nút **Xem prompt**, hiện mô tả và prompt đã tạo ra từng ảnh đang chọn, có nút Sao chép. Không thêm cột dữ liệu.
+- **04/11/2026 · CON-84** (xong, đã gộp vào main, chưa phát hành): thẻ nhân vật hiện ảnh gốc, ảnh 4 góc khung ngang, ảnh mặt; thêm / đổi ảnh gốc ngay trên thẻ. Không thêm cột dữ liệu.
 - **04/11/2026 · CON-83** (xong, đã gộp vào main, chưa phát hành): prompt master ghi dọc 9:16, prompt face ghi vuông 1:1; turnaround giữ nguyên 16:9, Muse thật đã làm đúng. Khung 9:16 và 1:1 chưa thử với Muse thật.
 - **04/11/2026 · CON-82** (xong, đã duyệt và gộp vào main, đã phát hành v2.7.0): sau lần chạy thử thật đầu tiên, một lần bấm **Tạo nhân vật** tạo đủ 3 ảnh, có turnaround là tự lưu; trang Nhân vật có mục **Đang tạo**. Đã xác nhận với Muse thật: gửi không kèm ảnh, tải ảnh master. Chưa thử với Muse thật: đính kèm master, khung 16:9.
 - **04/11/2026 · CON-81** (xong, đã duyệt và gộp vào main, đã phát hành v2.6.0): nút **Tạo nhân vật** trên trang Nhân vật (D35, spec 17.14): 12 tiêu chí, nút nhờ AI điền ô trống, Muse tạo ảnh master rồi turnaround và face, lưu vào thư viện. Migration 14 chỉ thêm, đã thử trên bản sao dữ liệu thật. Chưa chạy với Muse thật.

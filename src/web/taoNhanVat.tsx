@@ -25,6 +25,7 @@ import {
   NV_KIND_TEXT,
   NV_KINDS,
   parseFillAnswer,
+  promptsOfNhanVat,
   readCriteria,
   REGIONS,
   saveDraft,
@@ -237,6 +238,44 @@ export function NvDraftsCard(props: { db: DB }) {
     </div>
   );
 }
+
+/** Nút Xem prompt trên thẻ nhân vật (CON-85); nhân vật thêm bằng tay không có prompt thì không hiện. */
+export function NvPromptsBox(props: { db: DB; nhanVatId: number }) {
+  const data = promptsOfNhanVat(props.db, props.nhanVatId);
+  if (!data) return null;
+  const block = (title: string, text: string) => (
+    <div style="margin-top:10px">
+      <div class="row-between">
+        <strong class="small">{title}</strong>
+        <button type="button" class="secondary small" data-copy="1">
+          Sao chép
+        </button>
+      </div>
+      <pre class="request">{text}</pre>
+    </div>
+  );
+  return (
+    <details class="nv-prompts">
+      <summary>Xem prompt</summary>
+      {block("Mô tả nhân vật", data.core)}
+      {data.items.map((i) => block(NV_KIND_TEXT[i.kind], i.text))}
+    </details>
+  );
+}
+
+/** Nút Sao chép của Xem prompt: chép khối chữ ngay dưới nút. */
+export const COPY_PROMPT_JS = `
+document.addEventListener("click", function (e) {
+  var b = e.target;
+  if (!b.getAttribute || !b.getAttribute("data-copy")) return;
+  var text = b.parentNode.nextElementSibling.textContent;
+  var old = b.textContent;
+  navigator.clipboard.writeText(text).then(function () {
+    b.textContent = "\u0110\u00e3 sao ch\u00e9p";
+    setTimeout(function () { b.textContent = old; }, 1500);
+  });
+});
+`;
 
 export function registerTaoNhanVatRoutes(app: Hono, deps: TaoNhanVatDeps) {
   const { db, config } = deps;
