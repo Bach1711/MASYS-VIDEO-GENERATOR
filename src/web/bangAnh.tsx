@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import type { Context, Hono } from "hono";
 import type { Child } from "hono/jsx";
-import { addNhanVat, deleteNhanVat, getNhanVat, listNhanVat, nhanVatUsage, renameNhanVat, setNhanVatFile, tenProblem, type NhanVat } from "../anh/nhanVat.js";
+import { addNhanVat, deleteNhanVat, getNhanVat, listNhanVat, nhanVatUsage, renameNhanVat, setNhanVatFace, setNhanVatFile, tenProblem, type NhanVat } from "../anh/nhanVat.js";
 import {
   addRow,
   ANH_LABEL_TEXT,
@@ -654,6 +654,12 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
                     <figcaption class="small muted">ảnh 1 · {r.row.nhanVatTen}</figcaption>
                   </figure>
                 )}
+                {r.row.nhanVatFaceFile && (
+                  <figure style="margin:0;text-align:center">
+                    <img class="thumb" src={sheetUrl(r.row.nhanVatFaceFile)} alt={`ảnh mặt ${r.row.nhanVatTen}`} loading="lazy" width="64" height="64" />
+                    <figcaption class="small muted">ảnh 2 · mặt</figcaption>
+                  </figure>
+                )}
                 <strong>
                   Dòng {r.row.id}
                   {r.backText ? " · mặt trước + quay lưng" : " · một ảnh"}
@@ -850,8 +856,9 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
             </a>
           </div>
           <p class="muted">
-            Mỗi nhân vật có một <strong>character sheet</strong> (ảnh nhân vật nhiều góc do bạn tự tạo). Khi tạo ảnh, bot luôn gửi character sheet
-            này cho Muse để Muse giữ đúng mặt, tóc, da và dáng của nhân vật. File chỉ nằm trên máy này. Đổi file chỉ ảnh hưởng các lần tạo sau.
+            Mỗi nhân vật có <strong>ảnh 4 góc</strong> (character sheet toàn thân do bạn tự tạo) và <strong>ảnh mặt</strong> (cận mặt, không bắt buộc
+            nhưng nên có). Khi tạo ảnh, bot gửi ảnh 4 góc rồi tới ảnh mặt cho Muse để Muse giữ đúng mặt, tóc, da và dáng của nhân vật. File chỉ nằm
+            trên máy này. Đổi ảnh chỉ ảnh hưởng các lần tạo sau.
           </p>
           {ok && <Alert kind="ok">{ok}</Alert>}
           {err && <Alert kind="warn">{err}</Alert>}
@@ -859,10 +866,17 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
             <h2>+ Thêm nhân vật</h2>
             <div class="row" style="align-items:center">
               <input name="ten" type="text" maxlength={60} placeholder="Tên nhân vật, ví dụ: Linh" required aria-label="Tên nhân vật" style="flex:0 1 240px" />
-              <input name="file" type="file" accept="image/jpeg,image/png,image/webp" required aria-label="File character sheet" />
               <button type="submit">Thêm nhân vật</button>
             </div>
-            <div class="muted small hint">Nhận JPG, PNG, WEBP, tối đa 20 MB.</div>
+            <div class="row" style="align-items:center;margin-top:10px">
+              <label>
+                Ảnh 4 góc (turnaround) <input name="file" type="file" accept="image/jpeg,image/png,image/webp" required />
+              </label>
+              <label>
+                Ảnh mặt (face) <input name="face" type="file" accept="image/jpeg,image/png,image/webp" />
+              </label>
+            </div>
+            <div class="muted small hint">Nhận JPG, PNG, WEBP, tối đa 20 MB mỗi ảnh. Ảnh mặt không bắt buộc nhưng giúp Muse giữ mặt giống hơn.</div>
           </form>
           {chars.length === 0 ? (
             <div class="card muted">Chưa có nhân vật nào.</div>
@@ -872,14 +886,29 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
               return (
                 <div class="card" id={`nv-${ch.id}`}>
                   <div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
-                    <a href={sheetUrl(ch.file)} target="_blank" rel="noreferrer" title="Bấm để xem character sheet lớn">
-                      <img src={sheetUrl(ch.file)} alt={`character sheet ${ch.ten}`} loading="lazy" style="width:220px;max-height:220px;object-fit:contain;border-radius:6px;background:var(--border)" />
-                    </a>
+                    <figure style="margin:0;text-align:center">
+                      <a href={sheetUrl(ch.file)} target="_blank" rel="noreferrer" title="Bấm để xem ảnh 4 góc lớn">
+                        <img src={sheetUrl(ch.file)} alt={`ảnh 4 góc ${ch.ten}`} loading="lazy" style="width:160px;height:220px;object-fit:contain;border-radius:6px;background:var(--border)" />
+                      </a>
+                      <figcaption class="small muted">Ảnh 4 góc</figcaption>
+                    </figure>
+                    <figure style="margin:0;text-align:center">
+                      {ch.faceFile ? (
+                        <a href={sheetUrl(ch.faceFile)} target="_blank" rel="noreferrer" title="Bấm để xem ảnh mặt lớn">
+                          <img src={sheetUrl(ch.faceFile)} alt={`ảnh mặt ${ch.ten}`} loading="lazy" style="width:160px;height:220px;object-fit:contain;border-radius:6px;background:var(--border)" />
+                        </a>
+                      ) : (
+                        <div class="muted small" style="width:160px;height:220px;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:6px;background:var(--border)">
+                          Chưa có ảnh mặt
+                        </div>
+                      )}
+                      <figcaption class="small muted">Ảnh mặt</figcaption>
+                    </figure>
                     <div style="flex:1 1 320px;display:flex;flex-direction:column;gap:10px">
                       <div>
                         <strong style="font-size:1.1rem">{ch.ten}</strong>{" "}
                         <span class="muted small">
-                          · {formatBytes(ch.bytes)} · {used} dòng trên Bảng ảnh
+                          · {formatBytes(ch.bytes + ch.faceBytes)} · {used} dòng trên Bảng ảnh
                         </span>
                       </div>
                       <form method="post" action={`${NV}/${ch.id}/ten`} class="row" style="align-items:center">
@@ -889,16 +918,29 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
                         </button>
                       </form>
                       <form method="post" action={`${NV}/${ch.id}/file`} enctype="multipart/form-data" class="row" style="align-items:center">
-                        <input name="file" type="file" accept="image/jpeg,image/png,image/webp" required aria-label={`File character sheet mới cho ${ch.ten}`} />
+                        <input name="file" type="file" accept="image/jpeg,image/png,image/webp" required aria-label={`Ảnh 4 góc mới cho ${ch.ten}`} />
                         <button type="submit" class="secondary small">
-                          Đổi file character sheet
+                          Đổi ảnh 4 góc
                         </button>
                       </form>
+                      <form method="post" action={`${NV}/${ch.id}/mat`} enctype="multipart/form-data" class="row" style="align-items:center">
+                        <input name="file" type="file" accept="image/jpeg,image/png,image/webp" required aria-label={`Ảnh mặt mới cho ${ch.ten}`} />
+                        <button type="submit" class="secondary small">
+                          {ch.faceFile ? "Đổi ảnh mặt" : "Thêm ảnh mặt"}
+                        </button>
+                      </form>
+                      {ch.faceFile && (
+                        <form method="post" action={`${NV}/${ch.id}/mat/xoa`}>
+                          <button type="submit" class="secondary small" onclick={`return confirm(${JSON.stringify(`Xoá ảnh mặt của ${ch.ten}? Các lần tạo sau chỉ gửi ảnh 4 góc.`)})`}>
+                            Xoá ảnh mặt
+                          </button>
+                        </form>
+                      )}
                       <form method="post" action={`${NV}/${ch.id}/xoa`}>
                         <button
                           type="submit"
                           class="danger small"
-                          onclick={`return confirm(${JSON.stringify(`Xoá nhân vật ${ch.ten}? File character sheet trên máy sẽ bị xoá. Ảnh đã tạo vẫn giữ; ${used} dòng đang chọn nhân vật này cần chọn nhân vật khác.`)})`}
+                          onclick={`return confirm(${JSON.stringify(`Xoá nhân vật ${ch.ten}? Ảnh 4 góc và ảnh mặt trên máy sẽ bị xoá. Ảnh đã tạo vẫn giữ; ${used} dòng đang chọn nhân vật này cần chọn nhân vật khác.`)})`}
                         >
                           Xoá nhân vật
                         </button>
@@ -919,7 +961,7 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
   const readSheet = async (c: Context): Promise<{ data: Uint8Array } | { err: string }> => {
     const body = await c.req.parseBody();
     const file = body.file;
-    if (!(file instanceof File)) return { err: "Chưa chọn file character sheet." };
+    if (!(file instanceof File)) return { err: "Chưa chọn file ảnh." };
     const data = new Uint8Array(await file.arrayBuffer());
     const problem = imageProblem(data);
     return problem ? { err: problem } : { data };
@@ -934,11 +976,19 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
     const why = tenProblem(ten);
     if (why) return nvPage(c, { err: why }, 400);
     const file = body.file;
-    if (!(file instanceof File)) return nvPage(c, { err: "Chưa chọn file character sheet." }, 400);
+    if (!(file instanceof File)) return nvPage(c, { err: "Chưa chọn ảnh 4 góc." }, 400);
     const data = new Uint8Array(await file.arrayBuffer());
     const problem = imageProblem(data);
     if (problem) return nvPage(c, { err: problem }, 400);
-    const id = addNhanVat(db, ten, (nvId) => ({ file: files.saveNhanVat(nvId, data), bytes: data.length }));
+    // Không chọn ảnh mặt thì trình duyệt vẫn gửi một file rỗng.
+    const faceData = body.face instanceof File && body.face.size > 0 ? new Uint8Array(await body.face.arrayBuffer()) : null;
+    const faceProblem = faceData && imageProblem(faceData);
+    if (faceProblem) return nvPage(c, { err: `Ảnh mặt: ${faceProblem}` }, 400);
+    const id = addNhanVat(db, ten, (nvId) => ({
+      file: files.saveNhanVat(nvId, data),
+      bytes: data.length,
+      ...(faceData ? { faceFile: files.saveNhanVat(nvId, faceData), faceBytes: faceData.length } : {}),
+    }));
     if (!getSettings(db).lastNhanVatId) setLastNhanVat(db, id);
     logger.info({ nhanVatId: id }, "Đã thêm nhân vật");
     return toNv(c, { ok: `Đã thêm nhân vật ${ten.trim()}.` });
@@ -965,28 +1015,48 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
     const old = setNhanVatFile(db, nv.id, name, r.data.length);
     // Lô đang chờ gửi vẫn cần file cũ để so khớp: chỉ xoá khi không còn lượt nào chưa gửi dùng nó.
     if (old && !pendingUses(db, old)) files.removeAny(old);
-    return toNv(c, { ok: `Đã đổi character sheet của ${nv.ten}. Các lần tạo ảnh sau dùng file mới.` });
+    return toNv(c, { ok: `Đã đổi ảnh 4 góc của ${nv.ten}. Các lần tạo ảnh sau dùng ảnh mới.` });
+  });
+
+  app.post(`${NV}/:id/mat`, async (c) => {
+    if (!sameSite(c)) return c.text("Yêu cầu không hợp lệ", 403);
+    const nv = getNhanVat(db, Number(c.req.param("id")));
+    if (!nv) return toNv(c, { loi: "Không có nhân vật này." });
+    const r = await readSheet(c);
+    if ("err" in r) return toNv(c, { loi: r.err });
+    const old = setNhanVatFace(db, nv.id, files.saveNhanVat(nv.id, r.data), r.data.length);
+    if (old && !pendingUses(db, old)) files.removeAny(old);
+    return toNv(c, { ok: `Đã lưu ảnh mặt của ${nv.ten}. Các lần tạo ảnh sau dùng ảnh mới.` });
+  });
+
+  app.post(`${NV}/:id/mat/xoa`, async (c) => {
+    if (!sameSite(c)) return c.text("Yêu cầu không hợp lệ", 403);
+    const nv = getNhanVat(db, Number(c.req.param("id")));
+    if (!nv) return toNv(c, { loi: "Không có nhân vật này." });
+    const old = setNhanVatFace(db, nv.id, null, 0);
+    if (old && !pendingUses(db, old)) files.removeAny(old);
+    return toNv(c, { ok: `Đã xoá ảnh mặt của ${nv.ten}.` });
   });
 
   app.post(`${NV}/:id/xoa`, async (c) => {
     if (!sameSite(c)) return c.text("Yêu cầu không hợp lệ", 403);
     const nv = getNhanVat(db, Number(c.req.param("id")));
     if (!nv) return toNv(c, { loi: "Không có nhân vật này." });
-    if (pendingUses(db, nv.file)) return toNv(c, { loi: `Nhân vật ${nv.ten} đang được dùng trong lô chưa xong. Đợi lô xong rồi xoá.` });
-    files.removeAny(deleteNhanVat(db, nv.id));
+    if (pendingUses(db, nv.file) || (nv.faceFile && pendingUses(db, nv.faceFile))) return toNv(c, { loi: `Nhân vật ${nv.ten} đang được dùng trong lô chưa xong. Đợi lô xong rồi xoá.` });
+    deleteNhanVat(db, nv.id).forEach((f) => files.removeAny(f));
     logger.info({ nhanVatId: nv.id }, "Đã xoá nhân vật");
     return toNv(c, { ok: `Đã xoá nhân vật ${nv.ten}.` });
   });
 }
 
-/** Còn lượt chưa xong của Bảng ảnh dùng file character sheet này không. */
+/** Còn lượt chưa xong của Bảng ảnh dùng file ảnh nhân vật này không (ảnh 4 góc hoặc ảnh mặt). */
 function pendingUses(db: DB, file: string): boolean {
   const row = db
     .prepare(
       `SELECT 1 FROM runs r JOIN batches b ON b.id = r.batchId
        WHERE r.anhRowId IS NOT NULL AND b.status IN ('queued', 'running', 'paused')
          AND r.state NOT IN ('done', 'failed', 'needs_review', 'skipped_has_video', 'canceled')
-         AND json_extract(r.inputSnapshot, '$.nhanVatFile') = ? LIMIT 1`,
+         AND ? IN (json_extract(r.inputSnapshot, '$.nhanVatFile'), json_extract(r.inputSnapshot, '$.nhanVatFaceFile')) LIMIT 1`,
     )
     .get(file);
   return !!row;

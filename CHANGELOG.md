@@ -2,6 +2,15 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+**Nhân vật có 2 ảnh: ảnh 4 góc và ảnh mặt.**
+
+- Trang **Nhân vật** có hai ô riêng: **Ảnh 4 góc** (toàn thân nhiều góc) và **Ảnh mặt** (cận mặt). Thêm, đổi, xoá ảnh mặt ngay trên trang này. Ảnh mặt không bắt buộc nhưng giúp Muse giữ mặt giống hơn.
+- Khi tạo ảnh, bot gửi Muse ảnh 4 góc trước, ảnh mặt sau. Trang xem trước hiện rõ cả hai ảnh.
+- Mẫu tạo ảnh mới dặn Muse không chép trang phục trong ảnh nhân vật: trang phục lấy theo prompt. Nếu bạn đã tự sửa Mẫu tạo ảnh trong Cài đặt thì mẫu của bạn giữ nguyên (bấm Khôi phục bản gốc để dùng mẫu mới).
+- Nhân vật đã thêm trước đây vẫn dùng được với 1 ảnh, file cũ được xem là ảnh 4 góc.
+
 ## v2.4.0
 
 **Mới: xuất ảnh từ Bảng ảnh sang Bảng video, khỏi phải tải về rồi chọn lại.**

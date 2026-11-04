@@ -693,12 +693,14 @@ export class BatchRunner {
     };
     const row = getAnhRow(this.db, run.rowNumber);
     if (!row) return review("Dòng đã bị xoá khỏi Bảng ảnh", "dòng đã bị xoá");
-    if (row.nhanVatId !== snap.nhanVatId || row.nhanVatFile !== snap.nhanVatFile || row.prompt.trim() !== snap.prompt || !!row.backOn !== snap.back) {
+    if (row.nhanVatId !== snap.nhanVatId || row.nhanVatFile !== snap.nhanVatFile || (row.nhanVatFaceFile ?? null) !== (snap.nhanVatFaceFile ?? null) || row.prompt.trim() !== snap.prompt || !!row.backOn !== snap.back) {
       return review("Nhân vật, prompt hoặc ô Quay lưng của dòng đã đổi sau lúc bấm Tạo ảnh", "dữ liệu dòng đã đổi");
     }
     const sheet = this.o.bangFiles?.nhanVatPath(snap.nhanVatFile);
     if (!sheet) return review("Không còn file character sheet của nhân vật trên máy", "thiếu character sheet");
-    const out = await this.sendNew(run, [sheet], "ảnh");
+    const face = snap.nhanVatFaceFile ? this.o.bangFiles?.nhanVatPath(snap.nhanVatFaceFile) : undefined;
+    if (snap.nhanVatFaceFile && !face) return review("Không còn file ảnh mặt của nhân vật trên máy", "thiếu ảnh mặt");
+    const out = await this.sendNew(run, face ? [sheet, face] : [sheet], "ảnh");
     if (out.inflight) {
       const baseline = await this.imageCount(out.inflight.tab);
       this.db.prepare("UPDATE runs SET anhBaseline = ? WHERE id = ?").run(baseline, run.id);
@@ -884,10 +886,10 @@ export class BatchRunner {
     for (let attempt = 1; attempt <= 3 && !saved.length; attempt++) {
       try {
         if (!files || !this.bot.downloadImages) throw new Error("thiếu thư mục dữ liệu");
-        const sheet = files.nhanVatPath(snap.nhanVatFile);
-        const sheetBytes = sheet ? fs.readFileSync(sheet) : undefined;
-        const list = (await this.bot.downloadImages(f.tab, run.anhBaseline ?? 0)).filter((d) => !sheetBytes || !Buffer.from(d).equals(sheetBytes));
-        if (!list.length) throw new Error("chỉ thấy ảnh character sheet, chưa có ảnh Muse tạo");
+        // Bỏ các ảnh mình đính kèm nếu Muse hiện lại chúng.
+        const mine = [snap.nhanVatFile, snap.nhanVatFaceFile].map((n) => files.nhanVatPath(n)).filter((p): p is string => !!p).map((p) => fs.readFileSync(p));
+        const list = (await this.bot.downloadImages(f.tab, run.anhBaseline ?? 0)).filter((d) => !mine.some((m) => Buffer.from(d).equals(m)));
+        if (!list.length) throw new Error("chỉ thấy ảnh mình đính kèm, chưa có ảnh Muse tạo");
         saved = list.map((d) => ({ file: files.saveAnhTao(run.rowNumber, side, d), bytes: d.length }));
       } catch (e) {
         why = errText(e);

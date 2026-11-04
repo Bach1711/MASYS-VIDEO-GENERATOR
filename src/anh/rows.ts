@@ -16,6 +16,8 @@ export interface AnhRow {
   /** Tên nhân vật; null khi chưa chọn hoặc nhân vật đã bị xoá. */
   nhanVatTen: string | null;
   nhanVatFile: string | null;
+  /** Ảnh mặt của nhân vật; null = không có. */
+  nhanVatFaceFile: string | null;
   prompt: string;
   /** Tích "Quay lưng" (D33): 1 = tạo thêm ảnh quay lưng. */
   backOn: number;
@@ -138,6 +140,7 @@ function where(filter: AnhFilter, q: string, now: Date): { sql: string; args: un
 const count = (side: Side) => `(SELECT count(*) FROM anh_files f WHERE f.anhRowId = anh_rows.id AND f.side = '${side}')`;
 const COLS = `id, createdAt, nhanVatId, ${LIVE_NV} AS nhanVatTen,
   (SELECT n.file FROM nhan_vat n WHERE n.id = anh_rows.nhanVatId AND n.deletedAt IS NULL) AS nhanVatFile,
+  (SELECT n.faceFile FROM nhan_vat n WHERE n.id = anh_rows.nhanVatId AND n.deletedAt IS NULL) AS nhanVatFaceFile,
   prompt, backOn, exportedBangRowId,
   (SELECT count(*) FROM bang_rows b WHERE b.id = anh_rows.exportedBangRowId AND b.deletedAt IS NULL) AS exportedAlive, ${count("truoc")} AS frontCount, ${count("sau")} AS backCount,
   ${LAST_STATE} AS runState, ${lastRun("error")} AS runError, ${lastRun("anhPhase")} AS runPhase, ${lastRun("museChatUrl")} AS museChatUrl`;

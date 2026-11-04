@@ -12,6 +12,8 @@ export const ANH_BATCH_TAB = "Bảng ảnh";
 export interface AnhSnapshot {
   nhanVatId: number;
   nhanVatFile: string;
+  /** Ảnh mặt lúc bấm Tạo ảnh; null / không có (lượt của bản cũ) = chỉ gửi ảnh 4 góc. */
+  nhanVatFaceFile?: string | null;
   prompt: string;
   back: boolean;
   /** Tin xin ảnh quay lưng; null = không tích Quay lưng. */
@@ -63,6 +65,10 @@ export function planAnhBatch(
       rejected.push({ id, why: `không còn file character sheet của nhân vật ${row.nhanVatTen}: đổi file ở trang Nhân vật` });
       continue;
     }
+    if (row.nhanVatFaceFile && !sheetExists(row.nhanVatFaceFile)) {
+      rejected.push({ id, why: `không còn file ảnh mặt của nhân vật ${row.nhanVatTen}: đổi ảnh ở trang Nhân vật` });
+      continue;
+    }
     const req = buildImageRequest({ prompt: row.prompt, nhanVatTen: row.nhanVatTen!, backOn: !!row.backOn }, s, extra);
     runs.push({ row, text: req.text, backText: req.backText, again: row.frontCount > 0 });
   }
@@ -85,6 +91,7 @@ export function insertAnhBatch(db: DB, extra: string, runs: AnhPlannedRun[]): nu
       const snap: AnhSnapshot = {
         nhanVatId: r.row.nhanVatId!,
         nhanVatFile: r.row.nhanVatFile!,
+        nhanVatFaceFile: r.row.nhanVatFaceFile,
         prompt: r.row.prompt.trim(),
         back: !!r.backText,
         backText: r.backText,

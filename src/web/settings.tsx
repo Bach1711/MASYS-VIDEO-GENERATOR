@@ -373,7 +373,7 @@ export function registerSettingsRoutes(app: Hono, deps: ScanDeps & { updater?: U
 }
 
 const IMAGE_SECTIONS: { kind: ImageTemplateKind; title: string; note: string; rows: number }[] = [
-  { kind: "imageTemplate", title: "Mẫu tạo ảnh", note: "Tin đầu tiên của mỗi dòng, gửi kèm character sheet.", rows: 7 },
+  { kind: "imageTemplate", title: "Mẫu tạo ảnh", note: "Tin đầu tiên của mỗi dòng, gửi kèm ảnh 4 góc và ảnh mặt của nhân vật.", rows: 7 },
   { kind: "imageBackTemplate", title: "Mẫu ảnh quay lưng", note: "Tin thứ hai, chỉ dòng tích Quay lưng, gửi sau khi đã tải ảnh mặt trước.", rows: 4 },
 ];
 

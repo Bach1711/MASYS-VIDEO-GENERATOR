@@ -1,9 +1,9 @@
 import { combineExtra, renderTemplate } from "../batch/template.js";
 import type { ImageTemplateKind, Settings } from "../db/settings.js";
 
-// Yêu cầu gửi Muse của Bảng ảnh (CON-77, spec 17.13, D32, D33). Character sheet luôn đính kèm là ảnh 1.
+// Yêu cầu gửi Muse của Bảng ảnh (CON-77, spec 17.13, D32, D33). Ảnh 4 góc (character sheet) luôn đính kèm là ảnh 1, ảnh mặt (nếu có) là ảnh 2.
 
-export const DEFAULT_IMAGE_TEMPLATE = `Ảnh đính kèm là character sheet của nhân vật {ten_nhan_vat}. Chỉ dùng nó để giữ đúng khuôn mặt, kiểu tóc, màu tóc, màu da và vóc dáng của nhân vật; không chép bố cục, nền hay chữ của character sheet.
+export const DEFAULT_IMAGE_TEMPLATE = `Các ảnh đính kèm là ảnh tham chiếu của nhân vật {ten_nhan_vat}: ảnh 1 là character sheet nhiều góc; nếu có ảnh 2 thì đó là ảnh cận mặt, khuôn mặt phải giống ảnh này nhất. Chỉ dùng các ảnh này để giữ đúng khuôn mặt, kiểu tóc, màu tóc, màu da và vóc dáng của nhân vật; không chép bố cục, nền, chữ, dấu mờ hay trang phục trong ảnh. Trang phục lấy theo mô tả bên dưới.
 Hãy tạo MỘT tấm ảnh chụp đơn, khung dọc 9:16, không ghép nhiều góc, không chữ, không viền, theo mô tả sau:
 {prompt}
 Yêu cầu thêm: {yeu_cau_them}

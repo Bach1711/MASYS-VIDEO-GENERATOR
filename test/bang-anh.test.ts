@@ -22,6 +22,7 @@ import { anhDownloadName } from "../src/web/bangAnh.js";
 
 const png = (n: number) => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, n]);
 const SHEET = png(1);
+const FACE = png(200);
 const H = { "X-Masys": "1", "Content-Type": "application/json" };
 const dirs: string[] = [];
 afterEach(() => {
@@ -33,6 +34,8 @@ interface FakeOpts {
   perReply?: number;
   /** Muse chỉ trả lại ảnh giống hệt character sheet. */
   echoSheet?: boolean;
+  /** Muse hiện lại ảnh này (ảnh mặt đính kèm) sau ảnh của mình, cùng ảnh mới. */
+  extraEcho?: Uint8Array;
   /** reply() ném lỗi này (tin quay lưng). */
   replyError?: BotError;
   /** Ảnh hiện mờ (chưa xong) ở lần xem đầu tiên sau mỗi tin. */
@@ -54,6 +57,7 @@ function setup(o: FakeOpts = {}) {
   const produce = (tab: string) => {
     const list = pages.get(tab) ?? [];
     const n = o.perReply ?? 1;
+    if (o.extraEcho) list.push({ src: "blob:me/face", data: o.extraEcho, ready: !o.blurFirst });
     for (let i = 0; i < n; i++) {
       const data = o.echoSheet ? SHEET : png(counter++);
       list.push({ src: `blob:muse/${counter}-${i}`, data, ready: !o.blurFirst });
@@ -150,6 +154,39 @@ describe("Nhân vật (D32)", () => {
     expect(html).not.toContain("Mai 2");
   });
 
+  it("ảnh mặt: thêm cùng nhân vật, đổi, xoá; không chọn ảnh mặt vẫn thêm được (CON-80)", async () => {
+    const { app, db, dataDir } = setup();
+    const onDisk = (f: string) => fs.existsSync(path.join(dataDir, "tep", "nhan-vat", f));
+    await app.request("/nhan-vat/them", { method: "POST", body: form({ ten: "Mai", file: new File([png(2)], "g.png"), face: new File([png(3)], "m.png") }) });
+    const mai = listNhanVat(db).find((n) => n.ten === "Mai")!;
+    expect(mai.faceFile).toMatch(/^nv\d+-[a-z0-9]+\.png$/);
+    expect(mai.faceFile).not.toBe(mai.file);
+    expect(mai.faceBytes).toBe(12);
+    expect(onDisk(mai.faceFile!)).toBe(true);
+
+    await app.request(`/nhan-vat/${mai.id}/mat`, { method: "POST", body: form({ file: new File([png(4)], "m2.png") }) });
+    const changed = getNhanVat(db, mai.id)!;
+    expect(changed.faceFile).not.toBe(mai.faceFile);
+    expect(onDisk(mai.faceFile!)).toBe(false);
+    expect(changed.file).toBe(mai.file);
+
+    await app.request(`/nhan-vat/${mai.id}/mat/xoa`, { method: "POST" });
+    expect(getNhanVat(db, mai.id)).toMatchObject({ faceFile: null, faceBytes: 0, file: mai.file });
+    expect(onDisk(changed.faceFile!)).toBe(false);
+
+    await app.request("/nhan-vat/them", { method: "POST", body: form({ ten: "Lan", file: new File([png(5)], "g.png"), face: new File([], "") }) });
+    expect(listNhanVat(db).find((n) => n.ten === "Lan")!.faceFile).toBeNull();
+    const bad = await app.request("/nhan-vat/them", { method: "POST", body: form({ ten: "X", file: new File([png(6)], "g.png"), face: new File(["chữ"], "a.txt") }) });
+    expect(bad.status).toBe(400);
+    expect(await bad.text()).toContain("Ảnh mặt:");
+
+    await app.request(`/nhan-vat/${mai.id}/mat`, { method: "POST", body: form({ file: new File([png(7)], "m3.png") }) });
+    const last = getNhanVat(db, mai.id)!;
+    await app.request(`/nhan-vat/${mai.id}/xoa`, { method: "POST" });
+    expect(onDisk(last.file)).toBe(false);
+    expect(onDisk(last.faceFile!)).toBe(false);
+  });
+
   it("dòng chọn nhân vật đã xoá thành Thiếu dữ liệu", async () => {
     const { db, nv, app } = setup();
     const id = addRow(db, { nhanVatId: nv, prompt: "đứng cạnh cửa sổ" });
@@ -202,7 +239,8 @@ describe("tạo ảnh trên Muse (17.13)", () => {
     const id = addRow(t.db, { nhanVatId: t.nv, prompt: "đứng ở quán cà phê" });
     const batchId = await t.run([id]);
     expect(t.log).toHaveLength(1);
-    expect(t.log[0]!.text).toContain("character sheet của nhân vật Linh");
+    expect(t.log[0]!.text).toContain("ảnh tham chiếu của nhân vật Linh");
+    expect(t.log[0]!.text).toContain("trang phục trong ảnh");
     expect(t.log[0]!.text).toContain("đứng ở quán cà phê");
     expect(t.log[0]!.files).toEqual([t.files.nhanVatPath(getRow(t.db, id)!.nhanVatFile!)]);
     const list = filesOf(t.db, [id]).get(id)!;
@@ -216,6 +254,37 @@ describe("tạo ảnh trên Muse (17.13)", () => {
     // Đếm vào giới hạn ảnh, không đụng giới hạn video.
     expect(getImageQuota(t.db).used).toBe(1);
     expect(getDailyQuota(t.db).used).toBe(0);
+  });
+
+  it("nhân vật có ảnh mặt: gửi ảnh 4 góc rồi ảnh mặt; ảnh mặt Muse hiện lại không bị lưu; đổi ảnh mặt sau khi bấm thì không gửi (CON-80)", async () => {
+    const t = setup({ extraEcho: FACE });
+    const face = t.files.saveNhanVat(t.nv, FACE);
+    t.db.prepare("UPDATE nhan_vat SET faceFile = ?, faceBytes = ? WHERE id = ?").run(face, FACE.length, t.nv);
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "đứng ở quán cà phê" });
+    await t.run([id]);
+    const row = getRow(t.db, id)!;
+    expect(t.log[0]!.files).toEqual([t.files.nhanVatPath(row.nhanVatFile!), t.files.nhanVatPath(face)]);
+    const list = filesOf(t.db, [id]).get(id)!;
+    expect(list).toHaveLength(1);
+    expect(lastRun(t.db, id).state).toBe("done");
+
+    const id2 = addRow(t.db, { nhanVatId: t.nv, prompt: "ngồi trên sofa" });
+    const plan = planAnhBatch(t.db, [id2], getSettings(t.db), "");
+    const batchId = insertAnhBatch(t.db, "", plan.runs);
+    t.db.prepare("UPDATE nhan_vat SET faceFile = NULL WHERE id = ?").run(t.nv);
+    t.runner.start(batchId);
+    await t.runner.idle();
+    expect(t.log).toHaveLength(1);
+    expect(lastRun(t.db, id2)).toMatchObject({ state: "needs_review", error: "dữ liệu dòng đã đổi" });
+  });
+
+  it("thiếu file ảnh mặt: bị loại lúc chuẩn bị, không âm thầm gửi thiếu ảnh (CON-80)", async () => {
+    const t = setup();
+    t.db.prepare("UPDATE nhan_vat SET faceFile = 'nv1-khongcon.png' WHERE id = ?").run(t.nv);
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "x" });
+    const plan = planAnhBatch(t.db, [id], getSettings(t.db), "", (f) => !!t.files.nhanVatPath(f));
+    expect(plan.runs).toHaveLength(0);
+    expect(plan.rejected[0]!.why).toContain("ảnh mặt");
   });
 
   it("Quay lưng: tải xong mặt trước mới gửi tin thứ hai trong cùng tab, ảnh quay lưng vào cột riêng, tính 2 lượt", async () => {
