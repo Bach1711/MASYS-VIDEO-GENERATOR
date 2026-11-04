@@ -49,9 +49,10 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
     const id = Number(c.req.param("id"));
     const b = Number.isInteger(id) ? getBatch(db, id) : undefined;
     if (!b) return c.notFound();
-    const bang = b.source === "bang" || b.source === "anh";
+    const nv = b.source === "nv";
+    const bang = b.source === "bang" || b.source === "anh" || nv;
     const cfg = bang ? undefined : getSheetConfig(db, b.spreadsheetId, b.tab);
-    const name = b.source === "anh" ? "Bảng ảnh" : bang ? "Bảng mới" : cfg ? sheetName(cfg) : b.spreadsheetId;
+    const name = b.source === "anh" ? "Bảng ảnh" : nv ? "Tạo nhân vật" : bang ? "Bảng mới" : cfg ? sheetName(cfg) : b.spreadsheetId;
     const live = runner?.runningBatchId === b.id;
     const notice = runner?.notices.get(b.id);
     const msg = c.req.query("msg");
@@ -133,12 +134,12 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
               </div>
             </div>
             {b.status === "canceled" && <Alert kind="warn">Lô đã huỷ. Các dòng chưa gửi Muse không được gửi.</Alert>}
-            {(b.status === "queued" || b.status === "paused") && (b.source === "anh" ? <QuotaBox quota={getImageQuota(db)} unit="ảnh" /> : <QuotaBox quota={getDailyQuota(db)} />)}
+            {(b.status === "queued" || b.status === "paused") && (b.source === "anh" || nv ? <QuotaBox quota={getImageQuota(db)} unit="ảnh" /> : <QuotaBox quota={getDailyQuota(db)} />)}
             <div class="scroll">
               <table class="scan">
                 <thead>
                   <tr>
-                    <th>{b.source === "anh" ? "Dòng (Bảng ảnh)" : bang ? "Dòng (Bảng)" : "Dòng"}</th>
+                    <th>{b.source === "anh" ? "Dòng (Bảng ảnh)" : nv ? "Bản nháp" : bang ? "Dòng (Bảng)" : "Dòng"}</th>
                     <th>Trạng thái</th>
                     <th>Kết quả</th>
                     <th>Yêu cầu gửi Muse</th>
@@ -187,7 +188,8 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
               </table>
             </div>
             <p class="row">
-              {bang && <a href="/bang-moi">← Quay lại Bảng mới</a>}
+              {nv && b.runs[0] && <a href={`/nhan-vat/tao/${b.runs[0].rowNumber}`}>← Quay lại bản nháp nhân vật</a>}
+              {bang && !nv && <a href="/bang-moi">← Quay lại Bảng mới</a>}
               {cfg && <a href={scanUrl(cfg.spreadsheetId, cfg.tab)}>← Quay lại bảng quét</a>}
               <a href={`/logs?all=1&batch=${b.id}`}>Nhật ký của lô này</a>
               <a href="/batches">Lịch sử lô</a>

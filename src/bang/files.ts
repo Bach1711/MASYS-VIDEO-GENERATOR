@@ -75,12 +75,14 @@ const IMAGE_EXT = /\.(jpg|png|webp)$/;
 /** Character sheet: "nv<số>-…"; ảnh Muse tạo: "a<dòng>-truoc-…" / "a<dòng>-sau-…" (CON-77). */
 export const isNhanVatName = (name: string) => isSafeName(name) && /^nv\d+-/.test(name) && IMAGE_EXT.test(name);
 export const isAnhTaoName = (name: string) => isSafeName(name) && /^a\d+-(truoc|sau)-/.test(name) && IMAGE_EXT.test(name);
+/** Ảnh Muse tạo cho bản nháp nhân vật (CON-81): "nt<bản nháp>-<loại>-…", nằm cùng thư mục tep\anh-tao. */
+export const isNvTaoName = (name: string) => isSafeName(name) && /^nt\d+-(master|turnaround|face)-/.test(name) && IMAGE_EXT.test(name);
 
 /** Thư mục chứa một file theo tên tool đặt: clip hook → tep\hook, video → tep\video, còn lại → tep\anh. */
 export function dirOf(name: string): string {
   if (isClipName(name)) return HOOK_DIR;
   if (isNhanVatName(name)) return NHAN_VAT_DIR;
-  if (isAnhTaoName(name)) return ANH_TAO_DIR;
+  if (isAnhTaoName(name) || isNvTaoName(name)) return ANH_TAO_DIR;
   return name.endsWith(".mp4") ? VIDEO_DIR : IMAGE_DIR;
 }
 
@@ -206,6 +208,23 @@ export class BangFiles {
   /** Đường dẫn tuyệt đối của ảnh Muse tạo; undefined khi tên lạ hoặc file không còn. */
   anhTaoPath(name: string): string | undefined {
     if (!isAnhTaoName(name)) return undefined;
+    const p = path.join(this.dataDir, ANH_TAO_DIR, name);
+    return fs.existsSync(p) ? p : undefined;
+  }
+
+  /** Lưu một ảnh Muse tạo cho bản nháp nhân vật (CON-81); trả tên file. Không phải ảnh thì báo lỗi. */
+  saveNvTao(draftId: number, kind: "master" | "turnaround" | "face", data: Uint8Array, now = new Date()): string {
+    if (data.length === 0) throw new Error("file ảnh trống");
+    const ext = sniffImage(data);
+    if (!ext) throw new Error("file tải về không phải ảnh JPG / PNG / WEBP");
+    const name = `nt${draftId}-${kind}-${randomPart(now)}.${ext}`;
+    fs.writeFileSync(path.join(this.dir(ANH_TAO_DIR), name), data);
+    return name;
+  }
+
+  /** Đường dẫn tuyệt đối của ảnh bản nháp nhân vật; undefined khi tên lạ hoặc file không còn. */
+  nvTaoPath(name: string | null | undefined): string | undefined {
+    if (!name || !isNvTaoName(name)) return undefined;
     const p = path.join(this.dataDir, ANH_TAO_DIR, name);
     return fs.existsSync(p) ? p : undefined;
   }
