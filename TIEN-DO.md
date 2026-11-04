@@ -7,7 +7,7 @@
 **Tổng quan:** 26/26 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 5/5 🎉 · GĐ6 4/4 🎉
 
 ```
-[■■■■■■■■■■]  30/32 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-83; CON-84, CON-85 chờ duyệt
+[■■■■■■■■■■]  32/32 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-85
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -138,8 +138,8 @@ flowchart LR
     class taonv done
     class tudong done
     class khung done
-    class anhgoc review
-    class xemprompt review
+    class anhgoc done
+    class xemprompt done
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -204,13 +204,13 @@ flowchart LR
 | 28 | [CON-81](https://linear.app/conducdaudan/issue/CON-81) | Tạo nhân vật ngay trong app bằng Muse (v2.6.0) | 🟩 Xong | [#32](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/32) | 04/11/2026 |
 | 29 | [CON-82](https://linear.app/conducdaudan/issue/CON-82) | Tạo nhân vật chạy tự động đến hết (v2.7.0) | 🟩 Xong | [#34](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/34) | 04/11/2026 |
 | 30 | [CON-83](https://linear.app/conducdaudan/issue/CON-83) | Thêm khung ảnh vào prompt tạo nhân vật (chưa phát hành) | 🟩 Xong | [#36](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/36) | 04/11/2026 |
-| 31 | [CON-84](https://linear.app/conducdaudan/issue/CON-84) | Thẻ nhân vật có ảnh gốc (chưa phát hành) | 🟦 Chờ duyệt | [#37](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/37) | 04/11/2026 |
-| 32 | [CON-85](https://linear.app/conducdaudan/issue/CON-85) | Nút Xem prompt trên nhân vật (chưa phát hành) | 🟦 Chờ duyệt | — | 04/11/2026 |
+| 31 | [CON-84](https://linear.app/conducdaudan/issue/CON-84) | Thẻ nhân vật có ảnh gốc (chưa phát hành) | 🟩 Xong | [#37](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/37) | 04/11/2026 |
+| 32 | [CON-85](https://linear.app/conducdaudan/issue/CON-85) | Nút Xem prompt trên nhân vật (chưa phát hành) | 🟩 Xong | [#38](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/38) | 04/11/2026 |
 
 ## Nhật ký cập nhật
 
-- **04/11/2026 · CON-85** (chờ duyệt, chưa phát hành): nhân vật tạo trong app có nút **Xem prompt**, hiện mô tả và prompt đã tạo ra từng ảnh đang chọn, có nút Sao chép. Không thêm cột dữ liệu.
-- **04/11/2026 · CON-84** (chờ duyệt, chưa phát hành): thẻ nhân vật hiện ảnh gốc, ảnh 4 góc khung ngang, ảnh mặt; thêm / đổi ảnh gốc ngay trên thẻ. Không thêm cột dữ liệu.
+- **04/11/2026 · CON-85** (xong, đã gộp vào main, chưa phát hành): nhân vật tạo trong app có nút **Xem prompt**, hiện mô tả và prompt đã tạo ra từng ảnh đang chọn, có nút Sao chép. Không thêm cột dữ liệu.
+- **04/11/2026 · CON-84** (xong, đã gộp vào main, chưa phát hành): thẻ nhân vật hiện ảnh gốc, ảnh 4 góc khung ngang, ảnh mặt; thêm / đổi ảnh gốc ngay trên thẻ. Không thêm cột dữ liệu.
 - **04/11/2026 · CON-83** (xong, đã gộp vào main, chưa phát hành): prompt master ghi dọc 9:16, prompt face ghi vuông 1:1; turnaround giữ nguyên 16:9, Muse thật đã làm đúng. Khung 9:16 và 1:1 chưa thử với Muse thật.
 - **04/11/2026 · CON-82** (xong, đã duyệt và gộp vào main, đã phát hành v2.7.0): sau lần chạy thử thật đầu tiên, một lần bấm **Tạo nhân vật** tạo đủ 3 ảnh, có turnaround là tự lưu; trang Nhân vật có mục **Đang tạo**. Đã xác nhận với Muse thật: gửi không kèm ảnh, tải ảnh master. Chưa thử với Muse thật: đính kèm master, khung 16:9.
 - **04/11/2026 · CON-81** (xong, đã duyệt và gộp vào main, đã phát hành v2.6.0): nút **Tạo nhân vật** trên trang Nhân vật (D35, spec 17.14): 12 tiêu chí, nút nhờ AI điền ô trống, Muse tạo ảnh master rồi turnaround và face, lưu vào thư viện. Migration 14 chỉ thêm, đã thử trên bản sao dữ liệu thật. Chưa chạy với Muse thật.
