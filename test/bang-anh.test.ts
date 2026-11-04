@@ -154,6 +154,37 @@ describe("Nhân vật (D32)", () => {
     expect(html).not.toContain("Mai 2");
   });
 
+  it("ảnh gốc: nhân vật cũ thêm và đổi được, thẻ hiện đủ 3 ô, không gửi Muse (CON-84)", async () => {
+    const { app, db, dataDir, nv, log, run } = setup();
+    const onDisk = (f: string) => fs.existsSync(path.join(dataDir, "tep", "nhan-vat", f));
+    const before = await (await app.request("/nhan-vat")).text();
+    expect(before).toContain("Chưa có ảnh gốc");
+    expect(before).toContain("Thêm ảnh gốc");
+
+    await app.request(`/nhan-vat/${nv}/goc`, { method: "POST", body: form({ file: new File([png(5)], "g.png") }) });
+    const first = getNhanVat(db, nv)!;
+    expect(first.masterFile).toMatch(/^nv\d+-[a-z0-9]+\.png$/);
+    expect(first.masterBytes).toBe(12);
+    const after = await (await app.request("/nhan-vat")).text();
+    expect(after).not.toContain("Chưa có ảnh gốc");
+    expect(after).toContain("Đổi ảnh gốc");
+    expect(after).toContain(`/nhan-vat/anh/${first.masterFile}`);
+
+    await app.request(`/nhan-vat/${nv}/goc`, { method: "POST", body: form({ file: new File([png(6)], "g2.png") }) });
+    const second = getNhanVat(db, nv)!;
+    expect(second.masterFile).not.toBe(first.masterFile);
+    expect(onDisk(first.masterFile!)).toBe(false);
+    expect(onDisk(second.masterFile!)).toBe(true);
+
+    const bad = await app.request(`/nhan-vat/${nv}/goc`, { method: "POST", body: form({ file: new File(["chữ"], "a.txt") }) });
+    expect(bad.status).toBe(303);
+    expect(getNhanVat(db, nv)!.masterFile).toBe(second.masterFile);
+
+    await run([addRow(db, { nhanVatId: nv, prompt: "đứng" })]);
+    expect(log[0]!.files).toHaveLength(1);
+    expect(log[0]!.files![0]).toContain(second.file);
+  });
+
   it("ảnh mặt: thêm cùng nhân vật, đổi, xoá; không chọn ảnh mặt vẫn thêm được (CON-80)", async () => {
     const { app, db, dataDir } = setup();
     const onDisk = (f: string) => fs.existsSync(path.join(dataDir, "tep", "nhan-vat", f));

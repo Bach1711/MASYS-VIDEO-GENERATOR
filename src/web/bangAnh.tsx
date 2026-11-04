@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import type { Context, Hono } from "hono";
 import type { Child } from "hono/jsx";
-import { addNhanVat, deleteNhanVat, fileInUse, getNhanVat, listNhanVat, nhanVatUsage, renameNhanVat, setNhanVatFace, setNhanVatFile, tenProblem, type NhanVat } from "../anh/nhanVat.js";
+import { addNhanVat, deleteNhanVat, fileInUse, getNhanVat, listNhanVat, nhanVatUsage, renameNhanVat, setNhanVatFace, setNhanVatFile, setNhanVatMaster, tenProblem, type NhanVat } from "../anh/nhanVat.js";
 import {
   addRow,
   ANH_LABEL_TEXT,
@@ -896,8 +896,20 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
                 <div class="card" id={`nv-${ch.id}`}>
                   <div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
                     <figure style="margin:0;text-align:center">
+                      {ch.masterFile ? (
+                        <a href={sheetUrl(ch.masterFile)} target="_blank" rel="noreferrer" title="Bấm để xem ảnh gốc lớn">
+                          <img src={sheetUrl(ch.masterFile)} alt={`ảnh gốc ${ch.ten}`} loading="lazy" style="width:124px;height:220px;object-fit:contain;border-radius:6px;background:var(--border)" />
+                        </a>
+                      ) : (
+                        <div class="muted small" style="width:124px;height:220px;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:6px;background:var(--border)">
+                          Chưa có ảnh gốc
+                        </div>
+                      )}
+                      <figcaption class="small muted">Ảnh gốc</figcaption>
+                    </figure>
+                    <figure style="margin:0;text-align:center">
                       <a href={sheetUrl(ch.file)} target="_blank" rel="noreferrer" title="Bấm để xem ảnh 4 góc lớn">
-                        <img src={sheetUrl(ch.file)} alt={`ảnh 4 góc ${ch.ten}`} loading="lazy" style="width:160px;height:220px;object-fit:contain;border-radius:6px;background:var(--border)" />
+                        <img src={sheetUrl(ch.file)} alt={`ảnh 4 góc ${ch.ten}`} loading="lazy" style="width:391px;height:220px;object-fit:contain;border-radius:6px;background:var(--border)" />
                       </a>
                       <figcaption class="small muted">Ảnh 4 góc</figcaption>
                     </figure>
@@ -913,17 +925,23 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
                       )}
                       <figcaption class="small muted">Ảnh mặt</figcaption>
                     </figure>
-                    <div style="flex:1 1 320px;display:flex;flex-direction:column;gap:10px">
+                    <div style="flex:1 1 100%;display:flex;flex-direction:column;gap:10px">
                       <div>
                         <strong style="font-size:1.1rem">{ch.ten}</strong>{" "}
                         <span class="muted small">
-                          · {formatBytes(ch.bytes + ch.faceBytes)} · {used} dòng trên Bảng ảnh
+                          · {formatBytes(ch.bytes + ch.faceBytes + ch.masterBytes)} · {used} dòng trên Bảng ảnh
                         </span>
                       </div>
                       <form method="post" action={`${NV}/${ch.id}/ten`} class="row" style="align-items:center">
                         <input name="ten" type="text" maxlength={60} value={ch.ten} required aria-label={`Tên mới cho ${ch.ten}`} style="flex:0 1 220px" />
                         <button type="submit" class="secondary small">
                           Đổi tên
+                        </button>
+                      </form>
+                      <form method="post" action={`${NV}/${ch.id}/goc`} enctype="multipart/form-data" class="row" style="align-items:center">
+                        <input name="file" type="file" accept="image/jpeg,image/png,image/webp" required aria-label={`Ảnh gốc mới cho ${ch.ten}`} />
+                        <button type="submit" class="secondary small">
+                          {ch.masterFile ? "Đổi ảnh gốc" : "Thêm ảnh gốc"}
                         </button>
                       </form>
                       <form method="post" action={`${NV}/${ch.id}/file`} enctype="multipart/form-data" class="row" style="align-items:center">
@@ -1030,6 +1048,18 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
     // Lô đang chờ gửi vẫn cần file cũ để so khớp: chỉ xoá khi không còn lượt nào chưa gửi dùng nó.
     if (old && !fileInUse(db, old)) files.removeAny(old);
     return toNv(c, { ok: `Đã đổi ảnh 4 góc của ${nv.ten}. Các lần tạo ảnh sau dùng ảnh mới.` });
+  });
+
+  // Ảnh gốc chỉ để lưu giữ (CON-84): không gửi Muse trên Bảng ảnh.
+  app.post(`${NV}/:id/goc`, async (c) => {
+    if (!sameSite(c)) return c.text("Yêu cầu không hợp lệ", 403);
+    const nv = getNhanVat(db, Number(c.req.param("id")));
+    if (!nv) return toNv(c, { loi: "Không có nhân vật này." });
+    const r = await readSheet(c);
+    if ("err" in r) return toNv(c, { loi: r.err });
+    const old = setNhanVatMaster(db, nv.id, files.saveNhanVat(nv.id, r.data), r.data.length);
+    if (old && !fileInUse(db, old)) files.removeAny(old);
+    return toNv(c, { ok: `Đã lưu ảnh gốc của ${nv.ten}.` });
   });
 
   app.post(`${NV}/:id/mat`, async (c) => {
