@@ -185,7 +185,7 @@ flowchart LR
 | 24 | [CON-77](https://linear.app/conducdaudan/issue/CON-77) | Bảng ảnh: tạo ảnh nhân vật theo character sheet, ảnh quay lưng, giới hạn ảnh riêng (v2.3.0) | 🟩 Xong | [#26](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/26) | 03/11/2026 |
 | 25 | [CON-78](https://linear.app/conducdaudan/issue/CON-78) | Xuất ảnh từ Bảng ảnh sang Bảng video (v2.4.0) | 🟩 Xong | [#28](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/28) | 03/11/2026 |
 | 26 | [CON-79](https://linear.app/conducdaudan/issue/CON-79) | Sửa lỗi: huỷ lô đang tạm dừng để lại dòng đang chờ Muse, chặn cập nhật (v2.3.1) | 🟩 Xong | [#27](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/27) | 03/11/2026 |
-| 27 | [CON-80](https://linear.app/conducdaudan/issue/CON-80) | Nhân vật có 2 ảnh: 4 góc và mặt (chưa phát hành) | 🟦 Chờ duyệt | — | 04/11/2026 |
+| 27 | [CON-80](https://linear.app/conducdaudan/issue/CON-80) | Nhân vật có 2 ảnh: 4 góc và mặt (chưa phát hành) | 🟦 Chờ duyệt | [#30](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/30) | 04/11/2026 |
 
 ## Nhật ký cập nhật
 
