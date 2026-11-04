@@ -4,6 +4,7 @@ Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được �
 
 ## Chưa phát hành
 
+- Nhân vật tạo trong app có nút **Xem prompt**: xem mô tả nhân vật và các prompt đã gửi Muse, bấm **Sao chép** để dùng lại.
 - Mỗi thẻ trên trang **Nhân vật** hiện đủ 3 ảnh: **Ảnh gốc**, **Ảnh 4 góc**, **Ảnh mặt**. Ô ảnh 4 góc đổi sang khung ngang để thấy đúng ảnh turnaround.
 - Nhân vật chưa có ảnh gốc thì bấm **Thêm ảnh gốc** ngay trên thẻ. Ảnh gốc chỉ để lưu giữ, không gửi Muse khi tạo ảnh.
 - Prompt tạo nhân vật có quy định khung ảnh rõ ràng: ảnh master dọc 9:16, ảnh turnaround ngang 16:9, ảnh face vuông 1:1. Ảnh đã tạo giữ nguyên.

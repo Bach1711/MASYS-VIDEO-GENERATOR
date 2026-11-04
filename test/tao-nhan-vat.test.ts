@@ -19,6 +19,7 @@ import {
   listDrafts,
   masterPrompt,
   parseFillAnswer,
+  promptsOfNhanVat,
   readCriteria,
   TURNAROUND_PROMPT,
   type Criteria,
@@ -405,6 +406,44 @@ describe("Tạo nhân vật qua Muse", () => {
     await app.request(`/nhan-vat/${nv.id}/xoa`, { method: "POST" });
     expect(getNhanVat(db, nv.id)).toBeUndefined();
     expect(fs.existsSync(path.join(dataDir, "tep", "nhan-vat", nv.masterFile!))).toBe(false);
+  });
+
+  it("Xem prompt: hiện mô tả và 3 prompt đã gửi, chọn ảnh cũ thì hiện prompt của ảnh đó; xoá bản nháp vẫn xem được (CON-85)", async () => {
+    const { db, log, create, start, app } = setup();
+    await create();
+    const id = listDrafts(db)[0]!.id;
+    const nv = listNhanVat(db)[0]!;
+    const data = promptsOfNhanVat(db, nv.id)!;
+    expect(data.core).toBe(CORE);
+    expect(data.items.map((i) => i.kind)).toEqual(["master", "turnaround", "face"]);
+    expect(data.items[0]!.text).toBe(log[0]!.text);
+    expect(data.items[1]!.text).toBe(TURNAROUND_PROMPT);
+    expect(data.items[2]!.text).toBe(FACE_PROMPT);
+
+    const html = await (await app.request("/nhan-vat")).text();
+    expect(html).toContain("Xem prompt");
+    expect(html).toContain("Full-body character design of");
+    expect(html).toContain("data-copy");
+
+    // Prompt cũ khác prompt hiện tại: chọn lại ảnh cũ thì Xem prompt phải là prompt đã tạo ra ảnh đó.
+    await start(id, "face");
+    const faces = draftFiles(db, id).filter((f) => f.kind === "face");
+    const newRun = db.prepare("SELECT runId FROM nv_draft_files WHERE id = ?").pluck().get(faces[1]!.id);
+    db.prepare("UPDATE runs SET requestText = 'prompt mới' WHERE id = ?").run(newRun);
+    expect(promptsOfNhanVat(db, nv.id)!.items[2]!.text).toBe("prompt mới");
+    await app.request(`/nhan-vat/tao/${id}/chon/${faces[0]!.id}`, { method: "POST" });
+    expect(promptsOfNhanVat(db, nv.id)!.items[2]!.text).toBe(FACE_PROMPT);
+
+    await app.request(`/nhan-vat/tao/${id}/xoa`, { method: "POST" });
+    expect(promptsOfNhanVat(db, nv.id)!.items).toHaveLength(3);
+  });
+
+  it("nhân vật thêm bằng tay không có nút Xem prompt (CON-85)", async () => {
+    const { db, app } = setup();
+    const { addNhanVat } = await import("../src/anh/nhanVat.js");
+    const id = addNhanVat(db, "Tay", () => ({ file: "nv1-a.png", bytes: 12 }));
+    expect(promptsOfNhanVat(db, id)).toBeNull();
+    expect(await (await app.request("/nhan-vat")).text()).not.toContain("Xem prompt");
   });
 
   it("trang: nút Tạo nhân vật, ô nhờ AI; trang lô có link về bản nháp", async () => {
