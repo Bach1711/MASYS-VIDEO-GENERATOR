@@ -40,6 +40,8 @@ export interface MuseDriver {
   /** Đóng tab riêng của một lượt đã xong. */
   closeTab?(tab: string): Promise<void>;
   bringToFront(): Promise<void>;
+  /** Đóng cả cửa sổ bot (Huỷ lô, CON-90). Việc đang làm dở trên Muse báo lỗi ngay. */
+  close?(): Promise<void>;
   /** Bảng ảnh (CON-77): gửi thêm một tin trong cuộc trò chuyện đang mở ở tab (tin xin ảnh quay lưng, D33). */
   reply?(text: string, tab: string): Promise<void>;
   /** Bảng ảnh: tải các ảnh lớn trong cuộc trò chuyện từ vị trí `from` trở đi. */
@@ -254,19 +256,31 @@ export class BatchRunner {
   }
 
   /**
-   * Huỷ lô (F6): dừng trước dòng kế tiếp; dòng đang chờ Muse vẫn được theo dõi cho xong (không can thiệp Muse).
-   * Các dòng chưa gửi chuyển Đã huỷ.
+   * Huỷ lô (F6, CON-90). Lô chạy bằng tab (Bảng, Bảng ảnh, nhân vật): đóng cửa sổ bot, dừng ngay kể cả khi đang gửi; dòng
+   * chưa gửi thành Đã huỷ, dòng đã gửi thành Cần xem, không gửi lại (D9). Muốn chờ tải nốt thì bấm Tạm dừng.
+   * Lô theo sheet: dừng trước dòng kế tiếp, dòng đang chờ vẫn được theo dõi cho xong.
    */
   cancel(batchId: number): { ok: true; immediate: boolean } | { ok: false; message: string } {
     if (this.active?.batchId === batchId) {
       this.active.cancelRequested = true;
       this.active.wake?.();
+      if (isTabbed(this.batch(batchId)?.source)) this.closeBot();
       return { ok: true, immediate: false };
     }
     const b = this.batch(batchId);
     if (!b || (b.status !== "queued" && b.status !== "paused")) return { ok: false, message: "Lô này không ở trạng thái huỷ được." };
     this.finishCancel(batchId);
+    if (isTabbed(b.source) && !this.active) this.closeBot();
     return { ok: true, immediate: true };
+  }
+
+  private closeBot(): Promise<void> {
+    return (this.bot.close?.() ?? Promise.resolve()).catch((e) => logger.warn({ err: e }, "Không đóng được cửa sổ bot"));
+  }
+
+  /** Đã bấm Huỷ lô: việc đang dở trên Muse không làm tiếp. */
+  private canceling(): boolean {
+    return !!this.active?.cancelRequested;
   }
 
   private finishCancel(batchId: number): void {
@@ -324,8 +338,12 @@ export class BatchRunner {
         logger.error({ err: e, batchId }, "Hàng đợi dừng vì lỗi không lường trước");
         this.setBatch(batchId, "paused", "google");
       })
-      .finally(() => {
-        if (active.cancelRequested) this.finishCancel(batchId);
+      .finally(async () => {
+        if (active.cancelRequested) {
+          this.finishCancel(batchId);
+          // Đóng lần nữa: bấm Huỷ đúng lúc bot đang mở lại cửa sổ.
+          if (isTabbed(this.batch(batchId)?.source)) await this.closeBot();
+        }
         this.active = undefined;
         this.notices.delete(batchId);
       });
@@ -562,8 +580,8 @@ export class BatchRunner {
   /**
    * Lô của Bảng (spec 17.5, D28): gửi lần lượt từng dòng, mỗi dòng một cuộc trò chuyện mới trong tab riêng, chờ tối đa
    * N video cùng lúc. Mỗi vòng: xem từng tab đang chờ (xong thì tải về, đóng tab), rồi gửi thêm dòng nếu còn chỗ và đã
-   * nghỉ đủ giữa hai lần gửi. Tạm dừng / Huỷ / Muse cần đăng nhập, hết lượt…: ngừng gửi dòng mới, vẫn chờ nốt các dòng
-   * đã gửi rồi mới dừng lô. Không bao giờ gửi lại một dòng đã gửi (D9).
+   * nghỉ đủ giữa hai lần gửi. Tạm dừng / Muse cần đăng nhập, hết lượt…: ngừng gửi dòng mới, vẫn chờ nốt các dòng đã gửi
+   * rồi mới dừng lô. Huỷ: dừng ngay (CON-90). Không bao giờ gửi lại một dòng đã gửi (D9).
    */
   private async loopBang(batch: BatchRow): Promise<void> {
     const inflight = new Map<number, Inflight>();
@@ -599,6 +617,7 @@ export class BatchRunner {
     try {
       for (;;) {
         for (const f of [...inflight.values()]) {
+          if (this.canceling()) return;
           const out = await this.pollBang(f, batch.source === "anh" || batch.source === "nv");
           if (out.pause) blocked ??= out.pause;
           if (out.finished) {
@@ -607,6 +626,7 @@ export class BatchRunner {
           }
         }
 
+        if (this.canceling()) return;
         const sending = this.active?.mode === "full" && !this.stopRequested() && !blocked;
         const room = inflight.size < this.parallel();
         const next = sending && room ? this.runs(batch.id, ["queued"])[0] : undefined;
@@ -647,7 +667,7 @@ export class BatchRunner {
     if (asking.length) {
       this.notices.set(batch.id, `Muse đang chờ bạn duyệt (dòng ${asking.join(", ")} của Bảng). Mở cửa sổ bot và bấm duyệt trong Muse; bot không tự bấm.`);
     } else if (inflight.size && (blocked || this.stopRequested())) {
-      const why = blocked ? PAUSE_SHORT[blocked] : this.active?.cancelRequested ? "Bạn đã bấm Huỷ" : PAUSE_SHORT.user;
+      const why = blocked ? PAUSE_SHORT[blocked] : PAUSE_SHORT.user;
       this.notices.set(batch.id, `Ngừng gửi dòng mới (${why}); vẫn chờ và tải nốt ${inflight.size} video đã gửi.`);
     } else this.notices.delete(batch.id);
   }
@@ -747,6 +767,7 @@ export class BatchRunner {
 
   /** Spec 17.5 bước 2–4: sentAt ghi trước khi bấm Gửi; bot mở cuộc trò chuyện mới trong tab riêng, đính kèm ảnh, chỉ gửi khi Muse hiện đủ ảnh. */
   private async sendNew(run: RunRow, files: string[], what = "video"): Promise<{ pause?: PauseReason; sent?: boolean; inflight?: Inflight }> {
+    if (this.canceling()) return {}; // Dòng còn ở bước kiểm tra: Huỷ lô chuyển nó thành Đã huỷ.
     if (!this.bot.isOpen) await this.bot.open();
     const tab = tabOf(run.id);
     const waiting = (): Inflight => ({ run: { ...run, state: "waiting" }, tab, deadline: Date.now() + this.timeoutMs(), approval: false, loginNoted: false });
@@ -765,6 +786,11 @@ export class BatchRunner {
       setMuseReady(this.db, now());
     } catch (e) {
       const err = e instanceof BotError ? e : new BotError("send_unconfirmed", `Lỗi khi gửi: ${errText(e)}`, true);
+      if (this.canceling()) {
+        // Huỷ lô đóng cửa sổ giữa lúc gửi. Đã bấm Gửi thì giữ nguyên trạng thái để Huỷ lô chuyển thành Cần xem (D9).
+        if (!err.sent) moveRun(this.db, run.id, "sending", "canceled", "Huỷ lô: dòng này chưa gửi Muse", { sentAt: null, doneAt: now() });
+        return {};
+      }
       if (!err.sent) {
         const to = err.code === "login" || err.code === "challenge" ? "paused_login" : "paused_ui";
         moveRun(this.db, run.id, "sending", to, `Chưa gửi: ${err.message}`, { sentAt: null }, err.screenshot);
@@ -823,6 +849,7 @@ export class BatchRunner {
       } catch (e) {
         why = errText(e);
         logger.warn({ err: e, runId: run.id, attempt }, "Chưa tải được video từ Muse");
+        if (this.canceling()) return;
         if (attempt < 3) await this.sleep(5 * (this.o.secondMs ?? 1000), false);
       }
     }
@@ -924,6 +951,7 @@ export class BatchRunner {
       } catch (e) {
         why = errText(e);
         logger.warn({ err: e, runId: run.id, attempt }, "Chưa tải được ảnh từ Muse");
+        if (this.canceling()) return { finished: true };
         if (attempt < 3) await this.sleep(5 * (this.o.secondMs ?? 1000), false);
       }
     }
@@ -941,6 +969,8 @@ export class BatchRunner {
       moveRun(this.db, run.id, "downloading", "done", got, { doneAt: now() });
       return { finished: true };
     }
+
+    if (this.canceling()) return { finished: true }; // Không xin ảnh quay lưng nữa; Huỷ lô chuyển dòng thành Cần xem.
 
     // D33: tin thứ hai trong cùng cuộc trò chuyện. anhBackAt ghi trước khi bấm Gửi (tính một lượt ảnh).
     moveRun(this.db, run.id, "downloading", "sending", `${got}; gửi tin xin ảnh quay lưng trong cùng cuộc trò chuyện`, { anhPhase: "back", anhBackAt: now() });
@@ -997,6 +1027,7 @@ export class BatchRunner {
       } catch (e) {
         why = errText(e);
         logger.warn({ err: e, runId: run.id, attempt }, "Chưa tải được ảnh nhân vật từ Muse");
+        if (this.canceling()) return { finished: true };
         if (attempt < 3) await this.sleep(5 * (this.o.secondMs ?? 1000), false);
       }
     }
@@ -1122,7 +1153,7 @@ function pick(row: string[], cfg: SheetConfig): InputSnapshot {
 const TOOL_EDIT_MARGIN_MS = 10 * 60_000;
 
 /** Lô chạy kiểu Bảng (gửi lần lượt, mỗi dòng một tab riêng, chờ song song, D28): Bảng video và Bảng ảnh. */
-const isTabbed = (source: string | undefined) => source === "bang" || source === "anh" || source === "nv";
+export const isTabbed = (source: string | undefined) => source === "bang" || source === "anh" || source === "nv";
 
 /** Tab riêng của một lượt trong cửa sổ bot (D28). */
 const tabOf = (runId: number) => `run-${runId}`;

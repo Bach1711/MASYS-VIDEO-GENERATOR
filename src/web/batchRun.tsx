@@ -4,7 +4,7 @@ import { folderLink } from "../batch/template.js";
 import type { DB } from "../db/index.js";
 import { getDailyQuota, getImageQuota } from "../db/quota.js";
 import { getSheetConfig, sheetName } from "../db/sheetConfigs.js";
-import { PAUSE_TEXT, type BatchRunner, type PauseReason } from "../queue/runner.js";
+import { isTabbed, PAUSE_TEXT, type BatchRunner, type PauseReason } from "../queue/runner.js";
 import { Alert, QuotaBox, scanUrl, truncate } from "./components.js";
 import { Layout } from "./layout.js";
 
@@ -42,6 +42,9 @@ export const RUN_BADGE: Record<string, string> = {
 };
 
 // Trang tiến độ một lô (F6): bắt đầu / tạm dừng / tiếp tục / huỷ và trạng thái từng dòng.
+const CANCEL_NOW = "Huỷ lô này ngay? Bot đóng cửa sổ Muse và dừng hết. Dòng chưa gửi sẽ không gửi; dòng đã gửi chuyển Cần xem và video chưa về sẽ không được tải. Muốn chờ tải nốt video đã gửi thì bấm Tạm dừng.";
+const CANCEL_SHEET = "Huỷ lô này? Các dòng chưa gửi Muse sẽ không được gửi nữa.";
+
 export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: BatchRunner }) {
   const { db, runner } = deps;
 
@@ -124,7 +127,7 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
                   <form
                     method="post"
                     action={`/batch/${b.id}/cancel`}
-                    onsubmit="return confirm('Huỷ lô này? Các dòng chưa gửi Muse sẽ không được gửi nữa.')"
+                    onsubmit={`return confirm(${JSON.stringify(isTabbed(b.source) ? CANCEL_NOW : CANCEL_SHEET)})`}
                   >
                     <button type="submit" class="secondary">
                       Huỷ lô
@@ -133,7 +136,12 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
                 )}
               </div>
             </div>
-            {b.status === "canceled" && <Alert kind="warn">Lô đã huỷ. Các dòng chưa gửi Muse không được gửi.</Alert>}
+            {b.status === "canceled" && (
+              <Alert kind="warn">
+                Lô đã huỷ. Các dòng chưa gửi Muse không được gửi.
+                {isTabbed(b.source) && " Dòng đã gửi chuyển Cần xem: mở cuộc trò chuyện Muse để xem."}
+              </Alert>
+            )}
             {(b.status === "queued" || b.status === "paused") && (b.source === "anh" || nv ? <QuotaBox quota={getImageQuota(db)} unit="ảnh" /> : <QuotaBox quota={getDailyQuota(db)} />)}
             <div class="scroll">
               <table class="scan">
@@ -223,7 +231,9 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
       ? r.message
       : r.immediate
         ? "Đã huỷ lô."
-        : "Đã nhận Huỷ lô: dòng đang chờ Muse vẫn được theo dõi cho xong, các dòng còn lại sẽ không gửi.";
+        : isTabbed(getBatch(db, id)?.source)
+          ? "Đã huỷ lô: bot đóng cửa sổ Muse và dừng ngay. Dòng đã gửi chuyển Cần xem."
+          : "Đã nhận Huỷ lô: dòng đang chờ Muse vẫn được theo dõi cho xong, các dòng còn lại sẽ không gửi.";
     return c.redirect(`/batch/${id}?msg=${encodeURIComponent(msg)}`, 303);
   });
 }

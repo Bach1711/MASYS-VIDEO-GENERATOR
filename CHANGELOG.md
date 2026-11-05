@@ -4,6 +4,7 @@ Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được �
 
 ## Chưa phát hành
 
+- **Hủy lô** giờ dừng ngay, kể cả khi bot đang gửi: bot đóng cửa sổ Muse, không phải chờ hết giờ. Dòng chưa gửi thành **Đã hủy**, dòng đã gửi thành **Cần xem**. Muốn chờ tải nốt video đã gửi thì bấm **Tạm dừng**.
 - Yêu cầu tạo video có thêm câu dặn Muse không hỏi lại, không đưa lựa chọn, gặp chỗ mơ hồ thì tự chọn cách hiểu có khả năng đúng nhất. Câu này tự thêm cho mọi video, kể cả khi bạn đã sửa mẫu prompt.
 
 ## v2.9.0

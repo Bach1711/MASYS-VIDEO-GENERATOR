@@ -33,6 +33,8 @@ interface Opts {
   /** Lần gửi thứ mấy thì Muse đòi đăng nhập (chưa gửi). */
   loginAt?: number;
   onSend?: (count: number) => void;
+  /** Bot treo khi đang gửi; đóng cửa sổ thì báo lỗi này. */
+  hangSend?: BotError;
 }
 
 function setup(o: Opts = {}) {
@@ -49,13 +51,23 @@ function setup(o: Opts = {}) {
   const closed: string[] = [];
   let maxOpen = 0;
   let tries = 0;
+  let closes = 0;
+  let closeBot = () => {};
   const bot: MuseDriver = {
     isOpen: true,
     async open() {},
     async bringToFront() {},
+    async close() {
+      closes++;
+      tabs.clear();
+      closeBot();
+    },
     async send(text: string, _files?: string[], tab?: string) {
       tries++;
       if (o.loginAt === tries) throw new BotError("login", "Cần đăng nhập Muse", false);
+      // Treo ở bước gửi cho tới khi cửa sổ bot bị đóng.
+      if (o.hangSend) await new Promise<void>((resolve) => { closeBot = resolve; });
+      if (o.hangSend) throw o.hangSend;
       const row = Number(/dòng (\d+)/.exec(text)![1]);
       sends.push({ row, tab: tab! });
       tabs.set(tab!, { row, polls: 0 });
@@ -95,7 +107,7 @@ function setup(o: Opts = {}) {
     const name = getRow(db, row)!.videoFile;
     return name ? fs.readFileSync(path.join(dataDir, "tep", "video", name)).at(-1) : undefined;
   };
-  return { db, runner, run, batchOf, sends, opened, closed, videoRow, maxOpen: () => maxOpen, tabs };
+  return { db, runner, run, batchOf, sends, opened, closed, videoRow, maxOpen: () => maxOpen, tabs, closes: () => closes };
 }
 
 const states = (db: DB) => (db.prepare("SELECT bangRowId AS row, state FROM runs ORDER BY bangRowId").all() as { row: number; state: string }[]).map((r) => `${r.row}:${r.state}`);
@@ -161,6 +173,55 @@ describe("chạy song song (D28)", () => {
     expect(t.sends).toHaveLength(2);
     expect(states(t.db)).toEqual(["1:done", "2:done", "3:paused_limit", "4:queued"]);
     expect(getBatch(t.db, batchId)).toMatchObject({ status: "paused", pauseReason: "limit" });
+  });
+});
+
+describe("Huỷ lô dừng ngay (CON-90)", () => {
+  it("đang chờ video: dừng ngay không đợi hết giờ, đóng cửa sổ bot, dòng đã gửi Cần xem, dòng chưa gửi Đã huỷ", async () => {
+    const t = setup({ rows: 4, parallel: 2, slow: { 1: 1e6, 2: 1e6 } });
+    const id = t.batchOf([1, 2, 3, 4]);
+    t.runner.start(id);
+    while (t.sends.length < 2) await new Promise((r) => setTimeout(r, 2));
+    expect(t.runner.cancel(id)).toEqual({ ok: true, immediate: false });
+    const at = Date.now();
+    await t.runner.idle();
+    expect(Date.now() - at).toBeLessThan(300);
+    expect(states(t.db)).toEqual(["1:needs_review", "2:needs_review", "3:canceled", "4:canceled"]);
+    expect(getBatch(t.db, id)!.status).toBe("canceled");
+    expect(t.closes()).toBeGreaterThan(0);
+    expect(t.sends).toHaveLength(2);
+  });
+
+  it("đang gửi, chưa bấm Gửi của Muse: đóng cửa sổ là dừng, dòng thành Đã huỷ", async () => {
+    const t = setup({ rows: 2, hangSend: new BotError("ui_changed", "trang đã đóng", false) });
+    const id = t.batchOf([1, 2]);
+    t.runner.start(id);
+    await new Promise((r) => setTimeout(r, 10));
+    t.runner.cancel(id);
+    await t.runner.idle();
+    expect(states(t.db)).toEqual(["1:canceled", "2:canceled"]);
+    expect(sentCount(t.db, 1)).toBe(0);
+  });
+
+  it("đang gửi, đã bấm Gửi của Muse: Cần xem, không gửi lại (D9)", async () => {
+    const t = setup({ rows: 2, hangSend: new BotError("send_unconfirmed", "trang đã đóng", true) });
+    const id = t.batchOf([1, 2]);
+    t.runner.start(id);
+    await new Promise((r) => setTimeout(r, 10));
+    t.runner.cancel(id);
+    await t.runner.idle();
+    expect(states(t.db)).toEqual(["1:needs_review", "2:canceled"]);
+  });
+
+  it("Tạm dừng vẫn tải nốt video đã gửi, không đóng cửa sổ bot", async () => {
+    const t = setup({ rows: 2, parallel: 1, slow: { 1: 3 } });
+    const id = t.batchOf([1, 2]);
+    t.runner.start(id);
+    while (t.sends.length < 1) await new Promise((r) => setTimeout(r, 2));
+    t.runner.pause(id);
+    await t.runner.idle();
+    expect(states(t.db)).toEqual(["1:done", "2:queued"]);
+    expect(t.closes()).toBe(0);
   });
 });
 

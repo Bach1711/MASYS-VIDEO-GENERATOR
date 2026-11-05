@@ -302,8 +302,11 @@ export class MuseBot {
   }
 
   async close(): Promise<void> {
+    await this.opening?.catch(() => {}); // Đang mở dở thì chờ mở xong rồi đóng, không để sót cửa sổ.
     await this.ctx?.close();
     this.ctx = undefined;
+    this.tabs.clear();
+    this.sent.clear();
   }
 
   /**
@@ -362,6 +365,7 @@ export class MuseBot {
     if (this.busy) throw new BotError("busy", "Bot đang gửi một yêu cầu khác", false);
     if (!this.ctx) throw new BotError("closed", STATE_TEXT.closed, false);
     this.busy = true;
+    let clicked = false;
     try {
       const page = await this.page(tab);
       // Tab riêng vừa mở còn trống: vào trang Muse trước.
@@ -429,6 +433,7 @@ export class MuseBot {
         if (Date.now() >= sendDeadline) return await this.fail(page, "ui_changed", "Không thấy nút Gửi của Muse", false);
         await page.waitForTimeout(500);
       }
+      clicked = true;
       await send.click();
       logger.info({ url: stripQuery(startUrl) }, "Đã bấm Gửi trên Muse");
       this.sent.set(tab ?? "", { text, noticesBefore });
@@ -457,6 +462,10 @@ export class MuseBot {
         }
         await page.waitForTimeout(500);
       }
+    } catch (e) {
+      // Lỗi bất ngờ trước khi bấm Gửi (trang đóng, tải lỗi…): chắc chắn Muse chưa nhận gì.
+      if (e instanceof BotError || clicked) throw e;
+      throw new BotError("ui_changed", `Lỗi trước khi gửi: ${e instanceof Error ? e.message : String(e)}`, false);
     } finally {
       this.busy = false;
     }
