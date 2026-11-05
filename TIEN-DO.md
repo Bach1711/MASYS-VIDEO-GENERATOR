@@ -229,7 +229,7 @@ flowchart LR
 | 35 | [CON-89](https://linear.app/conducdaudan/issue/CON-89) | Thêm câu không hỏi lại vào yêu cầu video (v2.10.0) | 🟩 Xong | [#42](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/42) | 05/11/2026 |
 | 36 | [CON-90](https://linear.app/conducdaudan/issue/CON-90) | Hủy lô là dừng ngay, đóng cửa sổ bot (v2.10.0) | 🟩 Xong | [#43](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/43) | 05/11/2026 |
 | 37 | [CON-91](https://linear.app/conducdaudan/issue/CON-91) | Bảng video tự chạy lại dòng lỗi, tối đa 3 lần (v2.10.0) | 🟩 Xong | [#44](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/44) | 05/11/2026 |
-| 38 | [CON-98](https://linear.app/conducdaudan/issue/CON-98) | Muse trắng trang thì tự mở tab mới làm lại | 🟦 Chờ duyệt | PR_LINK | 05/11/2026 |
+| 38 | [CON-98](https://linear.app/conducdaudan/issue/CON-98) | Muse trắng trang thì tự mở tab mới làm lại | 🟦 Chờ duyệt | [#46](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/46) | 05/11/2026 |
 
 ## Nhật ký cập nhật
 
