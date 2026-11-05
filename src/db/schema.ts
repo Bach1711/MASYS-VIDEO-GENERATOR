@@ -234,4 +234,10 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE nhan_vat ADD COLUMN masterFile TEXT;
   ALTER TABLE nhan_vat ADD COLUMN masterBytes INTEGER NOT NULL DEFAULT 0;
   `,
+  // 15. Bảng video tự chạy lại dòng lỗi (CON-91): lần chạy hiện tại; số lần đã gửi Muse ở các lần thất bại trước (vẫn tính lượt).
+  `
+  ALTER TABLE runs ADD COLUMN attempt INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE runs ADD COLUMN extraSends INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE runs ADD COLUMN extraSentAt TEXT;
+  `,
 ];

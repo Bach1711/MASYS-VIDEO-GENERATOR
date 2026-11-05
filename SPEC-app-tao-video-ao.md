@@ -589,6 +589,8 @@ Tạo xong thì gửi video ngay trong cuộc trò chuyện này. Không lưu l�
 
 **Huỷ lô (CON-90, thay F6 cho lô chạy bằng tab):** đóng cửa sổ bot, dừng ngay kể cả khi đang gửi. Dòng chưa bấm Gửi của Muse: Đã huỷ. Dòng đã bấm Gửi: Cần xem, không gửi lại (D9), video chưa về không được tải. Tạm dừng giữ nguyên: ngừng gửi, vẫn tải nốt. Lô theo sheet vẫn như F6.
 
+**Tự chạy lại (CON-91, đổi D9 riêng cho Bảng video):** các trường hợp sau là một lần thất bại: lỗi trước khi bấm Gửi; đã bấm Gửi nhưng không chắc Muse nhận; Muse báo lỗi; Muse hỏi lại hoặc chờ duyệt quá 2 phút (nhận biết cơ bản qua chữ, chưa có mẫu thật). Đóng tab, `runs.attempt` tăng, dòng về hàng đợi; chỉ chạy lại khi mọi dòng khác đã xong và không còn tab nào, từng dòng một, sau khi nghỉ 1 phút, trong cuộc trò chuyện mới. Không còn dòng nào khác thì đóng cả trình duyệt rồi mở lại. Tổng 3 lần; lần thứ 3 vẫn lỗi thì Cần xem, ghi "Thất bại 3 lần". 3 dòng khác nhau lỗi liên tiếp thì tạm dừng lô (`muse_down`). Lần đã gửi tính lượt (`runs.extraSends`). Không chạy lại: cần đăng nhập, captcha, hết lượt, Muse từ chối, hết giờ chờ, video không mở được. Bảng ảnh, Tạo nhân vật, Bảng theo sheet giữ D9.
+
 ### 17.6 Nhập từ Google Sheet
 - Nút **Nhập từ Google Sheet** → dán link sheet / chọn sheet đã kết nối → tool đọc (service account, chỉ đọc) và hiện trước *"Sẽ thêm N dòng"*.
 - Mỗi dòng sheet chưa có video → một dòng mới trên Bảng: prompt, và **tải ảnh từ link Drive về máy** (Ảnh người mẫu → Mẫu trước, Ảnh áo → Áo trước). Link không đọc được → vẫn thêm dòng, để trống ô ảnh đó và ghi lý do.

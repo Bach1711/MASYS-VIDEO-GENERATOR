@@ -9,6 +9,7 @@ import { estimateText, insertBangBatch, planBangBatch } from "../src/bang/run.js
 import { BotError, type WatchResult } from "../src/bot/museBot.js";
 import { getBatch } from "../src/batch/create.js";
 import { openDatabase, type DB } from "../src/db/index.js";
+import { getDailyQuota } from "../src/db/quota.js";
 import { getSettings } from "../src/db/settings.js";
 import { BatchRunner, type MuseDriver } from "../src/queue/runner.js";
 import { loadConfig } from "../src/config.js";
@@ -33,6 +34,10 @@ interface Opts {
   /** Lần gửi thứ mấy thì Muse đòi đăng nhập (chưa gửi). */
   loginAt?: number;
   onSend?: (count: number) => void;
+  /** Lần gửi thứ mấy của dòng nào thì lỗi. */
+  sendFail?: (row: number, nth: number) => BotError | undefined;
+  /** Muse hiện thông báo gì ở dòng này, lần gửi thứ mấy. */
+  notice?: (row: number, nth: number) => WatchResult["notice"];
   /** Bot treo khi đang gửi; đóng cửa sổ thì báo lỗi này. */
   hangSend?: BotError;
 }
@@ -53,6 +58,7 @@ function setup(o: Opts = {}) {
   let tries = 0;
   let closes = 0;
   let closeBot = () => {};
+  const perRow = new Map<number, number>();
   const bot: MuseDriver = {
     isOpen: true,
     async open() {},
@@ -69,7 +75,11 @@ function setup(o: Opts = {}) {
       if (o.hangSend) await new Promise<void>((resolve) => { closeBot = resolve; });
       if (o.hangSend) throw o.hangSend;
       const row = Number(/dòng (\d+)/.exec(text)![1]);
+      const nth = (perRow.get(row) ?? 0) + 1;
+      perRow.set(row, nth);
       sends.push({ row, tab: tab! });
+      const bad = o.sendFail?.(row, nth);
+      if (bad) throw bad;
       tabs.set(tab!, { row, polls: 0 });
       maxOpen = Math.max(maxOpen, tabs.size);
       o.onSend?.(sends.length);
@@ -79,7 +89,8 @@ function setup(o: Opts = {}) {
       const t = tabs.get(tab!);
       if (!t) return { closed: true, login: false, approval: false };
       t.polls++;
-      return { closed: false, login: false, approval: false, videos: t.polls >= (o.slow?.[t.row] ?? 30) ? 1 : 0, url: chatOf(t.row) };
+      const notice = o.notice?.(t.row, perRow.get(t.row) ?? 0);
+      return { closed: false, login: false, approval: false, notice, videos: !notice && t.polls >= (o.slow?.[t.row] ?? 30) ? 1 : 0, url: chatOf(t.row) };
     },
     async openChat(url: string, tab?: string) {
       opened.push({ url, tab });
@@ -222,6 +233,94 @@ describe("Huỷ lô dừng ngay (CON-90)", () => {
     await t.runner.idle();
     expect(states(t.db)).toEqual(["1:done", "2:queued"]);
     expect(t.closes()).toBe(0);
+  });
+});
+
+describe("Bảng video tự chạy lại dòng lỗi (CON-91)", () => {
+  const ui = () => new BotError("ui_changed", "Không thấy ô chat", false);
+  const info = (db: DB, row: number) => db.prepare("SELECT attempt, error, sentAt, extraSends FROM runs WHERE bangRowId = ?").get(row) as { attempt: number; error: string | null; sentAt: string | null; extraSends: number };
+
+  it("giao diện lỗi lúc chưa gửi: không dừng lô, dòng lỗi chạy sau cùng trong tab mới, không tính lượt", async () => {
+    const t = setup({ rows: 3, slow: { 1: 2, 2: 2, 3: 2 }, sendFail: (row, nth) => (row === 1 && nth === 1 ? ui() : undefined) });
+    const id = await t.run([1, 2, 3]);
+    expect(t.sends.map((s) => s.row)).toEqual([1, 2, 3, 1]);
+    expect(states(t.db)).toEqual(["1:done", "2:done", "3:done"]);
+    expect(getBatch(t.db, id)!.status).toBe("done");
+    expect(info(t.db, 1)).toMatchObject({ attempt: 2, error: null, extraSends: 0 });
+    expect(getDailyQuota(t.db).used).toBe(3);
+    expect(t.closes()).toBe(0);
+  });
+
+  it("đã bấm Gửi nhưng không chắc: chạy lại, tính lượt; đủ 3 lần thì Cần xem, ghi thất bại 3 lần", async () => {
+    const t = setup({ rows: 1, sendFail: () => new BotError("send_unconfirmed", "Không chắc Muse đã nhận", true) });
+    await t.run([1]);
+    expect(t.sends).toHaveLength(3);
+    expect(states(t.db)).toEqual(["1:needs_review"]);
+    expect(info(t.db, 1).error).toBe("Thất bại 3 lần: Không chắc Muse đã nhận");
+    expect(getDailyQuota(t.db).used).toBe(3);
+  });
+
+  it("chỉ còn đúng 1 video mà lỗi: đóng cả trình duyệt rồi chạy lại", async () => {
+    const t = setup({ rows: 1, slow: { 1: 2 }, sendFail: (_r, nth) => (nth === 1 ? ui() : undefined) });
+    await t.run([1]);
+    expect(t.closes()).toBe(1);
+    expect(states(t.db)).toEqual(["1:done"]);
+  });
+
+  it("Muse hỏi lại: chờ thêm rồi mới coi là thất bại, đóng tab, chạy lại trong cuộc trò chuyện mới", async () => {
+    const t = setup({ rows: 1, slow: { 1: 2 }, notice: (_r, nth) => (nth === 1 ? "asking" : undefined) });
+    await t.run([1]);
+    expect(t.sends).toHaveLength(2);
+    expect(t.closed).toHaveLength(2);
+    expect(states(t.db)).toEqual(["1:done"]);
+    expect(getDailyQuota(t.db).used).toBe(2);
+  });
+
+  it("Muse báo lỗi: chạy lại; Muse từ chối: không chạy lại", async () => {
+    const t = setup({ rows: 2, parallel: 1, slow: { 1: 2, 2: 2 }, notice: (row, nth) => (row === 1 && nth === 1 ? "error" : row === 2 ? "rejected" : undefined) });
+    await t.run([1, 2]);
+    expect(states(t.db)).toEqual(["1:done", "2:failed"]);
+    expect(t.sends.filter((s) => s.row === 2)).toHaveLength(1);
+  });
+
+  it("hết giờ chờ không có video: Cần xem, không chạy lại", async () => {
+    const t = setup({ rows: 1, slow: { 1: 1e9 } });
+    t.db.prepare("UPDATE settings SET timeoutMinutes = 1 WHERE id = 1").run();
+    await t.run([1]);
+    expect(t.sends).toHaveLength(1);
+    expect(states(t.db)).toEqual(["1:needs_review"]);
+  });
+
+  it("cần đăng nhập: tạm dừng lô như trước, không tính thất bại", async () => {
+    const t = setup({ rows: 2, loginAt: 1 });
+    const id = await t.run([1, 2]);
+    expect(getBatch(t.db, id)).toMatchObject({ status: "paused", pauseReason: "login" });
+    expect(info(t.db, 1).attempt).toBe(1);
+  });
+
+  it("3 dòng khác nhau lỗi liên tiếp: tạm dừng lô, dòng sau chưa gửi; Tiếp tục thì chạy lại và nhớ số lần", async () => {
+    let down = true;
+    const t = setup({ rows: 4, slow: { 1: 2, 2: 2, 3: 2, 4: 2 }, sendFail: () => (down ? ui() : undefined) });
+    const id = await t.run([1, 2, 3, 4]);
+    expect(getBatch(t.db, id)).toMatchObject({ status: "paused", pauseReason: "muse_down" });
+    expect(t.sends.map((s) => s.row)).toEqual([1, 2, 3]);
+    expect(info(t.db, 1)).toMatchObject({ attempt: 2, error: "Thất bại lần 1/3: Không thấy ô chat" });
+    down = false;
+    expect(t.runner.start(id)).toEqual({ ok: true });
+    await t.runner.idle();
+    expect(states(t.db)).toEqual(["1:done", "2:done", "3:done", "4:done"]);
+    expect(t.sends.map((s) => s.row).slice(3)).toEqual([4, 1, 2, 3]);
+  });
+
+  it("Hủy lô lúc đang chờ chạy lại: dừng luôn, không gửi nữa", async () => {
+    const t = setup({ rows: 1, sendFail: () => ui() });
+    const id = t.batchOf([1]);
+    t.runner.start(id);
+    while (t.sends.length < 1) await new Promise((r) => setTimeout(r, 1));
+    t.runner.cancel(id);
+    await t.runner.idle();
+    expect(states(t.db)).toEqual(["1:canceled"]);
+    expect(t.sends).toHaveLength(1);
   });
 });
 

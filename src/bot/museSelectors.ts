@@ -92,4 +92,9 @@ export const notices = {
   error: /something went wrong|an error occurred|try again later|network error|đã xảy ra lỗi|có lỗi xảy ra/i,
   /** Muse báo đã làm xong nhưng ô video trong chat không mở được (ghi nhận 29/10/2026; tải lại trang cũng không có). */
   videoMissing: /video not found|không tìm thấy video/i,
+  /**
+   * Muse hỏi lại thay vì làm (CON-91). Chưa có mẫu thật nên chỉ nhận biết cơ bản qua chữ; hàng đợi còn chờ thêm một lúc
+   * cho chắc rồi mới coi là thất bại.
+   */
+  asking: /would you like|do you want|which (one|option|version)|please (confirm|choose|select)|let me know (which|if you|what)|bạn (có )?muốn|vui lòng (chọn|xác nhận)|hãy (chọn|xác nhận)|bạn (hãy )?(chọn|xác nhận)|xác nhận (giúp|lại|lựa chọn)|lựa chọn nào/i,
 };

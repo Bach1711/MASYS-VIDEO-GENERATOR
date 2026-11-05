@@ -152,13 +152,13 @@ describe("chạy lô Bảng mới (17.5)", () => {
     expect(labelOf(getRow(db, 2)!).label).toBe("review");
   });
 
-  it("Muse không hiện đủ ảnh (chưa gửi) → tạm dừng, chưa tính lượt; quá giờ không có video → Cần xem, không gửi lại", async () => {
+  it("Muse không hiện đủ ảnh (chưa gửi) → chạy lại tối đa 3 lần rồi Cần xem, chưa tính lượt (CON-91); quá giờ không có video → Cần xem, không gửi lại", async () => {
     const ui = setup({ sendError: new BotError("ui_changed", "Muse chỉ hiện 1/2 ảnh đính kèm; chưa gửi", false) });
     const b1 = insertBangBatch(ui.db, "", planBangBatch(ui.db, [2], getSettings(ui.db), "").runs);
     ui.runner.start(b1);
     await ui.runner.idle();
-    expect(state(ui.db, 2).state).toBe("paused_ui");
-    expect(getBatch(ui.db, b1)).toMatchObject({ status: "paused", pauseReason: "ui" });
+    expect(state(ui.db, 2)).toMatchObject({ state: "needs_review", error: "Thất bại 3 lần: Muse chỉ hiện 1/2 ảnh đính kèm; chưa gửi" });
+    expect(getBatch(ui.db, b1)!.status).toBe("done");
     expect((ui.db.prepare("SELECT count(*) n FROM runs WHERE sentAt IS NOT NULL").get() as { n: number }).n).toBe(0);
 
     const slow = setup();

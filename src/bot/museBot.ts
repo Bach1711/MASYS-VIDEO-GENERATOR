@@ -494,7 +494,7 @@ function normalize(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
-export type NoticeKind = "quota" | "rejected" | "error" | "videoMissing";
+export type NoticeKind = "quota" | "rejected" | "error" | "videoMissing" | "asking";
 
 export interface WatchResult {
   closed: boolean;
@@ -512,5 +512,5 @@ export interface WatchResult {
 }
 
 function noticeKinds(body: string): NoticeKind[] {
-  return (["quota", "rejected", "error", "videoMissing"] as const).filter((k) => sel.notices[k].test(body));
+  return (["quota", "rejected", "error", "videoMissing", "asking"] as const).filter((k) => sel.notices[k].test(body));
 }

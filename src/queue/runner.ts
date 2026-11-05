@@ -48,9 +48,14 @@ export interface MuseDriver {
   downloadImages?(tab: string, from: number): Promise<Uint8Array[]>;
 }
 
-export type PauseReason = "user" | "login" | "ui" | "quota" | "limit" | "image_limit" | "row_shift" | "other_cells" | "google" | "restart";
+/** Bảng video tự chạy lại dòng lỗi (CON-91): tổng số lần chạy của một dòng; số dòng khác nhau lỗi liên tiếp thì tạm dừng lô. */
+export const MAX_ATTEMPTS = 3;
+const MAX_FAILED_ROWS = 3;
+
+export type PauseReason = "muse_down" | "user" | "login" | "ui" | "quota" | "limit" | "image_limit" | "row_shift" | "other_cells" | "google" | "restart";
 
 export const PAUSE_TEXT: Record<PauseReason, string> = {
+  muse_down: `Muse lỗi liên tiếp ở ${MAX_FAILED_ROWS} dòng khác nhau, nhiều khả năng Muse đang lỗi chung. Mở Muse kiểm tra rồi bấm Tiếp tục; các dòng lỗi sẽ chạy lại.`,
   user: "Bạn đã bấm Tạm dừng.",
   login: "Cần đăng nhập lại Muse. Đăng nhập (hoặc vượt bước kiểm tra bảo mật) trong cửa sổ bot rồi bấm Tiếp tục.",
   ui: "Giao diện Muse thay đổi: bot không tìm thấy ô chat hoặc nút Gửi (hoặc trình duyệt bot bị tắt). Xem ảnh chụp trong Nhật ký.",
@@ -65,6 +70,7 @@ export const PAUSE_TEXT: Record<PauseReason, string> = {
 
 /** Câu ngắn cho dải báo trên đầu trang và trang Lịch sử lô. */
 export const PAUSE_SHORT: Record<PauseReason, string> = {
+  muse_down: "Muse lỗi liên tiếp ở nhiều dòng",
   user: "Bạn đã bấm Tạm dừng",
   login: "Cần đăng nhập lại Muse",
   ui: "Giao diện Muse thay đổi",
@@ -116,6 +122,10 @@ interface RunRow {
   /** Bảng ảnh (CON-77): 'front' | 'back' (đang làm ảnh quay lưng); số ảnh trong cuộc trò chuyện ngay sau lần gửi gần nhất. */
   anhPhase?: string | null;
   anhBaseline?: number | null;
+  /** Bảng video (CON-91): lần chạy hiện tại và số lần đã gửi Muse ở các lần thất bại trước. */
+  attempt?: number;
+  extraSends?: number;
+  extraSentAt?: string | null;
   /** Tạo nhân vật (CON-81): số bản nháp; null = không phải lượt tạo nhân vật. */
   nvDraftId?: number | null;
 }
@@ -151,6 +161,8 @@ interface Inflight {
   deadline: number;
   approval: boolean;
   loginNoted: boolean;
+  /** Bảng video: lúc bắt đầu thấy Muse hỏi lại (CON-91). */
+  askingSince?: number;
   /** Bảng ảnh: danh sách ảnh mới thấy ở lần xem trước; giống hệt lần này thì coi như Muse đã tạo xong (không còn đổi). */
   seen?: string;
 }
@@ -161,6 +173,19 @@ interface PollOutcome {
   finished: boolean;
   /** Ngừng gửi dòng mới (Muse hết lượt). */
   pause?: PauseReason;
+  /** Bảng video: lần này thất bại (CON-91). */
+  failed?: boolean;
+  /** Bảng video: video đã về. */
+  ok?: boolean;
+}
+
+/** Kết quả gửi một dòng mới. */
+interface SendOutcome {
+  pause?: PauseReason;
+  sent?: boolean;
+  inflight?: Inflight;
+  /** Bảng video: lần này thất bại (CON-91). */
+  failed?: boolean;
 }
 
 interface InputSnapshot {
@@ -614,6 +639,17 @@ export class BatchRunner {
 
     let blocked: PauseReason | undefined;
     let nextSendAt = 0;
+    let retryAt = 0;
+    const failedRows = new Set<number>();
+    // CON-91: ghi nhận một lần thất bại; lỗi liên tiếp ở nhiều dòng thì tạm dừng lô; hết dòng để chạy thì mở lại trình duyệt.
+    const noteFailure = async (row: number) => {
+      retryAt = Date.now() + 60 * (this.o.secondMs ?? 1000);
+      failedRows.add(row);
+      if (failedRows.size >= MAX_FAILED_ROWS) blocked ??= "muse_down";
+      const queued = this.runs(batch.id, ["queued"]);
+      const onlyRetries = queued.length > 0 && queued.every((r) => (r.attempt ?? 1) > 1);
+      if (inflight.size === 0 && onlyRetries && !this.canceling()) await this.closeBot();
+    };
     try {
       for (;;) {
         for (const f of [...inflight.values()]) {
@@ -624,16 +660,23 @@ export class BatchRunner {
             inflight.delete(f.run.id);
             await this.bot.closeTab?.(f.tab).catch(() => {});
           }
+          if (out.ok) failedRows.clear();
+          if (out.failed) await noteFailure(f.run.rowNumber);
         }
 
         if (this.canceling()) return;
         const sending = this.active?.mode === "full" && !this.stopRequested() && !blocked;
         const room = inflight.size < this.parallel();
-        const next = sending && room ? this.runs(batch.id, ["queued"])[0] : undefined;
+        // Dòng lỗi (CON-91) chỉ chạy lại khi mọi dòng khác đã xong, từng dòng một, sau khi nghỉ.
+        const queued = sending ? this.runs(batch.id, ["queued"]) : [];
+        const fresh = queued.find((r) => (r.attempt ?? 1) === 1);
+        const retrying = !fresh && queued.length > 0 && inflight.size === 0;
+        const next = fresh ? (room ? fresh : undefined) : retrying && Date.now() >= retryAt ? queued[0] : undefined;
         if (next && Date.now() >= nextSendAt) {
           const out = batch.source === "anh" ? await this.sendAnh(next) : batch.source === "nv" ? await this.sendNv(next) : await this.sendBang(next);
           if (out.pause) blocked = out.pause;
           if (out.inflight) inflight.set(next.id, out.inflight);
+          if (out.failed) await noteFailure(next.rowNumber);
           // Nghỉ ngẫu nhiên giữa hai lần gửi (D7).
           if (out.sent) nextSendAt = Date.now() + this.pauseMs();
           continue;
@@ -648,7 +691,8 @@ export class BatchRunner {
 
         this.noticeBang(batch, inflight, blocked);
         const untilSend = next ? Math.max(0, nextSendAt - Date.now()) : Infinity;
-        const wait = Math.min(inflight.size ? pollMs : Infinity, untilSend);
+        const untilRetry = retrying ? Math.max(0, retryAt - Date.now()) : Infinity;
+        const wait = Math.min(inflight.size ? pollMs : Infinity, untilSend, untilRetry);
         await this.sleep(wait === Infinity ? pollMs : wait);
       }
     } finally {
@@ -673,7 +717,7 @@ export class BatchRunner {
   }
 
   /** Spec 17.5 bước 1–4 (Bảng): đọc lại dòng, mở cuộc trò chuyện mới trong tab riêng, đính kèm ảnh, gửi. */
-  private async sendBang(run: RunRow): Promise<{ pause?: PauseReason; sent?: boolean; inflight?: Inflight }> {
+  private async sendBang(run: RunRow): Promise<SendOutcome> {
     const snap = JSON.parse(run.inputSnapshot) as BangSnapshot;
     if (getDailyQuota(this.db).remaining <= 0) {
       moveRun(this.db, run.id, "queued", "paused_limit", "Đủ giới hạn video hôm nay (D25)");
@@ -703,7 +747,7 @@ export class BatchRunner {
    * cần 2 lượt), rồi gửi như Bảng video với character sheet là ảnh 1. Gửi xong thì nhớ số ảnh đang có trong cuộc trò
    * chuyện: ảnh Muse tạo là các ảnh sau vị trí này.
    */
-  private async sendAnh(run: RunRow): Promise<{ pause?: PauseReason; sent?: boolean; inflight?: Inflight }> {
+  private async sendAnh(run: RunRow): Promise<SendOutcome> {
     const snap = JSON.parse(run.inputSnapshot) as AnhSnapshot;
     if (getImageQuota(this.db).remaining < (snap.back ? 2 : 1)) {
       moveRun(this.db, run.id, "queued", "paused_limit", "Đủ giới hạn ảnh hôm nay");
@@ -736,7 +780,7 @@ export class BatchRunner {
    * Tạo nhân vật (CON-81, spec 17.14): đủ lượt ảnh trong ngày, bản nháp còn, còn file master (trừ lượt tạo master, không
    * kèm ảnh), rồi gửi trong một cuộc trò chuyện mới (D7). Gửi xong nhớ số ảnh đang có như Bảng ảnh.
    */
-  private async sendNv(run: RunRow): Promise<{ pause?: PauseReason; sent?: boolean; inflight?: Inflight }> {
+  private async sendNv(run: RunRow): Promise<SendOutcome> {
     const snap = JSON.parse(run.inputSnapshot) as NvSnapshot;
     if (getImageQuota(this.db).remaining < 1) {
       moveRun(this.db, run.id, "queued", "paused_limit", "Đủ giới hạn ảnh hôm nay");
@@ -766,7 +810,7 @@ export class BatchRunner {
   }
 
   /** Spec 17.5 bước 2–4: sentAt ghi trước khi bấm Gửi; bot mở cuộc trò chuyện mới trong tab riêng, đính kèm ảnh, chỉ gửi khi Muse hiện đủ ảnh. */
-  private async sendNew(run: RunRow, files: string[], what = "video"): Promise<{ pause?: PauseReason; sent?: boolean; inflight?: Inflight }> {
+  private async sendNew(run: RunRow, files: string[], what = "video"): Promise<SendOutcome> {
     if (this.canceling()) return {}; // Dòng còn ở bước kiểm tra: Huỷ lô chuyển nó thành Đã huỷ.
     if (!this.bot.isOpen) await this.bot.open();
     const tab = tabOf(run.id);
@@ -781,7 +825,7 @@ export class BatchRunner {
         "sending",
         "waiting",
         known ? `Đã gửi Muse, chờ ${what} trong cuộc trò chuyện` : `Đã gửi Muse, chờ ${what}; Muse chưa đổi sang link riêng của cuộc trò chuyện`,
-        { museChatUrl: known ? chatUrl : null },
+        { museChatUrl: known ? chatUrl : null, error: null },
       );
       setMuseReady(this.db, now());
     } catch (e) {
@@ -790,6 +834,13 @@ export class BatchRunner {
         // Huỷ lô đóng cửa sổ giữa lúc gửi. Đã bấm Gửi thì giữ nguyên trạng thái để Huỷ lô chuyển thành Cần xem (D9).
         if (!err.sent) moveRun(this.db, run.id, "sending", "canceled", "Huỷ lô: dòng này chưa gửi Muse", { sentAt: null, doneAt: now() });
         return {};
+      }
+      // Bảng video (CON-91): lỗi giao diện, gửi không chắc, Muse báo lỗi thì đóng tab, chạy lại sau. Cần đăng nhập, hết lượt,
+      // Muse từ chối, người dùng đóng cửa sổ bot vẫn xử lý như dưới: chạy lại cũng vô ích.
+      if (what === "video" && !["login", "challenge", "quota", "rejected", "closed", "busy"].includes(err.code)) {
+        await this.bot.closeTab?.(tab).catch(() => {});
+        this.failVideo(run, "sending", err.message, err.sent, err.screenshot);
+        return { sent: err.sent, failed: true };
       }
       if (!err.sent) {
         const to = err.code === "login" || err.code === "challenge" ? "paused_login" : "paused_ui";
@@ -811,6 +862,36 @@ export class BatchRunner {
       moveRun(this.db, run.id, "sending", "waiting", `${err.message}. Không gửi lại; vẫn chờ ${what} trong cuộc trò chuyện`, {}, err.screenshot);
     }
     return { sent: true, inflight: waiting() };
+  }
+
+  /**
+   * Bảng video (CON-91, đổi D9 riêng cho Bảng video): chưa quá `MAX_ATTEMPTS` lần thì đưa dòng về hàng đợi để chạy lại
+   * trong cuộc trò chuyện mới; đủ số lần thì Cần xem. `sent`: lần này đã gửi Muse, vẫn tính một lượt.
+   */
+  private failVideo(run: RunRow, from: string, why: string, sent: boolean, screenshot?: string): void {
+    const attempt = run.attempt ?? 1;
+    if (attempt >= MAX_ATTEMPTS) {
+      const msg = `Thất bại ${MAX_ATTEMPTS} lần: ${why}`;
+      moveRun(this.db, run.id, from, "needs_review", `${msg}; không chạy lại nữa`, { error: msg, doneAt: now(), ...(sent ? {} : { sentAt: null }) }, screenshot);
+      return;
+    }
+    const msg = `Thất bại lần ${attempt}/${MAX_ATTEMPTS}: ${why}`;
+    moveRun(
+      this.db,
+      run.id,
+      from,
+      "queued",
+      `${msg}; sẽ tự chạy lại`,
+      {
+        error: msg,
+        attempt: attempt + 1,
+        sentAt: null,
+        museChatUrl: null,
+        extraSends: (run.extraSends ?? 0) + (sent ? 1 : 0),
+        extraSentAt: sent ? now() : (run.extraSentAt ?? null),
+      },
+      screenshot,
+    );
   }
 
   private async reopenChat(url: string, tab?: string): Promise<boolean> {
@@ -879,7 +960,7 @@ export class BatchRunner {
       } else f.seen = undefined;
     } else if ((w.videos ?? 0) > 0) {
       await this.downloadBang(run, f.tab);
-      return { finished: true };
+      return { finished: true, ok: true };
     }
     if (Date.now() >= f.deadline) {
       moveRun(this.db, run.id, "waiting", "needs_review", `Quá thời gian chờ mà Muse chưa gửi ${anh ? "ảnh" : "video"}; không gửi lại (D9)`, {
@@ -901,6 +982,16 @@ export class BatchRunner {
         await this.bot.bringToFront();
       }
     }
+    if (!anh) {
+      // Muse hỏi lại hoặc chờ duyệt (CON-91): chờ thêm một lúc phòng nhận nhầm, vẫn vậy thì coi là thất bại.
+      if (w.notice === "asking" || w.approval) {
+        f.askingSince ??= Date.now();
+        if (Date.now() - f.askingSince >= 2 * (this.o.minuteMs ?? 60_000)) {
+          this.failVideo(run, "waiting", "Muse hỏi lại thay vì tạo video", true);
+          return { finished: true, failed: true };
+        }
+      } else f.askingSince = undefined;
+    }
     if (w.login && !f.loginNoted) {
       f.loginNoted = true;
       logRunEvent(this.db, run.id, "waiting", "Trang Muse đang hiện đăng nhập / kiểm tra bảo mật; vẫn chờ video");
@@ -908,6 +999,10 @@ export class BatchRunner {
     if (w.notice === "quota") {
       moveRun(this.db, run.id, "waiting", "paused_quota", "Muse báo hết lượt", { error: "Muse hết lượt" });
       return { finished: true, pause: "quota" };
+    }
+    if (w.notice === "error" && !anh) {
+      this.failVideo(run, "waiting", "Muse báo lỗi", true);
+      return { finished: true, failed: true };
     }
     if (w.notice === "rejected" || w.notice === "error") {
       const why = w.notice === "rejected" ? "Muse từ chối yêu cầu" : "Muse báo lỗi";
@@ -1122,7 +1217,7 @@ export class BatchRunner {
   private runs(batchId: number, states: string[]): RunRow[] {
     return this.db
       .prepare(
-        `SELECT id, batchId, rowNumber, state, inputSnapshot, requestText, overwrite, sentAt, tabSnapshot, museChatUrl, hookText, anhPhase, anhBaseline, nvDraftId FROM runs
+        `SELECT id, batchId, rowNumber, state, inputSnapshot, requestText, overwrite, sentAt, tabSnapshot, museChatUrl, hookText, anhPhase, anhBaseline, nvDraftId, attempt, extraSends, extraSentAt FROM runs
          WHERE batchId = ? AND state IN (${states.map(() => "?").join(", ")}) ORDER BY rowNumber`,
       )
       .all(batchId, ...states) as RunRow[];
