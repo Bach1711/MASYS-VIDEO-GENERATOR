@@ -570,6 +570,8 @@ Tạo xong thì gửi video ngay trong cuộc trò chuyện này. Không lưu l�
 - `{danh_sach_anh}` do tool điền, ví dụ *"ảnh 1 là người mẫu, ảnh 2 là thiết kế áo"*.
 - Câu chữ mặc định có thể chỉnh sau khi chạy thật; người dùng sửa mẫu trong Cài đặt thì tool cảnh báo khi thiếu `{prompt}`.
 
+**Câu không hỏi lại (CON-89):** tool tự thêm `NO_ASK_LINE` vào cuối mọi yêu cầu tạo video, sau khi điền mẫu, nên máy đã lưu mẫu riêng cũng có. Bảng ảnh và Tạo nhân vật không thêm.
+
 ### 17.5 Chạy một lượt (thay F5 cho Bảng mới)
 1. **Đọc lại dòng** trong SQLite: còn đủ file ảnh trên đĩa, prompt còn, chưa có video (trừ Ghi đè). Thiếu → `needs_review`, không gửi.
 2. Mở **cuộc trò chuyện mới** (side chat, D7). Ghi `museChatUrl` ngay khi có.

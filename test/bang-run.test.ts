@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { BangFiles } from "../src/bang/files.js";
-import { buildBangRequest, DEFAULT_BANG_SHIRT_TEMPLATE, validateBangTemplate } from "../src/bang/request.js";
+import { buildBangRequest, DEFAULT_BANG_SHIRT_TEMPLATE, NO_ASK_LINE, validateBangTemplate } from "../src/bang/request.js";
 import { addRow, countByFilter, getRow, labelOf } from "../src/bang/rows.js";
 import { insertBangBatch, planBangBatch } from "../src/bang/run.js";
 import { BotError, type WatchResult } from "../src/bot/museBot.js";
@@ -96,6 +96,14 @@ describe("yêu cầu gửi Muse (17.4)", () => {
     expect("text" in two && two.text).toContain("Prompt: bước tới");
     expect("text" in two && two.text).toContain("không sửa Google Sheet");
 
+    for (const r of [one, shirt, two]) {
+      expect("text" in r && r.text.endsWith(`\n${NO_ASK_LINE}`)).toBe(true);
+    }
+    // Máy đã lưu mẫu riêng vẫn có câu này (CON-89).
+    for (const n of [1, 3]) {
+      const own = buildBangRequest(getRow(db, n)!, { ...s, bangTemplate: "Mẫu riêng {prompt}", twoSidedTemplate: "Mẫu riêng hai mặt {prompt}" }, "");
+      expect("text" in own && own.text.endsWith(NO_ASK_LINE)).toBe(true);
+    }
     expect(buildBangRequest(getRow(db, 4)!, s, "")).toEqual({ problems: ["Có mặt sau nên cần đủ 4 ảnh, còn thiếu: Áo trước, Áo sau"] });
   });
 

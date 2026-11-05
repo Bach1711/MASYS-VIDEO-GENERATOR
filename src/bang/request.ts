@@ -38,6 +38,14 @@ Prompt: {prompt}
 Yêu cầu thêm: {yeu_cau_them}
 Tạo xong thì gửi video ngay trong cuộc trò chuyện này. Không lưu lên Google Drive, không sửa Google Sheet.`;
 
+/**
+ * Câu cuối mọi yêu cầu tạo video (CON-89): Muse hỏi lại thì không có video. Tool tự thêm, không nằm trong mẫu, để máy đã
+ * lưu mẫu riêng ở Cài đặt cũng có.
+ */
+export const NO_ASK_LINE = "Không hỏi lại, không đưa ra lựa chọn, không xin xác nhận. Thực hiện ngay yêu cầu; nếu có chỗ mơ hồ, hãy tự chọn cách hiểu có khả năng đúng nhất và làm luôn.";
+
+const withNoAsk = (text: string) => `${text.trimEnd()}\n${NO_ASK_LINE}`;
+
 export const BANG_DEFAULTS: Record<BangTemplateKind, string> = {
   bangTemplate: DEFAULT_BANG_TEMPLATE,
   bangShirtTemplate: DEFAULT_BANG_SHIRT_TEMPLATE,
@@ -98,7 +106,7 @@ export function buildBangRequest(row: BangRow, s: Pick<Settings, BangTemplateKin
   const prompt = row.prompt.trim();
   const yeu_cau_them = combineExtra(extra, "");
   if (attachments.length === 4) {
-    return { kind: "two_sided", attachments, text: renderTemplate(s.twoSidedTemplate ?? DEFAULT_TWO_SIDED_TEMPLATE, { prompt, yeu_cau_them }) };
+    return { kind: "two_sided", attachments, text: withNoAsk(renderTemplate(s.twoSidedTemplate ?? DEFAULT_TWO_SIDED_TEMPLATE, { prompt, yeu_cau_them })) };
   }
   const shirt = attachments.length === 2;
   const text = renderTemplate(s.bangTemplate ?? DEFAULT_BANG_TEMPLATE, {
@@ -108,7 +116,7 @@ export function buildBangRequest(row: BangRow, s: Pick<Settings, BangTemplateKin
     prompt,
     yeu_cau_them,
   });
-  return { kind: shirt ? "shirt" : "single", attachments, text };
+  return { kind: shirt ? "shirt" : "single", attachments, text: withNoAsk(text) };
 }
 
 /** "ảnh 1 · Mẫu trước" cho phần xem trước. */
