@@ -1,3 +1,4 @@
+import { NO_ASK_LINE } from "../src/bang/request.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -211,7 +212,8 @@ describe("mẫu hai mặt mới làm mẫu gốc (CON-73)", () => {
       expect(text()).toContain(s);
     }
     db.prepare("UPDATE settings SET twoSidedTemplate = ? WHERE id = 1").run("Mẫu riêng của tôi: {prompt}");
-    expect(text()).toBe("Mẫu riêng của tôi: vuốt tóc");
+    expect(text()).toBe(`Mẫu riêng của tôi: vuốt tóc
+${NO_ASK_LINE}`);
   });
 });
 

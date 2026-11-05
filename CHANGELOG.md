@@ -2,6 +2,10 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+- Yêu cầu tạo video có thêm câu dặn Muse không hỏi lại, không đưa lựa chọn, gặp chỗ mơ hồ thì tự chọn cách hiểu có khả năng đúng nhất. Câu này tự thêm cho mọi video, kể cả khi bạn đã sửa mẫu prompt.
+
 ## v2.9.0
 
 **Tải ảnh nhân vật chỉ cần một lần bấm.**
