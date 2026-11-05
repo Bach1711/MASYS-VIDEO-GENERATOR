@@ -2,12 +2,15 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
-## Chưa phát hành
+## v2.10.0
 
-- **Bảng video tự chạy lại dòng lỗi:** Muse load lỗi, bot không điền được prompt, trang đơ sau khi gửi, Muse báo lỗi hoặc hỏi lại thì tool đóng tab đó, đánh dấu **Thất bại lần 1/3** và để các video khác chạy tiếp. Chạy xong thì tự chạy lại dòng lỗi trong cuộc trò chuyện mới. Tổng tối đa 3 lần, vẫn lỗi thì chuyển **Cần xem** kèm ghi chú. Nếu lỗi liên tiếp ở 3 dòng khác nhau, lô tạm dừng để bạn kiểm tra Muse.
+**Bảng video tự xử lý khi Muse lỗi, Hủy lô dừng ngay.**
+
+- **Tự chạy lại dòng lỗi (Bảng video):** Muse load lỗi, bot không điền được prompt, trang đơ sau khi gửi, Muse báo lỗi hoặc hỏi lại thì tool đóng tab đó, ghi **Thất bại lần 1/3** và để các video khác chạy tiếp. Sau đó tool tự chạy lại dòng lỗi trong cuộc trò chuyện mới, tổng tối đa 3 lần. Vẫn lỗi thì chuyển **Cần xem** kèm ghi chú.
+- Nếu 3 dòng khác nhau lỗi liên tiếp, lô tạm dừng để bạn kiểm tra Muse.
 - Mỗi lần đã gửi Muse vẫn tính một lượt, kể cả lần thất bại. Trang đơ sau khi gửi có thể làm ra 2 video.
-- **Hủy lô** giờ dừng ngay, kể cả khi bot đang gửi: bot đóng cửa sổ Muse, không phải chờ hết giờ. Dòng chưa gửi thành **Đã hủy**, dòng đã gửi thành **Cần xem**. Muốn chờ tải nốt video đã gửi thì bấm **Tạm dừng**.
-- Yêu cầu tạo video có thêm câu dặn Muse không hỏi lại, không đưa lựa chọn, gặp chỗ mơ hồ thì tự chọn cách hiểu có khả năng đúng nhất. Câu này tự thêm cho mọi video, kể cả khi bạn đã sửa mẫu prompt.
+- **Hủy lô** giờ dừng ngay, kể cả khi bot đang gửi: bot đóng cửa sổ Muse. Dòng chưa gửi thành **Đã hủy**, dòng đã gửi thành **Cần xem**. Muốn chờ tải nốt video đã gửi thì bấm **Tạm dừng**.
+- Yêu cầu tạo video có thêm câu dặn Muse không hỏi lại, không đưa lựa chọn, kể cả khi bạn đã sửa mẫu prompt.
 
 ## v2.9.0
 
