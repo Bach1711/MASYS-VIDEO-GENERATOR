@@ -15,7 +15,7 @@ export interface DailyQuota {
 
 /**
  * D13: đếm các lượt đã gửi Muse trong ngày theo giờ máy, kể cả lượt lỗi
- * (mọi run có sentAt; sentAt ghi bằng Date.toISOString()).
+ * (mọi run có sentAt; sentAt ghi bằng Date.toISOString()). Lần thất bại đã gửi rồi chạy lại vẫn tính lượt (CON-91).
  */
 export function getDailyQuota(db: DB, now = new Date()): DailyQuota {
   const { start, end } = localDayBounds(now);
@@ -23,10 +23,14 @@ export function getDailyQuota(db: DB, now = new Date()): DailyQuota {
   const { used } = db
     .prepare("SELECT COUNT(*) AS used FROM runs WHERE sentAt IS NOT NULL AND sentAt >= ? AND sentAt < ? AND anhRowId IS NULL AND nvDraftId IS NULL")
     .get(start, end) as { used: number };
+  const { extra } = db
+    .prepare("SELECT COALESCE(SUM(extraSends), 0) AS extra FROM runs WHERE extraSentAt IS NOT NULL AND extraSentAt >= ? AND extraSentAt < ?")
+    .get(start, end) as { extra: number };
   const { dailyVideoLimit: limit } = db.prepare("SELECT dailyVideoLimit FROM settings WHERE id = 1").get() as {
     dailyVideoLimit: number;
   };
-  return { used, limit, remaining: Math.max(0, limit - used) };
+  const total = used + extra;
+  return { used: total, limit, remaining: Math.max(0, limit - total) };
 }
 
 /**
