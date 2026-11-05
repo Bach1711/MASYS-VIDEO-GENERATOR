@@ -151,7 +151,8 @@ describe("Mô tả và prompt", () => {
     expect(TURNAROUND_PROMPT).toContain("front, three-quarter, side profile, back");
     expect(TURNAROUND_PROMPT).toContain("wide 16:9 layout");
     expect(m).toContain("tall vertical 9:16 layout");
-    expect(FACE_PROMPT).toContain("square 1:1 layout");
+    expect(FACE_PROMPT).toContain("tall vertical 9:16 layout");
+    expect(FACE_PROMPT).not.toContain("1:1");
     expect(FACE_PROMPT).toContain("close-up portrait of the same character");
   });
 
