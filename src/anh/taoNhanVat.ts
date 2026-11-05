@@ -86,7 +86,7 @@ ${IN_CHAT}`;
 
 export const FACE_PROMPT = `Using the attached image as the exact reference, create a close-up portrait of the same character, head and shoulders, facing the camera, neutral expression.
 Keep the face shape, eyes, skin tone, hair and distinctive marks identical to the reference.
-Plain light grey background, soft even lighting, sharp focus on the face, square 1:1 layout.
+Plain light grey background, soft even lighting, sharp focus on the face, tall vertical 9:16 layout.
 No text, no extra people.
 ${IN_CHAT}`;
 

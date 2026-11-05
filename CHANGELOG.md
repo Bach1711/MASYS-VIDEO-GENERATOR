@@ -2,6 +2,11 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+- Thẻ nhân vật gọn hơn: bỏ 3 dòng chọn file, mỗi ô ảnh có dấu **+**. Bấm **+**, chọn ảnh trong thư mục rồi xác nhận là ảnh tự tải lên đúng ô.
+- Ảnh face tạo trong app đổi sang khung dọc 9:16, giống ảnh master. Ảnh turnaround vẫn ngang 16:9. Ảnh đã tạo giữ nguyên.
+
 ## v2.8.0
 
 **Trang Nhân vật xem được đủ ảnh và prompt.**
