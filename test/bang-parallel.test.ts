@@ -1,3 +1,4 @@
+import { NO_ASK_LINE } from "../src/bang/request.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
