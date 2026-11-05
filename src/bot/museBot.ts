@@ -51,7 +51,18 @@ export interface MuseBotOptions {
   attachTimeoutMs?: number;
   /** Nghỉ ngắn trước khi bấm Gửi, như người (ms). */
   pauseBeforeSendMs?: [number, number];
+  /** Ô chat phải đứng yên chừng này mới coi là trang đã ổn định (ms, CON-98). */
+  settleQuietMs?: number;
+  /** Chờ trang ổn định tối đa chừng này, quá thì làm tiếp (ms, CON-98). */
+  settleTimeoutMs?: number;
 }
+
+/** Muse xoá nội dung ô chat trước khi gửi: điền lại tối đa chừng này lần trong cùng tab (CON-98). */
+export const MAX_REFILLS = 2;
+/** Lượt không kèm ảnh: chờ nút Gửi tối đa chừng này (ms). */
+const SEND_WAIT_NO_FILES_MS = 15_000;
+/** Nội dung phải mất liên tục chừng này mới coi là mất, tránh điền trùng khi Muse chỉ vẽ lại trong chốc lát (ms). */
+const LOST_CONFIRM_MS = 1000;
 
 export const stripQuery = (url: string) => url.split(/[?#]/)[0]!;
 
@@ -338,6 +349,24 @@ export class MuseBot {
     }
   }
 
+  /**
+   * Muse có lúc vẽ lại ô chat ngay sau khi mở cuộc trò chuyện, xoá mất những gì vừa điền (ghi nhận lô 33, 37): chờ tải
+   * xong và ô chat đứng yên một nhịp rồi mới điền. Quá giờ vẫn làm tiếp, bước kiểm tra trước khi bấm Gửi sẽ bắt lỗi.
+   */
+  private async settle(page: Page): Promise<void> {
+    const timeout = this.o.settleTimeoutMs ?? 8000;
+    await page.waitForLoadState("load", { timeout }).catch(() => {});
+    const deadline = Date.now() + timeout;
+    do {
+      const el = await sel.chat.composer(page).elementHandle({ timeout: 1000 }).catch(() => null);
+      const url = page.url();
+      await page.waitForTimeout(this.o.settleQuietMs ?? 1200);
+      const same = el ? await el.evaluate((e) => e.isConnected).catch(() => false) : false;
+      await el?.dispose().catch(() => {});
+      if (same && page.url() === url) return;
+    } while (Date.now() < deadline);
+  }
+
   private async screenshot(page: Page, code: string): Promise<string | undefined> {
     try {
       fs.mkdirSync(this.o.screenshotDir, { recursive: true });
@@ -392,14 +421,14 @@ export class MuseBot {
       }
       const fresh = await this.classify(page);
       if (fresh !== "ready") return await this.fail(page, fresh, `Không mở được cuộc trò chuyện mới: ${STATE_TEXT[fresh]}`, false);
+      await this.settle(page);
       const startUrl = page.url();
       const noticesBefore = noticeKinds(await bodyText(page));
 
-      if (files.length) {
-        if ((await sel.chat.removeAttachment(page).count()) > 0) {
-          return await this.fail(page, "ui_changed", "Cuộc trò chuyện mới đã có sẵn ảnh đính kèm lạ; chưa gửi", false);
-        }
+      const attach = async (again = false) => {
         try {
+          // Chọn lại đúng file cũ thì Chrome không báo thay đổi và Muse không nhận: xoá ô chọn file trước.
+          if (again) await sel.chat.fileInput(page).setInputFiles([], { timeout: 5000 });
           await sel.chat.fileInput(page).setInputFiles(files, { timeout: 5000 });
         } catch {
           return await this.fail(page, "ui_changed", "Không thấy chỗ đính kèm ảnh của Muse", false);
@@ -413,24 +442,51 @@ export class MuseBot {
           }
           await page.waitForTimeout(500);
         }
-      }
-
+      };
       const composer = sel.chat.composer(page);
-      await composer.click();
-      await composer.fill(text);
-      const typed = normalize(await composerText(composer));
-      if (!typed.includes(normalize(text).slice(0, 40))) {
-        return await this.fail(page, "ui_changed", "Không dán được yêu cầu vào ô chat Muse", false);
-      }
-
+      const sample = normalize(text).slice(0, 40);
+      const hasText = async () => normalize(await composerText(composer)).includes(sample);
       const [min, max] = this.o.pauseBeforeSendMs ?? [1500, 3000];
-      await page.waitForTimeout(min + Math.random() * (max - min));
+      const fill = async () => {
+        await composer.click({ timeout: 5000 });
+        await composer.fill(text, { timeout: 5000 });
+        if (!(await hasText())) return await this.fail(page, "ui_changed", "Không dán được yêu cầu vào ô chat Muse", false);
+        await page.waitForTimeout(min + Math.random() * (max - min));
+      };
 
-      // Ảnh còn đang tải lên thì nút Gửi có thể chưa bấm được: chờ thêm một lúc.
+      if (files.length) {
+        if ((await sel.chat.removeAttachment(page).count()) > 0) {
+          return await this.fail(page, "ui_changed", "Cuộc trò chuyện mới đã có sẵn ảnh đính kèm lạ; chưa gửi", false);
+        }
+        await attach();
+      }
+      await fill();
+
+      // Ảnh còn đang tải lên thì nút Gửi có thể chưa bấm được: chờ thêm một lúc. Muse xoá mất nội dung thì điền lại (CON-98).
       const send = sel.chat.send(page);
-      const sendDeadline = Date.now() + (files.length ? (this.o.attachTimeoutMs ?? 60_000) : 0);
-      while (!((await visible(send)) && (await send.isEnabled().catch(() => false)))) {
-        if (Date.now() >= sendDeadline) return await this.fail(page, "ui_changed", "Không thấy nút Gửi của Muse", false);
+      const attachWait = this.o.attachTimeoutMs ?? 60_000;
+      const waitSend = () => Date.now() + (files.length ? attachWait : Math.min(attachWait, SEND_WAIT_NO_FILES_MS));
+      let sendDeadline = waitSend();
+      let refills = 0;
+      let lostAt: number | undefined;
+      for (;;) {
+        const images = files.length ? await sel.chat.removeAttachment(page).count() : 0;
+        if ((await hasText()) && images === files.length) {
+          lostAt = undefined;
+          if ((await visible(send)) && (await send.isEnabled().catch(() => false))) break;
+          if (Date.now() >= sendDeadline) return await this.fail(page, "ui_changed", "Không thấy nút Gửi của Muse", false);
+        } else if (Date.now() - (lostAt ??= Date.now()) >= LOST_CONFIRM_MS) {
+          if (refills >= MAX_REFILLS) return await this.fail(page, "ui_changed", `Muse xoá nội dung ô chat, đã điền lại ${MAX_REFILLS} lần; chưa gửi`, false);
+          // Chỉ còn một phần ảnh thì không đính kèm thêm kẻo trùng: để hàng đợi thay tab.
+          if (images > 0 && images !== files.length) return await this.fail(page, "ui_changed", `Muse chỉ còn ${images}/${files.length} ảnh đính kèm; chưa gửi`, false);
+          refills++;
+          logger.warn({ refills, images, want: files.length }, "Muse xoá nội dung ô chat trước khi gửi; điền lại");
+          if (images === 0 && files.length) await attach(true);
+          await fill();
+          sendDeadline = waitSend();
+          lostAt = undefined;
+          continue;
+        }
         await page.waitForTimeout(500);
       }
       clicked = true;
@@ -479,10 +535,14 @@ async function visible(l: { isVisible(): Promise<boolean> }): Promise<boolean> {
 /** Chữ trong ô chat, dù là ô nhập (value) hay vùng soạn thảo (contenteditable). */
 async function composerText(l: Locator): Promise<string> {
   return l
-    .evaluate((el) => {
-      const e = el as unknown as { value?: unknown; innerText: string };
-      return typeof e.value === "string" ? e.value : e.innerText;
-    })
+    .evaluate(
+      (el) => {
+        const e = el as unknown as { value?: unknown; innerText: string };
+        return typeof e.value === "string" ? e.value : e.innerText;
+      },
+      undefined,
+      { timeout: 2000 },
+    )
     .catch(() => "");
 }
 

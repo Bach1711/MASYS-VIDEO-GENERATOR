@@ -30,6 +30,8 @@ afterEach(() => {
 });
 
 interface FakeOpts {
+  /** Chừng này lần gửi đầu Muse trắng trang (chưa gửi). */
+  sendFailures?: number;
   /** Số ảnh Muse trả mỗi tin. */
   perReply?: number;
   /** Muse chỉ trả lại ảnh giống hệt character sheet. */
@@ -50,6 +52,7 @@ function setup(o: FakeOpts = {}) {
   const nv = addNhanVat(db, "Linh", (id) => ({ file: files.saveNhanVat(id, SHEET), bytes: SHEET.length }));
   const log: { kind: "send" | "reply"; text: string; files?: string[]; tab: string }[] = [];
   const opened: string[] = [];
+  const closed: string[] = [];
   /** Ảnh trên trang của từng tab: src + dữ liệu. */
   const pages = new Map<string, { src: string; data: Uint8Array; ready: boolean }[]>();
   const pending = new Map<string, number>();
@@ -69,6 +72,7 @@ function setup(o: FakeOpts = {}) {
     async open() {},
     async send(text: string, f: string[] = [], tab = "") {
       log.push({ kind: "send", text, files: f, tab });
+      if (o.sendFailures && log.filter((l) => l.kind === "send").length <= o.sendFailures) throw new BotError("ui_changed", "Không thấy nút Gửi của Muse", false);
       // Tin của mình hiện kèm ảnh character sheet (ảnh lớn đầu tiên trong khung chat).
       pages.set(tab, [{ src: "blob:me/sheet", data: SHEET, ready: true }]);
       pending.set(tab, 2);
@@ -96,6 +100,9 @@ function setup(o: FakeOpts = {}) {
       }
     },
     async bringToFront() {},
+    async closeTab(tab: string) {
+      closed.push(tab);
+    },
     async downloadVideo() {
       throw new Error("không dùng");
     },
@@ -112,7 +119,7 @@ function setup(o: FakeOpts = {}) {
     await runner.idle();
     return batchId;
   };
-  return { db, files, dataDir, nv, runner, app, log, opened, pages, run };
+  return { db, files, dataDir, nv, runner, app, log, opened, closed, pages, run };
 }
 
 const lastRun = (db: DB, row: number) =>
@@ -275,6 +282,34 @@ describe("Bảng ảnh: thêm và sửa dòng (D31)", () => {
 });
 
 describe("tạo ảnh trên Muse (17.13)", () => {
+  it("trắng trang: đóng tab, mở tab mới làm lại, lô không dừng, chỉ tính một lượt ảnh (CON-98)", async () => {
+    const t = setup({ sendFailures: 2 });
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "đứng ở quán cà phê" });
+    const batchId = await t.run([id]);
+    expect(t.log).toHaveLength(3);
+    expect(lastRun(t.db, id).state).toBe("done");
+    expect(getBatch(t.db, batchId)!.status).toBe("done");
+    expect(getImageQuota(t.db).used).toBe(1);
+    expect(events(t.db, lastRun(t.db, id).id as number).filter((e) => e.startsWith("Tab "))).toHaveLength(2);
+    expect(t.closed.slice(0, 2)).toEqual([t.log[0]!.tab, t.log[0]!.tab]);
+  });
+
+  it("hỏng đủ 3 tab: tạm dừng lô, nêu lý do, không còn tab trắng, không tính lượt; Tiếp tục thì gửi lại được (CON-98)", async () => {
+    const t = setup({ sendFailures: 3 });
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "đứng ở quán cà phê" });
+    const batchId = await t.run([id]);
+    expect(t.log).toHaveLength(3);
+    expect(getBatch(t.db, batchId)).toMatchObject({ status: "paused", pauseReason: "ui" });
+    expect(lastRun(t.db, id).state).toBe("paused_ui");
+    expect(events(t.db, lastRun(t.db, id).id as number).at(-1)).toBe("Chưa gửi: Không thấy nút Gửi của Muse");
+    expect(t.closed).toHaveLength(3);
+    expect(getImageQuota(t.db).used).toBe(0);
+    expect(t.runner.start(batchId)).toEqual({ ok: true });
+    await t.runner.idle();
+    expect(lastRun(t.db, id).state).toBe("done");
+    expect(getImageQuota(t.db).used).toBe(1);
+  });
+
   it("một ảnh: đính kèm character sheet, chờ ảnh mới sau ảnh của mình, tải về tep\\anh-tao, ảnh đầu là ảnh chính", async () => {
     const t = setup({ perReply: 3 });
     const id = addRow(t.db, { nhanVatId: t.nv, prompt: "đứng ở quán cà phê" });

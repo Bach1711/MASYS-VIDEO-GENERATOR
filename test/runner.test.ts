@@ -616,7 +616,7 @@ describe("Lịch sử lô, Nhật ký, dải báo (F6)", () => {
     expect(hist).toContain(`href="/batch/${id}"`);
     expect(hist).toContain("✅ 1 xong");
     expect(hist).toContain("❌ 1 lỗi");
-    expect(hist).toContain("Giao diện Muse thay đổi");
+    expect(hist).toContain("Bot chưa gửi được cho Muse");
 
     const logs = await (await app.request("/logs")).text();
     expect(logs).toContain("Muse từ chối yêu cầu");
@@ -628,7 +628,7 @@ describe("Lịch sử lô, Nhật ký, dải báo (F6)", () => {
 
     for (const p of ["/", "/batches", "/settings"]) {
       const html = await (await app.request(p)).text();
-      expect(html).toContain(`Lô #${id2} đang tạm dừng: Giao diện Muse thay đổi`);
+      expect(html).toContain(`Lô #${id2} đang tạm dừng: Bot chưa gửi được cho Muse`);
     }
 
     const page = await (await app.request(`/batch/${id2}`)).text();

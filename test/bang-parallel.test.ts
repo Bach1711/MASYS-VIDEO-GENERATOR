@@ -240,13 +240,13 @@ describe("Bảng video tự chạy lại dòng lỗi (CON-91)", () => {
   const ui = () => new BotError("ui_changed", "Không thấy ô chat", false);
   const info = (db: DB, row: number) => db.prepare("SELECT attempt, error, sentAt, extraSends FROM runs WHERE bangRowId = ?").get(row) as { attempt: number; error: string | null; sentAt: string | null; extraSends: number };
 
-  it("giao diện lỗi lúc chưa gửi: không dừng lô, dòng lỗi chạy sau cùng trong tab mới, không tính lượt", async () => {
+  it("giao diện lỗi lúc chưa gửi: mở tab mới làm lại ngay, không dừng lô, không tính lượt, không tính thất bại (CON-98)", async () => {
     const t = setup({ rows: 3, slow: { 1: 2, 2: 2, 3: 2 }, sendFail: (row, nth) => (row === 1 && nth === 1 ? ui() : undefined) });
     const id = await t.run([1, 2, 3]);
-    expect(t.sends.map((s) => s.row)).toEqual([1, 2, 3, 1]);
+    expect(t.sends.map((s) => s.row)).toEqual([1, 1, 2, 3]);
     expect(states(t.db)).toEqual(["1:done", "2:done", "3:done"]);
     expect(getBatch(t.db, id)!.status).toBe("done");
-    expect(info(t.db, 1)).toMatchObject({ attempt: 2, error: null, extraSends: 0 });
+    expect(info(t.db, 1)).toMatchObject({ attempt: 1, error: null, extraSends: 0 });
     expect(getDailyQuota(t.db).used).toBe(3);
     expect(t.closes()).toBe(0);
   });
@@ -261,7 +261,7 @@ describe("Bảng video tự chạy lại dòng lỗi (CON-91)", () => {
   });
 
   it("chỉ còn đúng 1 video mà lỗi: đóng cả trình duyệt rồi chạy lại", async () => {
-    const t = setup({ rows: 1, slow: { 1: 2 }, sendFail: (_r, nth) => (nth === 1 ? ui() : undefined) });
+    const t = setup({ rows: 1, slow: { 1: 2 }, sendFail: (_r, nth) => (nth === 1 ? new BotError("send_unconfirmed", "Không chắc Muse đã nhận", true) : undefined) });
     await t.run([1]);
     expect(t.closes()).toBe(1);
     expect(states(t.db)).toEqual(["1:done"]);
@@ -299,12 +299,13 @@ describe("Bảng video tự chạy lại dòng lỗi (CON-91)", () => {
   });
 
   it("3 dòng khác nhau lỗi liên tiếp: tạm dừng lô, dòng sau chưa gửi; Tiếp tục thì chạy lại và nhớ số lần", async () => {
+    const unsure = () => new BotError("send_unconfirmed", "Không chắc Muse đã nhận", true);
     let down = true;
-    const t = setup({ rows: 4, slow: { 1: 2, 2: 2, 3: 2, 4: 2 }, sendFail: () => (down ? ui() : undefined) });
+    const t = setup({ rows: 4, slow: { 1: 2, 2: 2, 3: 2, 4: 2 }, sendFail: () => (down ? unsure() : undefined) });
     const id = await t.run([1, 2, 3, 4]);
     expect(getBatch(t.db, id)).toMatchObject({ status: "paused", pauseReason: "muse_down" });
     expect(t.sends.map((s) => s.row)).toEqual([1, 2, 3]);
-    expect(info(t.db, 1)).toMatchObject({ attempt: 2, error: "Thất bại lần 1/3: Không thấy ô chat" });
+    expect(info(t.db, 1)).toMatchObject({ attempt: 2, error: "Thất bại lần 1/3: Không chắc Muse đã nhận" });
     down = false;
     expect(t.runner.start(id)).toEqual({ ok: true });
     await t.runner.idle();
@@ -312,15 +313,65 @@ describe("Bảng video tự chạy lại dòng lỗi (CON-91)", () => {
     expect(t.sends.map((s) => s.row).slice(3)).toEqual([4, 1, 2, 3]);
   });
 
-  it("Hủy lô lúc đang chờ chạy lại: dừng luôn, không gửi nữa", async () => {
-    const t = setup({ rows: 1, sendFail: () => ui() });
+  it("nhiều dòng cùng trắng trang nhưng tab mới cứu được: lô chạy đến hết, không dừng vì Muse lỗi (CON-98)", async () => {
+    const t = setup({ rows: 4, slow: { 1: 2, 2: 2, 3: 2, 4: 2 }, sendFail: (_r, nth) => (nth < 3 ? ui() : undefined) });
+    const id = await t.run([1, 2, 3, 4]);
+    expect(getBatch(t.db, id)!.status).toBe("done");
+    expect(states(t.db)).toEqual(["1:done", "2:done", "3:done", "4:done"]);
+    expect(t.sends).toHaveLength(12);
+    expect(new Set(t.closed.slice(0, 2)).size).toBe(1);
+    expect(getDailyQuota(t.db).used).toBe(4);
+  });
+
+  it("hỏng đủ 3 tab: Cần xem ngay, không chạy lại thêm, không tính lượt, dòng khác vẫn chạy (CON-98)", async () => {
+    const t = setup({ rows: 2, slow: { 1: 2, 2: 2 }, sendFail: (row) => (row === 1 ? ui() : undefined) });
+    const id = await t.run([1, 2]);
+    expect(t.sends.map((s) => s.row)).toEqual([1, 1, 1, 2]);
+    expect(states(t.db)).toEqual(["1:needs_review", "2:done"]);
+    expect(info(t.db, 1)).toMatchObject({ attempt: 1, error: "Thất bại 3 lần: Không thấy ô chat", sentAt: null });
+    expect(t.closed.filter((x) => x === t.sends[0]!.tab)).toHaveLength(3);
+    expect(getBatch(t.db, id)!.status).toBe("done");
+    expect(getDailyQuota(t.db).used).toBe(1);
+  });
+
+  it("Muse hỏng thật, 3 dòng hỏng đủ 3 tab: vẫn tạm dừng lô, không đốt hết các dòng còn lại (CON-98)", async () => {
+    const t = setup({ rows: 5, slow: { 1: 2, 2: 2, 3: 2, 4: 2, 5: 2 }, sendFail: () => ui() });
+    const id = await t.run([1, 2, 3, 4, 5]);
+    expect(getBatch(t.db, id)).toMatchObject({ status: "paused", pauseReason: "muse_down" });
+    expect(t.sends.map((s) => s.row)).toEqual([1, 1, 1, 2, 2, 2, 3, 3, 3]);
+    expect(states(t.db)).toEqual(["1:needs_review", "2:needs_review", "3:needs_review", "4:queued", "5:queued"]);
+  });
+
+  it("Hủy lô lúc đang thay tab: dừng luôn, không gửi nữa", async () => {
+    let cancel = () => {};
+    const t = setup({ rows: 1, sendFail: () => (cancel(), ui()) });
     const id = t.batchOf([1]);
+    cancel = () => t.runner.cancel(id);
     t.runner.start(id);
-    while (t.sends.length < 1) await new Promise((r) => setTimeout(r, 1));
-    t.runner.cancel(id);
     await t.runner.idle();
     expect(states(t.db)).toEqual(["1:canceled"]);
     expect(t.sends).toHaveLength(1);
+  });
+
+  it("Tạm dừng lúc đang thay tab: dòng về hàng đợi, không mở tab mới, không tính lượt (CON-98)", async () => {
+    let pause = () => {};
+    const t = setup({ rows: 1, sendFail: () => (pause(), ui()) });
+    const id = t.batchOf([1]);
+    pause = () => t.runner.pause(id);
+    t.runner.start(id);
+    await t.runner.idle();
+    expect(getBatch(t.db, id)).toMatchObject({ status: "paused", pauseReason: "user" });
+    expect(states(t.db)).toEqual(["1:queued"]);
+    expect(info(t.db, 1)).toMatchObject({ attempt: 1, sentAt: null });
+    expect(t.sends).toHaveLength(1);
+  });
+
+  it("cần đăng nhập giữa lúc thay tab: dừng như cũ, không mở thêm tab (CON-98)", async () => {
+    const t = setup({ rows: 1, sendFail: (_r, nth) => (nth === 1 ? ui() : new BotError("login", "Cần đăng nhập Muse", false)) });
+    const id = await t.run([1]);
+    expect(getBatch(t.db, id)).toMatchObject({ status: "paused", pauseReason: "login" });
+    expect(t.sends).toHaveLength(2);
+    expect(states(t.db)).toEqual(["1:paused_login"]);
   });
 });
 
