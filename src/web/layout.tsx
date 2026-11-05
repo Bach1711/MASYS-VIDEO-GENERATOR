@@ -60,6 +60,16 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
           nav .nav-in { max-width: 1100px; }
           button:disabled { opacity:.45; cursor:not-allowed; }
           button.secondary, a.button.secondary { background:var(--card); color:var(--fg); border-color:var(--border); }
+          .nv-slot { margin:0; text-align:center; }
+          .nv-box { position:relative; height:220px; border-radius:6px; overflow:hidden; background:var(--border); }
+          .nv-box img { display:block; width:100%; height:100%; object-fit:contain; }
+          .nv-box form { margin:0; }
+          .nv-plus { position:absolute; cursor:pointer; margin:0; }
+          .nv-plus.giua { inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
+          .nv-plus.goc { top:6px; right:6px; }
+          .nv-plus b { display:flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; font-size:20px; line-height:1; background:var(--accent); color:#fff; box-shadow:0 1px 3px rgba(0,0,0,.35); }
+          .nv-plus input { position:absolute; width:1px; height:1px; padding:0; border:0; opacity:0; }
+          .nv-plus:focus-within b { outline:2px solid var(--fg); outline-offset:2px; }
           .nv-prompts > summary { display:inline-block; cursor:pointer; list-style:none; padding:4px 8px; font-size:.85rem; border-radius:6px; background:var(--card); color:var(--fg); border:1px solid var(--border); }
           a.button { display:inline-block; padding:6px 10px; border-radius:6px; background:var(--accent); color:#fff; text-decoration:none; border:1px solid var(--accent); }
           input[type=checkbox] { width:18px; height:18px; padding:0; }

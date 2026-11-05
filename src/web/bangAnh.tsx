@@ -225,6 +225,42 @@ function RowView(props: { row: AnhRow; files: AnhFile[]; locked: boolean; chars:
   );
 }
 
+/** Một ô ảnh trên thẻ nhân vật (CON-88): bấm dấu + chọn ảnh, chọn xong là tải lên ngay. */
+function NvSlot(props: { action: string; label: string; ten: string; file: string | null; url: string | null; width: number }) {
+  const { action, label, ten, file, url, width } = props;
+  const lower = label.charAt(0).toLowerCase() + label.slice(1);
+  const verb = `${file ? "Đổi" : "Thêm"} ${lower}`;
+  return (
+    <figure class="nv-slot">
+      <div class="nv-box" style={`width:${width}px`}>
+        {file && url && (
+          <a href={url} target="_blank" rel="noreferrer" title={`Bấm để xem ${lower} lớn`}>
+            <img src={url} alt={`${lower} ${ten}`} loading="lazy" />
+          </a>
+        )}
+        <form method="post" action={action} enctype="multipart/form-data">
+          <label class={file ? "nv-plus goc" : "nv-plus giua"} title={verb}>
+            <b>+</b>
+            {!file && <span class="muted small">Chưa có {lower}</span>}
+            <input name="file" type="file" accept="image/jpeg,image/png,image/webp" data-nv-upload="1" aria-label={`${verb} cho ${ten}`} />
+          </label>
+        </form>
+      </div>
+      <figcaption class="small muted">{label}</figcaption>
+    </figure>
+  );
+}
+
+/** Chọn file xong (bấm xác nhận trên cửa sổ Windows) là gửi luôn; bấm Cancel thì không có sự kiện change nên không đổi gì. */
+const NV_UPLOAD_JS = `
+document.addEventListener("change", function (e) {
+  var i = e.target;
+  if (!i.getAttribute || !i.getAttribute("data-nv-upload") || !i.files.length) return;
+  i.closest("label").querySelector("b").textContent = "\\u2026";
+  i.form.submit();
+});
+`;
+
 export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
   const { db, config } = deps;
   const files = new BangFiles(config.dataDir);
@@ -895,36 +931,9 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
               return (
                 <div class="card" id={`nv-${ch.id}`}>
                   <div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
-                    <figure style="margin:0;text-align:center">
-                      {ch.masterFile ? (
-                        <a href={sheetUrl(ch.masterFile)} target="_blank" rel="noreferrer" title="Bấm để xem ảnh gốc lớn">
-                          <img src={sheetUrl(ch.masterFile)} alt={`ảnh gốc ${ch.ten}`} loading="lazy" style="width:124px;height:220px;object-fit:contain;border-radius:6px;background:var(--border)" />
-                        </a>
-                      ) : (
-                        <div class="muted small" style="width:124px;height:220px;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:6px;background:var(--border)">
-                          Chưa có ảnh gốc
-                        </div>
-                      )}
-                      <figcaption class="small muted">Ảnh gốc</figcaption>
-                    </figure>
-                    <figure style="margin:0;text-align:center">
-                      <a href={sheetUrl(ch.file)} target="_blank" rel="noreferrer" title="Bấm để xem ảnh 4 góc lớn">
-                        <img src={sheetUrl(ch.file)} alt={`ảnh 4 góc ${ch.ten}`} loading="lazy" style="width:391px;height:220px;object-fit:contain;border-radius:6px;background:var(--border)" />
-                      </a>
-                      <figcaption class="small muted">Ảnh 4 góc</figcaption>
-                    </figure>
-                    <figure style="margin:0;text-align:center">
-                      {ch.faceFile ? (
-                        <a href={sheetUrl(ch.faceFile)} target="_blank" rel="noreferrer" title="Bấm để xem ảnh mặt lớn">
-                          <img src={sheetUrl(ch.faceFile)} alt={`ảnh mặt ${ch.ten}`} loading="lazy" style="width:160px;height:220px;object-fit:contain;border-radius:6px;background:var(--border)" />
-                        </a>
-                      ) : (
-                        <div class="muted small" style="width:160px;height:220px;display:flex;align-items:center;justify-content:center;text-align:center;border-radius:6px;background:var(--border)">
-                          Chưa có ảnh mặt
-                        </div>
-                      )}
-                      <figcaption class="small muted">Ảnh mặt</figcaption>
-                    </figure>
+                    <NvSlot action={`${NV}/${ch.id}/goc`} label="Ảnh gốc" ten={ch.ten} file={ch.masterFile} url={ch.masterFile ? sheetUrl(ch.masterFile) : null} width={124} />
+                    <NvSlot action={`${NV}/${ch.id}/file`} label="Ảnh 4 góc" ten={ch.ten} file={ch.file} url={sheetUrl(ch.file)} width={391} />
+                    <NvSlot action={`${NV}/${ch.id}/mat`} label="Ảnh mặt" ten={ch.ten} file={ch.faceFile} url={ch.faceFile ? sheetUrl(ch.faceFile) : null} width={160} />
                     <div style="flex:1 1 100%;display:flex;flex-direction:column;gap:10px">
                       <div>
                         <strong style="font-size:1.1rem">{ch.ten}</strong>{" "}
@@ -936,24 +945,6 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
                         <input name="ten" type="text" maxlength={60} value={ch.ten} required aria-label={`Tên mới cho ${ch.ten}`} style="flex:0 1 220px" />
                         <button type="submit" class="secondary small">
                           Đổi tên
-                        </button>
-                      </form>
-                      <form method="post" action={`${NV}/${ch.id}/goc`} enctype="multipart/form-data" class="row" style="align-items:center">
-                        <input name="file" type="file" accept="image/jpeg,image/png,image/webp" required aria-label={`Ảnh gốc mới cho ${ch.ten}`} />
-                        <button type="submit" class="secondary small">
-                          {ch.masterFile ? "Đổi ảnh gốc" : "Thêm ảnh gốc"}
-                        </button>
-                      </form>
-                      <form method="post" action={`${NV}/${ch.id}/file`} enctype="multipart/form-data" class="row" style="align-items:center">
-                        <input name="file" type="file" accept="image/jpeg,image/png,image/webp" required aria-label={`Ảnh 4 góc mới cho ${ch.ten}`} />
-                        <button type="submit" class="secondary small">
-                          Đổi ảnh 4 góc
-                        </button>
-                      </form>
-                      <form method="post" action={`${NV}/${ch.id}/mat`} enctype="multipart/form-data" class="row" style="align-items:center">
-                        <input name="file" type="file" accept="image/jpeg,image/png,image/webp" required aria-label={`Ảnh mặt mới cho ${ch.ten}`} />
-                        <button type="submit" class="secondary small">
-                          {ch.faceFile ? "Đổi ảnh mặt" : "Thêm ảnh mặt"}
                         </button>
                       </form>
                       <NvPromptsBox db={db} nhanVatId={ch.id} />
@@ -985,6 +976,7 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
             })
           )}
           <script dangerouslySetInnerHTML={{ __html: COPY_PROMPT_JS }} />
+          <script dangerouslySetInnerHTML={{ __html: NV_UPLOAD_JS }} />
         </>,
       ),
       status,

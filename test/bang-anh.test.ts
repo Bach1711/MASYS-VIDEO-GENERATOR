@@ -154,6 +154,16 @@ describe("Nhân vật (D32)", () => {
     expect(html).not.toContain("Mai 2");
   });
 
+  it("thẻ nhân vật: mỗi ô có dấu + tải ảnh, không còn nút tải riêng (CON-88)", async () => {
+    const { app, nv } = setup();
+    const html = await (await app.request("/nhan-vat")).text();
+    for (const route of ["goc", "file", "mat"]) expect(html).toContain(`action="/nhan-vat/${nv}/${route}"`);
+    expect(html.match(/data-nv-upload="1"/g)).toHaveLength(3);
+    expect(html).toContain('class="nv-plus giua"');
+    expect(html).toContain('class="nv-plus goc"');
+    expect(html).not.toMatch(/<button[^>]*>\s*(Đổi|Thêm) ảnh/);
+  });
+
   it("ảnh gốc: nhân vật cũ thêm và đổi được, thẻ hiện đủ 3 ô, không gửi Muse (CON-84)", async () => {
     const { app, db, dataDir, nv, log, run } = setup();
     const onDisk = (f: string) => fs.existsSync(path.join(dataDir, "tep", "nhan-vat", f));
