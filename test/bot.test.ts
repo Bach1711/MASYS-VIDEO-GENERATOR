@@ -201,6 +201,25 @@ describe.skipIf(!hasChrome)("MuseBot với trang Muse giả lập", () => {
     await expect.poll(async () => (await b.watch()).videos, { timeout: 5000 }).toBe(1);
   }, 30_000);
 
+  it("đóng cửa sổ bot giữa lúc đính kèm ảnh → dừng ngay, chưa gửi; mở lại được (CON-90)", async () => {
+    const f = path.join(tmp, "a.png");
+    fs.writeFileSync(f, "x");
+    const b = newBot({ attachTimeoutMs: 20_000 });
+    mode = "dropone";
+    await b.open();
+    const sending = b.send(REQUEST, [f, f]).catch((e: unknown) => e);
+    await new Promise((r) => setTimeout(r, 1500));
+    const at = Date.now();
+    await b.close();
+    expect(await sending).toMatchObject({ sent: false });
+    expect(Date.now() - at).toBeLessThan(5000);
+    expect(received).toEqual([]);
+    expect(b.isOpen).toBe(false);
+    expect(b.isBusy).toBe(false);
+    await b.open();
+    expect(b.isOpen).toBe(true);
+  }, 30_000);
+
   it("Muse không hiện đủ ảnh đính kèm → ui_changed, chưa gửi", async () => {
     const f = path.join(tmp, "a.png");
     fs.writeFileSync(f, "x");

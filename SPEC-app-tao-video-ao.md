@@ -587,6 +587,8 @@ Tạo xong thì gửi video ngay trong cuộc trò chuyện này. Không lưu l�
 - Bảng mới lọc thêm **Đang chạy / Xong / Cần xem** theo lượt gần nhất của dòng.
 - **Gửi thử thật CON-52 (29/10/2026, người phụ trách đồng ý, 2 lượt):** dòng ghép áo một mặt (2 ảnh) và dòng áo hai mặt (4 ảnh). Bot đính kèm đủ ảnh đúng thứ tự, mỗi dòng gửi đúng một lần. Cả hai lần Muse trả lời *"Xong rồi"* nhưng ô video trong chat trống / báo **"Video not found"**, mở bằng Chrome thường (có VPN) cũng vậy, nên là lỗi phía Muse. Bot nhận câu này (`notices.videoMissing`) và ghi lượt **Cần xem** ngay, không chờ hết giờ, không gửi lại. Cũng ghi nhận: tab trống Chrome mở sẵn cùng hồ sơ có lúc tải Muse mãi không xong, bot làm việc trên tab mới; ô chat hiện trước danh sách trò chuyện, bot chờ nút *New side chat*.
 
+**Huỷ lô (CON-90, thay F6 cho lô chạy bằng tab):** đóng cửa sổ bot, dừng ngay kể cả khi đang gửi. Dòng chưa bấm Gửi của Muse: Đã huỷ. Dòng đã bấm Gửi: Cần xem, không gửi lại (D9), video chưa về không được tải. Tạm dừng giữ nguyên: ngừng gửi, vẫn tải nốt. Lô theo sheet vẫn như F6.
+
 ### 17.6 Nhập từ Google Sheet
 - Nút **Nhập từ Google Sheet** → dán link sheet / chọn sheet đã kết nối → tool đọc (service account, chỉ đọc) và hiện trước *"Sẽ thêm N dòng"*.
 - Mỗi dòng sheet chưa có video → một dòng mới trên Bảng: prompt, và **tải ảnh từ link Drive về máy** (Ảnh người mẫu → Mẫu trước, Ảnh áo → Áo trước). Link không đọc được → vẫn thêm dòng, để trống ô ảnh đó và ghi lý do.

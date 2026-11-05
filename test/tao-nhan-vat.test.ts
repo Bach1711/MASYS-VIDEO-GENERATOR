@@ -287,13 +287,13 @@ describe("Tạo nhân vật qua Muse", () => {
     expect(listNhanVat(db)).toHaveLength(0);
   });
 
-  it("bấm Huỷ lúc đang chờ master: giữ ảnh master, không gửi thêm", async () => {
+  it("bấm Huỷ lúc đang chờ master: dừng ngay, không gửi thêm (CON-90)", async () => {
     let batch = 0;
     const { db, log, create } = setup({ onSend: (r) => batch++ === 0 && r.cancel(r.runningBatchId!) });
     await create();
     const id = listDrafts(db)[0]!.id;
     expect(log).toHaveLength(1);
-    expect(draftFiles(db, id).filter((f) => f.kind === "master")).toHaveLength(1);
+    expect(draftFiles(db, id)).toHaveLength(0);
     expect(Object.keys(draftRuns(db, id))).toEqual(["master"]);
   });
 
