@@ -59,7 +59,7 @@ afterEach(() => {
   for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
 });
 
-function setup(o: { sendError?: BotError; neverReply?: boolean | ((text: string) => boolean); echoAttached?: boolean; onSend?: (r: BatchRunner) => void } = {}) {
+function setup(o: { sendError?: BotError; sendFailures?: number; neverReply?: boolean | ((text: string) => boolean); echoAttached?: boolean; onSend?: (r: BatchRunner) => void } = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "masys-taonv-"));
   dirs.push(dataDir);
   const files = new BangFiles(dataDir);
@@ -69,11 +69,13 @@ function setup(o: { sendError?: BotError; neverReply?: boolean | ((text: string)
   const pending = new Map<string, number>();
   const texts = new Map<string, string>();
   let counter = 10;
+  let tries = 0;
   const bot: MuseDriver = {
     isOpen: true,
     async open() {},
     async send(text: string, f: string[] = [], tab = "") {
       if (o.sendError) throw o.sendError;
+      if (o.sendFailures && tries++ < o.sendFailures) throw new BotError("ui_changed", "Không thấy nút Gửi của Muse", false);
       log.push({ text, files: f, tab });
       texts.set(tab, text);
       o.onSend?.(runner);
@@ -391,6 +393,14 @@ describe("Tạo nhân vật qua Muse", () => {
     expect(draftRuns(db, id).master!.state).toBe("paused_ui");
     expect(getImageQuota(db).used).toBe(0);
     expect(await (await app.request("/nhan-vat")).text()).toContain('id="dang-tao"');
+  });
+
+  it("trắng trang khi tạo master: tab mới cứu được, lô không dừng, tạo tiếp đủ ảnh, chỉ tính lượt đã gửi (CON-98)", async () => {
+    const { db, create } = setup({ sendFailures: 2 });
+    await create();
+    const id = listDrafts(db)[0]!.id;
+    expect(draftRuns(db, id).master!.state).toBe("done");
+    expect(getImageQuota(db).used).toBe(3);
   });
 
   it("xoá bản nháp đã lưu: nhân vật vẫn còn đủ ảnh; xoá nhân vật thì xoá cả ảnh master", async () => {

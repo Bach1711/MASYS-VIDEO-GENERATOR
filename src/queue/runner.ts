@@ -50,15 +50,17 @@ export interface MuseDriver {
 
 /** Bảng video tự chạy lại dòng lỗi (CON-91): tổng số lần chạy của một dòng; số dòng khác nhau lỗi liên tiếp thì tạm dừng lô. */
 export const MAX_ATTEMPTS = 3;
+/** Chưa bấm Gửi mà tab hỏng (Muse trắng trang): đóng tab, mở tab mới, tối đa chừng này tab cho một lần gửi (CON-98). */
+export const MAX_SEND_TABS = 3;
 const MAX_FAILED_ROWS = 3;
 
 export type PauseReason = "muse_down" | "user" | "login" | "ui" | "quota" | "limit" | "image_limit" | "row_shift" | "other_cells" | "google" | "restart";
 
 export const PAUSE_TEXT: Record<PauseReason, string> = {
-  muse_down: `Muse lỗi liên tiếp ở ${MAX_FAILED_ROWS} dòng khác nhau, nhiều khả năng Muse đang lỗi chung. Mở Muse kiểm tra rồi bấm Tiếp tục; các dòng lỗi sẽ chạy lại.`,
+  muse_down: `Muse lỗi liên tiếp ở ${MAX_FAILED_ROWS} dòng khác nhau, nhiều khả năng Muse đang lỗi chung. Mở Muse kiểm tra rồi bấm Tiếp tục; dòng chờ chạy lại sẽ chạy lại, dòng đã ra Cần xem thì tạo lại sau.`,
   user: "Bạn đã bấm Tạm dừng.",
   login: "Cần đăng nhập lại Muse. Đăng nhập (hoặc vượt bước kiểm tra bảo mật) trong cửa sổ bot rồi bấm Tiếp tục.",
-  ui: "Giao diện Muse thay đổi: bot không tìm thấy ô chat hoặc nút Gửi (hoặc trình duyệt bot bị tắt). Xem ảnh chụp trong Nhật ký.",
+  ui: "Bot chưa gửi được cho Muse: Muse trắng trang, không thấy ô chat hoặc nút Gửi (hoặc trình duyệt bot bị tắt). Xem lý do và ảnh chụp trong Nhật ký rồi bấm Tiếp tục.",
   quota: "Muse hết lượt / hết token. Khi Muse có lượt trở lại, bấm Tiếp tục.",
   limit: "Đã đủ video trong ngày (giới hạn ở Cài đặt, D13). Ngày mai bấm Tiếp tục.",
   image_limit: "Đã đủ ảnh trong ngày (giới hạn ảnh ở Cài đặt). Ngày mai bấm Tiếp tục.",
@@ -73,7 +75,7 @@ export const PAUSE_SHORT: Record<PauseReason, string> = {
   muse_down: "Muse lỗi liên tiếp ở nhiều dòng",
   user: "Bạn đã bấm Tạm dừng",
   login: "Cần đăng nhập lại Muse",
-  ui: "Giao diện Muse thay đổi",
+  ui: "Bot chưa gửi được cho Muse",
   quota: "Muse hết lượt / hết token",
   limit: "Đã đủ video trong ngày",
   image_limit: "Đã đủ ảnh trong ngày",
@@ -816,50 +818,75 @@ export class BatchRunner {
     const tab = tabOf(run.id);
     const waiting = (): Inflight => ({ run: { ...run, state: "waiting" }, tab, deadline: Date.now() + this.timeoutMs(), approval: false, loginNoted: false });
     moveRun(this.db, run.id, "checking_row", "sending", `Gửi yêu cầu cho Muse ${files.length ? `kèm ${files.length} ảnh` : "không kèm ảnh"} (cuộc trò chuyện mới)`, { sentAt: now() });
-    try {
-      const { chatUrl } = await this.bot.send(run.requestText, files as string[], tab);
-      const known = chatSel.isThreadUrl(chatUrl);
-      moveRun(
-        this.db,
-        run.id,
-        "sending",
-        "waiting",
-        known ? `Đã gửi Muse, chờ ${what} trong cuộc trò chuyện` : `Đã gửi Muse, chờ ${what}; Muse chưa đổi sang link riêng của cuộc trò chuyện`,
-        { museChatUrl: known ? chatUrl : null, error: null },
-      );
-      setMuseReady(this.db, now());
-    } catch (e) {
-      const err = e instanceof BotError ? e : new BotError("send_unconfirmed", `Lỗi khi gửi: ${errText(e)}`, true);
-      if (this.canceling()) {
-        // Huỷ lô đóng cửa sổ giữa lúc gửi. Đã bấm Gửi thì giữ nguyên trạng thái để Huỷ lô chuyển thành Cần xem (D9).
-        if (!err.sent) moveRun(this.db, run.id, "sending", "canceled", "Huỷ lô: dòng này chưa gửi Muse", { sentAt: null, doneAt: now() });
-        return {};
-      }
-      // Bảng video (CON-91): lỗi giao diện, gửi không chắc, Muse báo lỗi thì đóng tab, chạy lại sau. Cần đăng nhập, hết lượt,
-      // Muse từ chối, người dùng đóng cửa sổ bot vẫn xử lý như dưới: chạy lại cũng vô ích.
-      if (what === "video" && !["login", "challenge", "quota", "rejected", "closed", "busy"].includes(err.code)) {
+    const cancelUnsent = () => moveRun(this.db, run.id, "sending", "canceled", "Huỷ lô: dòng này chưa gửi Muse", { sentAt: null, doneAt: now() });
+    for (let tabNo = 1; ; tabNo++) {
+      try {
+        const { chatUrl } = await this.bot.send(run.requestText, files as string[], tab);
+        const known = chatSel.isThreadUrl(chatUrl);
+        moveRun(
+          this.db,
+          run.id,
+          "sending",
+          "waiting",
+          known ? `Đã gửi Muse, chờ ${what} trong cuộc trò chuyện` : `Đã gửi Muse, chờ ${what}; Muse chưa đổi sang link riêng của cuộc trò chuyện`,
+          { museChatUrl: known ? chatUrl : null, error: null },
+        );
+        setMuseReady(this.db, now());
+        break;
+      } catch (e) {
+        const err = e instanceof BotError ? e : new BotError("send_unconfirmed", `Lỗi khi gửi: ${errText(e)}`, true);
+        if (this.canceling()) {
+          // Huỷ lô đóng cửa sổ giữa lúc gửi. Đã bấm Gửi thì giữ nguyên trạng thái để Huỷ lô chuyển thành Cần xem (D9).
+          if (!err.sent) cancelUnsent();
+          return {};
+        }
+        // CON-98: chưa bấm Gửi nên làm lại không gửi trùng, không tốn lượt. Lỗi tab hoặc trang Muse thì đóng tab, làm lại ở tab mới.
+        if (!err.sent && err.code === "ui_changed" && tabNo < MAX_SEND_TABS) {
+          await this.bot.closeTab?.(tab).catch(() => {});
+          logRunEvent(this.db, run.id, "sending", `Tab ${tabNo}/${MAX_SEND_TABS} chưa gửi được: ${err.message}; mở tab mới làm lại`, err.screenshot);
+          await this.sleep(3 * (this.o.secondMs ?? 1000));
+          if (this.canceling()) {
+            cancelUnsent();
+            return {};
+          }
+          if (this.stopRequested()) {
+            moveRun(this.db, run.id, "sending", "queued", "Tạm dừng: dòng này chưa gửi Muse", { sentAt: null });
+            return {};
+          }
+          continue;
+        }
+        // Bảng video (CON-91): lỗi giao diện, gửi không chắc, Muse báo lỗi thì đóng tab, chạy lại sau. Cần đăng nhập, hết lượt,
+        // Muse từ chối, người dùng đóng cửa sổ bot vẫn xử lý như dưới: chạy lại cũng vô ích.
+        if (what === "video" && !["login", "challenge", "quota", "rejected", "closed", "busy"].includes(err.code)) {
+          await this.bot.closeTab?.(tab).catch(() => {});
+          // CON-98: chưa gửi mà đã hỏng đủ số tab thì dừng dòng này ngay, không nhân thêm số lần chạy lại.
+          this.failVideo(run, "sending", err.message, err.sent, err.screenshot, !err.sent);
+          return { sent: err.sent, failed: true };
+        }
+        if (!err.sent) {
+          const to = err.code === "login" || err.code === "challenge" ? "paused_login" : "paused_ui";
+          moveRun(this.db, run.id, "sending", to, `Chưa gửi: ${err.message}`, { sentAt: null }, err.screenshot);
+          if (to === "paused_login") {
+            setMuseReady(this.db, null);
+            await this.bot.bringToFront();
+            return { pause: "login" };
+          }
+          await this.bot.closeTab?.(tab).catch(() => {});
+          return { pause: "ui" };
+        }
         await this.bot.closeTab?.(tab).catch(() => {});
-        this.failVideo(run, "sending", err.message, err.sent, err.screenshot);
-        return { sent: err.sent, failed: true };
+        if (err.code === "quota") {
+          moveRun(this.db, run.id, "sending", "paused_quota", err.message, { error: "Muse hết lượt" }, err.screenshot);
+          return { pause: "quota", sent: true };
+        }
+        if (err.code === "rejected" || err.code === "muse_error") {
+          moveRun(this.db, run.id, "sending", "failed", err.message, { error: err.message, doneAt: now() }, err.screenshot);
+          return { sent: true };
+        }
+        // Không chắc Muse đã nhận: không gửi lại, vẫn chờ video trên trang đến hết giờ.
+        moveRun(this.db, run.id, "sending", "waiting", `${err.message}. Không gửi lại; vẫn chờ ${what} trong cuộc trò chuyện`, {}, err.screenshot);
+        break;
       }
-      if (!err.sent) {
-        const to = err.code === "login" || err.code === "challenge" ? "paused_login" : "paused_ui";
-        moveRun(this.db, run.id, "sending", to, `Chưa gửi: ${err.message}`, { sentAt: null }, err.screenshot);
-        if (to === "paused_login") setMuseReady(this.db, null);
-        await this.bot.bringToFront();
-        return { pause: to === "paused_login" ? "login" : "ui" };
-      }
-      await this.bot.closeTab?.(tab).catch(() => {});
-      if (err.code === "quota") {
-        moveRun(this.db, run.id, "sending", "paused_quota", err.message, { error: "Muse hết lượt" }, err.screenshot);
-        return { pause: "quota", sent: true };
-      }
-      if (err.code === "rejected" || err.code === "muse_error") {
-        moveRun(this.db, run.id, "sending", "failed", err.message, { error: err.message, doneAt: now() }, err.screenshot);
-        return { sent: true };
-      }
-      // Không chắc Muse đã nhận: không gửi lại, vẫn chờ video trên trang đến hết giờ.
-      moveRun(this.db, run.id, "sending", "waiting", `${err.message}. Không gửi lại; vẫn chờ ${what} trong cuộc trò chuyện`, {}, err.screenshot);
     }
     return { sent: true, inflight: waiting() };
   }
@@ -867,10 +894,11 @@ export class BatchRunner {
   /**
    * Bảng video (CON-91, đổi D9 riêng cho Bảng video): chưa quá `MAX_ATTEMPTS` lần thì đưa dòng về hàng đợi để chạy lại
    * trong cuộc trò chuyện mới; đủ số lần thì Cần xem. `sent`: lần này đã gửi Muse, vẫn tính một lượt.
+   * `final`: không chạy lại nữa dù còn lượt (đã hỏng đủ số tab trước khi gửi, CON-98).
    */
-  private failVideo(run: RunRow, from: string, why: string, sent: boolean, screenshot?: string): void {
+  private failVideo(run: RunRow, from: string, why: string, sent: boolean, screenshot?: string, final = false): void {
     const attempt = run.attempt ?? 1;
-    if (attempt >= MAX_ATTEMPTS) {
+    if (final || attempt >= MAX_ATTEMPTS) {
       const msg = `Thất bại ${MAX_ATTEMPTS} lần: ${why}`;
       moveRun(this.db, run.id, from, "needs_review", `${msg}; không chạy lại nữa`, { error: msg, doneAt: now(), ...(sent ? {} : { sentAt: null }) }, screenshot);
       return;

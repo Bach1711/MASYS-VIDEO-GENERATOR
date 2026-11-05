@@ -2,6 +2,17 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+**Muse trắng trang thì bot tự xử lý, không cần bấm Tiếp tục (Bảng video, Bảng ảnh, Tạo nhân vật).**
+
+- Bot chờ trang Muse ổn định rồi mới đính kèm ảnh và dán chữ, nên mỗi lần gửi lâu hơn khoảng 1 giây.
+- Muse xoá mất chữ hoặc ảnh trước khi gửi thì bot tự điền lại, tối đa 2 lần, và phát hiện gần như ngay thay vì chờ 1 phút.
+- Vẫn không gửi được thì bot đóng tab đó, mở tab mới làm lại, tối đa 3 tab. Các lần này chưa gửi Muse nên không gửi trùng và không tốn lượt.
+- Hỏng cả 3 tab: Bảng video chuyển dòng sang **Cần xem**, ghi **Thất bại 3 lần**, các dòng khác chạy tiếp. Bảng ảnh và Tạo nhân vật tạm dừng lô, nêu rõ lý do trong Nhật ký. Tab trắng được đóng lại.
+- Dòng video được tab mới cứu không còn bị tính là dòng lỗi. Lô chỉ tạm dừng vì Muse lỗi khi 3 dòng khác nhau lỗi liên tiếp.
+- Lượt tạo ảnh master không còn báo lỗi ngay khi nút Gửi của Muse hiện chậm.
+
 ## v2.10.0
 
 **Bảng video tự xử lý khi Muse lỗi, Hủy lô dừng ngay.**

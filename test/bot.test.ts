@@ -10,7 +10,7 @@ import { BotError, MuseBot } from "../src/bot/museBot.js";
 import { openDatabase } from "../src/db/index.js";
 
 // Trang Muse giả lập theo tên thật đã ghi nhận (museSelectors.ts). Chrome chạy ẩn chỉ trong test.
-type Mode = "ready" | "login" | "challenge" | "broken" | "quota" | "nosend" | "nonew" | "approval" | "video" | "dropone";
+type Mode = "ready" | "login" | "challenge" | "broken" | "quota" | "nosend" | "nonew" | "approval" | "video" | "dropone" | "wipe1" | "wipeall" | "wipepart" | "rerender" | "slowsend";
 let mode: Mode = "ready";
 let received: string[] = [];
 
@@ -19,16 +19,35 @@ const CHAT_PAGE = (m: Mode) => `<!doctype html><html><head><title>Chat — Như<
 <button aria-label="Chats Open chat and side chats" onclick="document.getElementById('side').hidden=false">≡</button>
 <nav id="side" aria-label="Side chats" hidden>
   <h3>Start a side chat</h3>
-  ${m === "nonew" ? "" : `<button onclick="history.pushState({}, '', '/thread/new'); document.getElementById('log').innerHTML=''">New side chat</button>`}
+  ${m === "nonew" ? "" : `<button onclick="history.pushState({}, '', '/thread/new'); document.getElementById('log').innerHTML=''; ${m === "rerender" ? "setTimeout(rerender, 500)" : ""}">New side chat</button>`}
 </nav>
 <div id="log" role="log" aria-label="Chat messages"><p>Tin cũ: try again later</p></div>
 <video id="avatar" style="width:48px;height:48px"></video>
 <div id="att"></div>
 <button aria-label="Attach file">+</button><input type="file" multiple onchange="attach(this)">
-<textarea aria-label="Message" oninput="document.getElementById('send').hidden=!this.value"></textarea>
+<textarea aria-label="Message" oninput="onInput(this)"></textarea>
 <button id="send" hidden onclick="send()">Send</button>
 <script>
 let names = [];
+let inputs = 0;
+let wipes = ${m === "wipe1" ? 1 : m === "wipeall" ? 99 : 0};
+let dropAttachment = ${m === "wipepart"};
+function wipe() {
+  document.querySelector('textarea').value = '';
+  document.getElementById('att').innerHTML = '';
+  document.getElementById('send').hidden = true;
+}
+function rerender() {
+  const t = document.querySelector('textarea');
+  t.replaceWith(t.cloneNode(false));
+}
+function onInput(t) {
+  inputs++;
+  const s = document.getElementById('send');
+  ${m === "slowsend" ? "setTimeout(() => { s.hidden = !t.value; }, 1500);" : "s.hidden = !t.value;"}
+  if (t.value && wipes > 0) { wipes--; setTimeout(wipe, 100); }
+  if (t.value && dropAttachment) { dropAttachment = false; setTimeout(() => { document.querySelector('#att button').remove(); document.querySelector('textarea').value = ''; }, 100); }
+}
 function attach(inp) {
   names = [...inp.files].map((f) => f.name);
   const n = ${m === "dropone" ? "Math.min(1, names.length)" : "names.length"};
@@ -37,7 +56,7 @@ function attach(inp) {
 function send() {
   const t = document.querySelector('textarea');
   ${m === "nosend" ? "return;" : ""}
-  fetch('/received', { method: 'POST', body: (names.length ? 'FILES ' + names.join(',') + '\\n' : '') + t.value });
+  fetch('/received', { method: 'POST', body: ${m === "rerender" ? "'INPUTS ' + inputs + '\\n' + " : ""}(names.length ? 'FILES ' + names.join(',') + '\\n' : '') + t.value });
   document.getElementById('att').innerHTML = '';
   ${m === "video" ? "setTimeout(() => { const v = document.createElement('video'); v.style.width = '280px'; v.style.height = '400px'; v.src = URL.createObjectURL(new Blob([new Uint8Array([0,0,0,24,102,116,121,112,105,115,111,109,0,0,2,0])], { type: 'video/mp4' })); document.getElementById('log').append(v); }, 1500);" : ""}
   const p = document.createElement('p'); p.textContent = t.value; document.getElementById('log').append(p);
@@ -229,6 +248,68 @@ describe.skipIf(!hasChrome)("MuseBot với trang Muse giả lập", () => {
     await expect(b.send(REQUEST, [f, f])).rejects.toMatchObject({ code: "ui_changed", sent: false, message: "Muse chỉ hiện 1/2 ảnh đính kèm; chưa gửi" });
     expect(received).toEqual([]);
   }, 30_000);
+
+  describe("Muse xoá nội dung ô chat trước khi gửi (CON-98)", () => {
+    const pause: [number, number] = [400, 400];
+    const image = () => {
+      const f = path.join(tmp, "b.png");
+      fs.writeFileSync(f, "x");
+      return f;
+    };
+
+    it("lớp 1: Muse vẽ lại ô chat lúc mới mở: chờ ổn định rồi mới điền, chỉ điền một lần", async () => {
+      const b = newBot();
+      mode = "rerender";
+      await b.open();
+      await b.send("Hãy tạo một video dọc từ ảnh đính kèm, không hỏi lại");
+      expect(received).toEqual(["INPUTS 1\nHãy tạo một video dọc từ ảnh đính kèm, không hỏi lại"]);
+    }, 30_000);
+
+    it("lớp 2: mất cả chữ lẫn ảnh thì điền lại, đính kèm lại, gửi đúng một lần", async () => {
+      const f = image();
+      const b = newBot({ pauseBeforeSendMs: pause });
+      mode = "wipe1";
+      await b.open();
+      const { chatUrl } = await b.send(REQUEST, [f, f]);
+      expect(chatUrl).toBe(`${base}/thread/abc123XYZ`);
+      expect(received).toEqual([`FILES b.png,b.png\n${REQUEST}`]);
+    }, 30_000);
+
+    it("lớp 2: lượt không kèm ảnh cũng điền lại được", async () => {
+      const b = newBot({ pauseBeforeSendMs: pause });
+      mode = "wipe1";
+      await b.open();
+      await b.send(REQUEST);
+      expect(received).toEqual([REQUEST]);
+    }, 30_000);
+
+    it("điền lại 2 lần vẫn mất: ui_changed, chưa gửi, không chờ hết một phút", async () => {
+      const b = newBot({ pauseBeforeSendMs: pause });
+      mode = "wipeall";
+      await b.open();
+      const at = Date.now();
+      await expect(b.send(REQUEST, [image()])).rejects.toMatchObject({ code: "ui_changed", sent: false, message: "Muse xoá nội dung ô chat, đã điền lại 2 lần; chưa gửi" });
+      expect(Date.now() - at).toBeLessThan(20_000);
+      expect(received).toEqual([]);
+    }, 30_000);
+
+    it("chỉ còn một phần ảnh: không đính kèm thêm kẻo trùng, để thay tab", async () => {
+      const f = image();
+      const b = newBot({ pauseBeforeSendMs: pause });
+      mode = "wipepart";
+      await b.open();
+      await expect(b.send(REQUEST, [f, f])).rejects.toMatchObject({ code: "ui_changed", sent: false, message: "Muse chỉ còn 1/2 ảnh đính kèm; chưa gửi" });
+      expect(received).toEqual([]);
+    }, 30_000);
+
+    it("lượt không kèm ảnh: nút Gửi hiện chậm thì vẫn chờ, không báo lỗi ngay", async () => {
+      const b = newBot();
+      mode = "slowsend";
+      await b.open();
+      await b.send(REQUEST);
+      expect(received).toEqual([REQUEST]);
+    }, 30_000);
+  });
 
   it("tải video blob: mới nhất trong cuộc trò chuyện về máy (CON-72), bỏ qua ảnh đại diện; chưa có video thì báo lỗi", async () => {
     const b = newBot();
