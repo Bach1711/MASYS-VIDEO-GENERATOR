@@ -32,6 +32,10 @@ afterEach(() => {
 interface FakeOpts {
   /** Chừng này lần gửi đầu Muse trắng trang (chưa gửi). */
   sendFailures?: number;
+  /** Chừng này lần gửi đầu tin đến Muse thiếu ảnh (đã gửi). */
+  lostImages?: number;
+  /** Lần gửi nào (đánh số từ 1) tin đến Muse thiếu ảnh. */
+  lostOn?: (nth: number) => boolean;
   /** Số ảnh Muse trả mỗi tin. */
   perReply?: number;
   /** Muse chỉ trả lại ảnh giống hệt character sheet. */
@@ -72,7 +76,9 @@ function setup(o: FakeOpts = {}) {
     async open() {},
     async send(text: string, f: string[] = [], tab = "") {
       log.push({ kind: "send", text, files: f, tab });
-      if (o.sendFailures && log.filter((l) => l.kind === "send").length <= o.sendFailures) throw new BotError("ui_changed", "Không thấy nút Gửi của Muse", false);
+      const nth = log.filter((l) => l.kind === "send").length;
+      if (o.sendFailures && nth <= o.sendFailures) throw new BotError("ui_changed", "Không thấy nút Gửi của Muse", false);
+      if ((o.lostImages && nth <= o.lostImages) || o.lostOn?.(nth)) throw new BotError("missing_images", "Tin đến Muse thiếu ảnh (0/2 ảnh)", true);
       // Tin của mình hiện kèm ảnh character sheet (ảnh lớn đầu tiên trong khung chat).
       pages.set(tab, [{ src: "blob:me/sheet", data: SHEET, ready: true }]);
       pending.set(tab, 2);
@@ -292,6 +298,34 @@ describe("tạo ảnh trên Muse (17.13)", () => {
     expect(getImageQuota(t.db).used).toBe(1);
     expect(events(t.db, lastRun(t.db, id).id as number).filter((e) => e.startsWith("Tab "))).toHaveLength(2);
     expect(t.closed.slice(0, 2)).toEqual([t.log[0]!.tab, t.log[0]!.tab]);
+  });
+
+  it("tin đến Muse thiếu ảnh: nhận ra ngay, gửi lại cuộc trò chuyện mới, mỗi lần gửi tính một lượt (CON-99)", async () => {
+    const t = setup({ lostImages: 1 });
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "đứng ở quán cà phê" });
+    await t.run([id]);
+    expect(t.log).toHaveLength(2);
+    expect(lastRun(t.db, id).state).toBe("done");
+    expect(getImageQuota(t.db).used).toBe(2);
+    expect(getDailyQuota(t.db).used).toBe(0);
+    expect(events(t.db, lastRun(t.db, id).id as number)).toContain("Thất bại lần 1/3: Tin đến Muse thiếu ảnh (0/2 ảnh); sẽ tự chạy lại");
+  });
+
+  it("gửi đủ 3 lần vẫn thiếu ảnh: Cần xem, ghi rõ lý do, không gửi thêm, đủ 3 lượt (CON-99)", async () => {
+    const t = setup({ lostImages: 9 });
+    const id = addRow(t.db, { nhanVatId: t.nv, prompt: "đứng ở quán cà phê" });
+    await t.run([id]);
+    expect(t.log).toHaveLength(3);
+    expect(lastRun(t.db, id)).toMatchObject({ state: "needs_review", error: "Thất bại 3 lần: Tin đến Muse thiếu ảnh (0/2 ảnh)" });
+    expect(getImageQuota(t.db).used).toBe(3);
+  });
+
+  it("các dòng thiếu ảnh xen kẽ dòng thành công: lô không tạm dừng nhầm, đủ 4 ảnh (CON-99)", async () => {
+    const t = setup({ lostOn: (nth) => nth === 1 || nth === 3 || nth === 5 });
+    const ids = [1, 2, 3, 4].map((n) => addRow(t.db, { nhanVatId: t.nv, prompt: `cảnh ${n}` }));
+    const batchId = await t.run(ids);
+    expect(getBatch(t.db, batchId)).toMatchObject({ status: "done", pauseReason: null });
+    expect(ids.map((id) => lastRun(t.db, id).state)).toEqual(["done", "done", "done", "done"]);
   });
 
   it("hỏng đủ 3 tab: tạm dừng lô, nêu lý do, không còn tab trắng, không tính lượt; Tiếp tục thì gửi lại được (CON-98)", async () => {

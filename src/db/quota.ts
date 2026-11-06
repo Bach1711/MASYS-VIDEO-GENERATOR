@@ -24,7 +24,7 @@ export function getDailyQuota(db: DB, now = new Date()): DailyQuota {
     .prepare("SELECT COUNT(*) AS used FROM runs WHERE sentAt IS NOT NULL AND sentAt >= ? AND sentAt < ? AND anhRowId IS NULL AND nvDraftId IS NULL")
     .get(start, end) as { used: number };
   const { extra } = db
-    .prepare("SELECT COALESCE(SUM(extraSends), 0) AS extra FROM runs WHERE extraSentAt IS NOT NULL AND extraSentAt >= ? AND extraSentAt < ?")
+    .prepare("SELECT COALESCE(SUM(extraSends), 0) AS extra FROM runs WHERE extraSentAt IS NOT NULL AND extraSentAt >= ? AND extraSentAt < ? AND anhRowId IS NULL AND nvDraftId IS NULL")
     .get(start, end) as { extra: number };
   const { dailyVideoLimit: limit } = db.prepare("SELECT dailyVideoLimit FROM settings WHERE id = 1").get() as {
     dailyVideoLimit: number;
@@ -35,14 +35,15 @@ export function getDailyQuota(db: DB, now = new Date()): DailyQuota {
 
 /**
  * Giới hạn ảnh mỗi ngày của Bảng ảnh (CON-77, D31): mỗi lần gửi Muse một tin xin ảnh là một lượt, kể cả tin xin ảnh
- * quay lưng (anhBackAt), lượt Tạo nhân vật (CON-81) và lượt lỗi. Đếm riêng với video.
+ * quay lưng (anhBackAt), lượt Tạo nhân vật (CON-81), lượt lỗi và lần gửi lại vì tin thiếu ảnh (CON-99). Đếm riêng với video.
  */
 export function getImageQuota(db: DB, now = new Date()): DailyQuota {
   const { start, end } = localDayBounds(now);
   const { used } = db
     .prepare(
       `SELECT (SELECT COUNT(*) FROM runs WHERE (anhRowId IS NOT NULL OR nvDraftId IS NOT NULL) AND sentAt IS NOT NULL AND sentAt >= @start AND sentAt < @end)
-            + (SELECT COUNT(*) FROM runs WHERE anhRowId IS NOT NULL AND anhBackAt IS NOT NULL AND anhBackAt >= @start AND anhBackAt < @end) AS used`,
+            + (SELECT COUNT(*) FROM runs WHERE anhRowId IS NOT NULL AND anhBackAt IS NOT NULL AND anhBackAt >= @start AND anhBackAt < @end)
+            + (SELECT COALESCE(SUM(extraSends), 0) FROM runs WHERE (anhRowId IS NOT NULL OR nvDraftId IS NOT NULL) AND extraSentAt IS NOT NULL AND extraSentAt >= @start AND extraSentAt < @end) AS used`,
     )
     .get({ start, end }) as { used: number };
   const { dailyImageLimit: limit } = db.prepare("SELECT dailyImageLimit FROM settings WHERE id = 1").get() as { dailyImageLimit: number };

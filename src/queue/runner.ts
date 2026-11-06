@@ -857,10 +857,11 @@ export class BatchRunner {
         }
         // Bảng video (CON-91): lỗi giao diện, gửi không chắc, Muse báo lỗi thì đóng tab, chạy lại sau. Cần đăng nhập, hết lượt,
         // Muse từ chối, người dùng đóng cửa sổ bot vẫn xử lý như dưới: chạy lại cũng vô ích.
-        if (what === "video" && !["login", "challenge", "quota", "rejected", "closed", "busy"].includes(err.code)) {
+        // CON-99: tin đến Muse thiếu ảnh là biết chắc lượt hỏng (khác "không chắc" của D9), nên cả Bảng ảnh và Tạo nhân vật cũng chạy lại.
+        if (err.code === "missing_images" || (what === "video" && !["login", "challenge", "quota", "rejected", "closed", "busy"].includes(err.code))) {
           await this.bot.closeTab?.(tab).catch(() => {});
           // CON-98: chưa gửi mà đã hỏng đủ số tab thì dừng dòng này ngay, không nhân thêm số lần chạy lại.
-          this.failVideo(run, "sending", err.message, err.sent, err.screenshot, !err.sent);
+          this.failAttempt(run, "sending", err.message, err.sent, err.screenshot, !err.sent);
           return { sent: err.sent, failed: true };
         }
         if (!err.sent) {
@@ -892,11 +893,11 @@ export class BatchRunner {
   }
 
   /**
-   * Bảng video (CON-91, đổi D9 riêng cho Bảng video): chưa quá `MAX_ATTEMPTS` lần thì đưa dòng về hàng đợi để chạy lại
-   * trong cuộc trò chuyện mới; đủ số lần thì Cần xem. `sent`: lần này đã gửi Muse, vẫn tính một lượt.
+   * Bảng video (CON-91, đổi D9 riêng cho Bảng video) và tin thiếu ảnh ở mọi luồng (CON-99): chưa quá `MAX_ATTEMPTS` lần thì
+   * đưa dòng về hàng đợi để chạy lại trong cuộc trò chuyện mới; đủ số lần thì Cần xem. `sent`: lần này đã gửi Muse, vẫn tính một lượt.
    * `final`: không chạy lại nữa dù còn lượt (đã hỏng đủ số tab trước khi gửi, CON-98).
    */
-  private failVideo(run: RunRow, from: string, why: string, sent: boolean, screenshot?: string, final = false): void {
+  private failAttempt(run: RunRow, from: string, why: string, sent: boolean, screenshot?: string, final = false): void {
     const attempt = run.attempt ?? 1;
     if (final || attempt >= MAX_ATTEMPTS) {
       const msg = `Thất bại ${MAX_ATTEMPTS} lần: ${why}`;
@@ -1015,7 +1016,7 @@ export class BatchRunner {
       if (w.notice === "asking" || w.approval) {
         f.askingSince ??= Date.now();
         if (Date.now() - f.askingSince >= 2 * (this.o.minuteMs ?? 60_000)) {
-          this.failVideo(run, "waiting", "Muse hỏi lại thay vì tạo video", true);
+          this.failAttempt(run, "waiting", "Muse hỏi lại thay vì tạo video", true);
           return { finished: true, failed: true };
         }
       } else f.askingSince = undefined;
@@ -1029,7 +1030,7 @@ export class BatchRunner {
       return { finished: true, pause: "quota" };
     }
     if (w.notice === "error" && !anh) {
-      this.failVideo(run, "waiting", "Muse báo lỗi", true);
+      this.failAttempt(run, "waiting", "Muse báo lỗi", true);
       return { finished: true, failed: true };
     }
     if (w.notice === "rejected" || w.notice === "error") {
@@ -1090,7 +1091,7 @@ export class BatchRunner {
     const got = `Đã tải ${saved.length} ${what} về máy (${total})`;
     if (back || !snap.back || !snap.backText) {
       moveRun(this.db, run.id, "downloading", "done", got, { doneAt: now() });
-      return { finished: true };
+      return { finished: true, ok: true };
     }
 
     if (this.canceling()) return { finished: true }; // Không xin ảnh quay lưng nữa; Huỷ lô chuyển dòng thành Cần xem.
@@ -1173,7 +1174,7 @@ export class BatchRunner {
     const draft = snap.kind === "master" && !this.active?.cancelRequested ? getDraft(this.db, snap.draftId) : undefined;
     const master = draft && chosenFile(draftFiles(this.db, draft.id), "master");
     if (draft && master) insertNvRuns(this.db, run.batchId, draft, ["turnaround", "face"], master.file);
-    return { finished: true };
+    return { finished: true, ok: true };
   }
 
   private chatUrl(runId: number): string | null {

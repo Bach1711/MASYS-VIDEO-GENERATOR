@@ -4,9 +4,13 @@ Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được �
 
 ## Chưa phát hành
 
-**Muse trắng trang thì bot tự xử lý, không cần bấm Tiếp tục (Bảng video, Bảng ảnh, Tạo nhân vật).**
+**Sửa tận gốc lỗi mất ảnh và trang trắng khi tạo nhiều ảnh, video cùng lúc (Bảng video, Bảng ảnh, Tạo nhân vật).**
 
-- Bot chờ trang Muse ổn định rồi mới đính kèm ảnh và dán chữ, nên mỗi lần gửi lâu hơn khoảng 1 giây.
+- **Nguyên nhân:** khoảng 1/3 số lần, Muse tự làm mới ô chat ngay sau khi mở cuộc trò chuyện mới, xoá mất chữ và ảnh bot vừa điền. Đó là gốc của cả trang trắng lẫn tin gửi đi không có ảnh.
+- **Tin đến Muse thiếu ảnh:** bot nhận ra ngay và tự gửi lại trong cuộc trò chuyện mới, tổng tối đa 3 lần, không còn ngồi chờ đến khi bạn hủy lô. Mỗi lần đã gửi đều tính một lượt, kể cả ở Bảng ảnh và Tạo nhân vật.
+- **Muse báo lỗi 502:** dòng video chuyển sang thất bại ngay và tự chạy lại. 3 dòng khác nhau lỗi liên tiếp thì lô tạm dừng để không tốn lượt khi Muse đang hỏng.
+
+- Bot chờ trang Muse ổn định rồi mới đính kèm ảnh và dán chữ, nên mỗi lần gửi lâu hơn khoảng 3 giây.
 - Muse xoá mất chữ hoặc ảnh trước khi gửi thì bot tự điền lại, tối đa 2 lần, và phát hiện gần như ngay thay vì chờ 1 phút.
 - Vẫn không gửi được thì bot đóng tab đó, mở tab mới làm lại, tối đa 3 tab. Các lần này chưa gửi Muse nên không gửi trùng và không tốn lượt.
 - Hỏng cả 3 tab: Bảng video chuyển dòng sang **Cần xem**, ghi **Thất bại 3 lần**, các dòng khác chạy tiếp. Bảng ảnh và Tạo nhân vật tạm dừng lô, nêu rõ lý do trong Nhật ký. Tab trắng được đóng lại.
