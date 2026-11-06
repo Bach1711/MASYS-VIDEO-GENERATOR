@@ -2,29 +2,25 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
-## Chưa phát hành
+## v2.11.0
+
+**Tạo nhiều ảnh, video cùng lúc ổn định hơn (Bảng video, Bảng ảnh, Tạo nhân vật).**
+
+- Sửa tận gốc lỗi mất ảnh và trang trắng: Muse tự làm mới ô chat ngay sau khi mở cuộc trò chuyện mới, xoá mất chữ và ảnh bot vừa điền. Bot giờ chờ ô chat ổn định rồi mới điền, nên mỗi lần gửi lâu hơn khoảng 3 giây.
+- Muse xoá chữ hoặc ảnh trước khi gửi: bot tự điền lại, vẫn không được thì đóng tab, mở tab mới làm lại, tối đa 3 tab. Các lần này chưa gửi Muse nên không tốn lượt.
+- Tin đến Muse thiếu ảnh: bot nhận ra ngay và tự gửi lại trong cuộc trò chuyện mới, tổng tối đa 3 lần, không còn ngồi chờ đến khi bạn hủy lô. Mỗi lần đã gửi đều tính một lượt.
+- Muse báo lỗi 502: dòng video thất bại ngay và tự chạy lại.
+- Hỏng cả 3 tab: Bảng video chuyển dòng sang **Cần xem**, các dòng khác chạy tiếp. Bảng ảnh và Tạo nhân vật tạm dừng lô, nêu rõ lý do trong Nhật ký.
+- 3 dòng khác nhau lỗi liên tiếp thì lô tạm dừng để không tốn lượt khi Muse đang hỏng.
 
 **Trang Nhân vật gọn dạng bảng, lọc được theo khu vực.**
 
-- Mỗi nhân vật là một dòng với ảnh thu nhỏ, nên có nhiều nhân vật vẫn dễ tìm, không phải kéo xa.
+- Mỗi nhân vật là một dòng với ảnh thu nhỏ, có nhiều nhân vật vẫn dễ tìm.
 - Bấm ảnh gốc, ảnh 4 góc hoặc ảnh mặt là xem toàn màn hình. Bấm bất kỳ đâu hoặc nhấn Esc để đóng, trang vẫn ở đúng chỗ cũ.
 - Lọc theo Tất cả hoặc từng khu vực, luôn theo thứ tự thêm vào bảng.
 - Đổi tên, xem prompt, xoá nằm trong nút **Sửa** ở cuối dòng. Dấu + trên ảnh vẫn dùng để thêm hoặc đổi ảnh.
 - Nhân vật tạo trong app tự có khu vực. Thêm tay thì phải chọn khu vực.
 - Nhân vật thêm tay từ trước hiện **Chưa có khu vực**: bấm ô Khu vực ngay trên dòng để chọn, chọn xong là lưu.
-
-**Sửa tận gốc lỗi mất ảnh và trang trắng khi tạo nhiều ảnh, video cùng lúc (Bảng video, Bảng ảnh, Tạo nhân vật).**
-
-- **Nguyên nhân:** khoảng 1/3 số lần, Muse tự làm mới ô chat ngay sau khi mở cuộc trò chuyện mới, xoá mất chữ và ảnh bot vừa điền. Đó là gốc của cả trang trắng lẫn tin gửi đi không có ảnh.
-- **Tin đến Muse thiếu ảnh:** bot nhận ra ngay và tự gửi lại trong cuộc trò chuyện mới, tổng tối đa 3 lần, không còn ngồi chờ đến khi bạn hủy lô. Mỗi lần đã gửi đều tính một lượt, kể cả ở Bảng ảnh và Tạo nhân vật.
-- **Muse báo lỗi 502:** dòng video chuyển sang thất bại ngay và tự chạy lại. 3 dòng khác nhau lỗi liên tiếp thì lô tạm dừng để không tốn lượt khi Muse đang hỏng.
-
-- Bot chờ trang Muse ổn định rồi mới đính kèm ảnh và dán chữ, nên mỗi lần gửi lâu hơn khoảng 3 giây.
-- Muse xoá mất chữ hoặc ảnh trước khi gửi thì bot tự điền lại, tối đa 2 lần, và phát hiện gần như ngay thay vì chờ 1 phút.
-- Vẫn không gửi được thì bot đóng tab đó, mở tab mới làm lại, tối đa 3 tab. Các lần này chưa gửi Muse nên không gửi trùng và không tốn lượt.
-- Hỏng cả 3 tab: Bảng video chuyển dòng sang **Cần xem**, ghi **Thất bại 3 lần**, các dòng khác chạy tiếp. Bảng ảnh và Tạo nhân vật tạm dừng lô, nêu rõ lý do trong Nhật ký. Tab trắng được đóng lại.
-- Dòng video được tab mới cứu không còn bị tính là dòng lỗi. Lô chỉ tạm dừng vì Muse lỗi khi 3 dòng khác nhau lỗi liên tiếp.
-- Lượt tạo ảnh master không còn báo lỗi ngay khi nút Gửi của Muse hiện chậm.
 
 ## v2.10.0
 
