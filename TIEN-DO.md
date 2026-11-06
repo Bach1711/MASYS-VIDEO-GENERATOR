@@ -233,7 +233,7 @@ flowchart LR
 | 36 | [CON-90](https://linear.app/conducdaudan/issue/CON-90) | Hủy lô là dừng ngay, đóng cửa sổ bot (v2.10.0) | 🟩 Xong | [#43](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/43) | 05/11/2026 |
 | 37 | [CON-91](https://linear.app/conducdaudan/issue/CON-91) | Bảng video tự chạy lại dòng lỗi, tối đa 3 lần (v2.10.0) | 🟩 Xong | [#44](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/44) | 05/11/2026 |
 | 38 | [CON-98](https://linear.app/conducdaudan/issue/CON-98) | Muse trắng trang thì tự mở tab mới làm lại | 🟩 Xong, chờ phát hành | [#46](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/46) | 05/11/2026 |
-| 39 | [CON-99](https://linear.app/conducdaudan/issue/CON-99) | Tin thiếu ảnh tự gửi lại, nhận diện lỗi 502 | 🟦 Chờ duyệt | PR_LINK | 06/11/2026 |
+| 39 | [CON-99](https://linear.app/conducdaudan/issue/CON-99) | Tin thiếu ảnh tự gửi lại, nhận diện lỗi 502 | 🟦 Chờ duyệt | [#47](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/47) | 06/11/2026 |
 
 ## Nhật ký cập nhật
 
