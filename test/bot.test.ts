@@ -10,7 +10,7 @@ import { BotError, MuseBot } from "../src/bot/museBot.js";
 import { openDatabase } from "../src/db/index.js";
 
 // Trang Muse giả lập theo tên thật đã ghi nhận (museSelectors.ts). Chrome chạy ẩn chỉ trong test.
-type Mode = "ready" | "login" | "challenge" | "broken" | "quota" | "nosend" | "nonew" | "approval" | "video" | "dropone" | "wipe1" | "wipeall" | "wipepart" | "rerender" | "slowsend";
+type Mode = "ready" | "login" | "challenge" | "broken" | "quota" | "nosend" | "nonew" | "approval" | "video" | "dropone" | "wipe1" | "wipeall" | "wipepart" | "rerender" | "slowsend" | "sentlost" | "error502";
 let mode: Mode = "ready";
 let received: string[] = [];
 
@@ -59,6 +59,8 @@ function send() {
   fetch('/received', { method: 'POST', body: ${m === "rerender" ? "'INPUTS ' + inputs + '\\n' + " : ""}(names.length ? 'FILES ' + names.join(',') + '\\n' : '') + t.value });
   document.getElementById('att').innerHTML = '';
   ${m === "video" ? "setTimeout(() => { const v = document.createElement('video'); v.style.width = '280px'; v.style.height = '400px'; v.src = URL.createObjectURL(new Blob([new Uint8Array([0,0,0,24,102,116,121,112,105,115,111,109,0,0,2,0])], { type: 'video/mp4' })); document.getElementById('log').append(v); }, 1500);" : ""}
+  ${m === "sentlost" ? "" : "for (const n of names) { const i = document.createElement('img'); i.alt = n; document.getElementById('log').append(i); }"}
+  ${m === "error502" ? "setTimeout(() => { const e = document.createElement('p'); e.textContent = 'Bước tạo video bị lỗi ở phía hệ thống tạo video (502, sau 3 lần thử nội bộ).'; document.getElementById('log').append(e); }, 300);" : ""}
   const p = document.createElement('p'); p.textContent = t.value; document.getElementById('log').append(p);
   t.value = ''; document.getElementById('send').hidden = true;
   ${
@@ -111,6 +113,7 @@ function newBot(extra: Partial<ConstructorParameters<typeof MuseBot>[0]> = {}) {
     loadTimeoutMs: 1500,
     confirmTimeoutMs: 2500,
     pauseBeforeSendMs: [10, 20],
+    settleQuietMs: 300,
     ...extra,
   });
   return bot;
@@ -258,7 +261,7 @@ describe.skipIf(!hasChrome)("MuseBot với trang Muse giả lập", () => {
     };
 
     it("lớp 1: Muse vẽ lại ô chat lúc mới mở: chờ ổn định rồi mới điền, chỉ điền một lần", async () => {
-      const b = newBot();
+      const b = newBot({ settleQuietMs: 1200 });
       mode = "rerender";
       await b.open();
       await b.send("Hãy tạo một video dọc từ ảnh đính kèm, không hỏi lại");
@@ -308,6 +311,45 @@ describe.skipIf(!hasChrome)("MuseBot với trang Muse giả lập", () => {
       await b.open();
       await b.send(REQUEST);
       expect(received).toEqual([REQUEST]);
+    }, 30_000);
+  });
+
+  describe("tin đến Muse thiếu ảnh hoặc Muse báo 502 (CON-99)", () => {
+    const image = () => {
+      const f = path.join(tmp, "c.png");
+      fs.writeFileSync(f, "x");
+      return f;
+    };
+
+    it("đính kèm đủ nhưng tin đến Muse không có ảnh: missing_images, sent=true, chỉ gửi một lần", async () => {
+      const b = newBot({ sentImagesTimeoutMs: 800 });
+      mode = "sentlost";
+      await b.open();
+      await expect(b.send(REQUEST, [image()])).rejects.toMatchObject({ code: "missing_images", sent: true, message: "Tin đến Muse thiếu ảnh (0/1 ảnh)" });
+      expect(received).toHaveLength(1);
+    }, 30_000);
+
+    it("lượt không kèm ảnh thì không đếm ảnh", async () => {
+      const b = newBot({ sentImagesTimeoutMs: 800 });
+      mode = "sentlost";
+      await b.open();
+      await expect(b.send(REQUEST)).resolves.toMatchObject({ chatUrl: `${base}/thread/abc123XYZ` });
+    }, 30_000);
+
+    it("Muse báo 502 trong lúc chờ video: watch nhận ra lỗi ngay", async () => {
+      const b = newBot();
+      mode = "error502";
+      await b.open();
+      await b.send(REQUEST);
+      await expect.poll(async () => (await b.watch()).notice, { timeout: 5000 }).toBe("error");
+    }, 30_000);
+
+    it("chữ 502 trong prompt của người dùng không bị báo nhầm", async () => {
+      const b = newBot();
+      mode = "ready";
+      await b.open();
+      await b.send("Áo in số lỗi 502 ở ngực, tạo video đi");
+      expect((await b.watch()).notice).toBeUndefined();
     }, 30_000);
   });
 

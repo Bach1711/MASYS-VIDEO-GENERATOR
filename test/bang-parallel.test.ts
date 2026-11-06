@@ -323,6 +323,15 @@ describe("Bảng video tự chạy lại dòng lỗi (CON-91)", () => {
     expect(getDailyQuota(t.db).used).toBe(4);
   });
 
+  it("tin đến Muse thiếu ảnh: tự gửi lại trong cuộc trò chuyện mới, mỗi lần gửi đều tính lượt (CON-99)", async () => {
+    const t = setup({ rows: 1, slow: { 1: 2 }, sendFail: (_r, nth) => (nth === 1 ? new BotError("missing_images", "Tin đến Muse thiếu ảnh (0/2 ảnh)", true) : undefined) });
+    await t.run([1]);
+    expect(t.sends).toHaveLength(2);
+    expect(states(t.db)).toEqual(["1:done"]);
+    expect(info(t.db, 1)).toMatchObject({ attempt: 2, extraSends: 1, error: null });
+    expect(getDailyQuota(t.db).used).toBe(2);
+  });
+
   it("hỏng đủ 3 tab: Cần xem ngay, không chạy lại thêm, không tính lượt, dòng khác vẫn chạy (CON-98)", async () => {
     const t = setup({ rows: 2, slow: { 1: 2, 2: 2 }, sendFail: (row) => (row === 1 ? ui() : undefined) });
     const id = await t.run([1, 2]);

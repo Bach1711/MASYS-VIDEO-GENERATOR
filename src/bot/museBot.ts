@@ -7,7 +7,7 @@ import * as sel from "./museSelectors.js";
 /** Trạng thái trang Muse mà hàng đợi cần biết (spec §7, §8.3). */
 export type MuseState = "closed" | "ready" | "login" | "challenge" | "ui_changed";
 
-export type BotErrorCode = Exclude<MuseState, "ready"> | "busy" | "quota" | "rejected" | "muse_error" | "send_unconfirmed";
+export type BotErrorCode = Exclude<MuseState, "ready"> | "busy" | "quota" | "rejected" | "muse_error" | "send_unconfirmed" | "missing_images";
 
 export class BotError extends Error {
   constructor(
@@ -55,6 +55,8 @@ export interface MuseBotOptions {
   settleQuietMs?: number;
   /** Chờ trang ổn định tối đa chừng này, quá thì làm tiếp (ms, CON-98). */
   settleTimeoutMs?: number;
+  /** Sau khi gửi, chờ ảnh đính kèm hiện trong khung chat tối đa chừng này (ms, CON-99). */
+  sentImagesTimeoutMs?: number;
 }
 
 /** Muse xoá nội dung ô chat trước khi gửi: điền lại tối đa chừng này lần trong cùng tab (CON-98). */
@@ -350,21 +352,35 @@ export class MuseBot {
   }
 
   /**
-   * Muse có lúc vẽ lại ô chat ngay sau khi mở cuộc trò chuyện, xoá mất những gì vừa điền (ghi nhận lô 33, 37): chờ tải
-   * xong và ô chat đứng yên một nhịp rồi mới điền. Quá giờ vẫn làm tiếp, bước kiểm tra trước khi bấm Gửi sẽ bắt lỗi.
+   * Khoảng 1/3 số lần, Muse tự làm mới ô chat 1,0–1,3 giây sau khi mở cuộc trò chuyện mới, xoá cả chữ lẫn ảnh vừa điền
+   * (đo trên Muse thật 06/11/2026: 3/10 lần không chờ, 0/14 lần chờ 2,5 giây). Đây là gốc của lỗi trang trắng và tin mất ảnh.
+   * Chờ tải xong và ô chat đứng yên đủ lâu rồi mới điền. Quá giờ vẫn làm tiếp, bước kiểm tra trước khi bấm Gửi sẽ bắt lỗi.
    */
   private async settle(page: Page): Promise<void> {
-    const timeout = this.o.settleTimeoutMs ?? 8000;
+    const timeout = this.o.settleTimeoutMs ?? 10_000;
     await page.waitForLoadState("load", { timeout }).catch(() => {});
     const deadline = Date.now() + timeout;
     do {
       const el = await sel.chat.composer(page).elementHandle({ timeout: 1000 }).catch(() => null);
       const url = page.url();
-      await page.waitForTimeout(this.o.settleQuietMs ?? 1200);
+      await page.waitForTimeout(this.o.settleQuietMs ?? 3000);
       const same = el ? await el.evaluate((e) => e.isConnected).catch(() => false) : false;
       await el?.dispose().catch(() => {});
       if (same && page.url() === url) return;
     } while (Date.now() < deadline);
+  }
+
+  /** Muse đã nhận tin: tin đó phải có đủ ảnh đính kèm, không thì lượt này hỏng chắc chắn (CON-99). Muse chỉ tải ảnh lên lúc bấm Gửi. */
+  private async ensureAttached(page: Page, files: string[]): Promise<void> {
+    if (!files.length) return;
+    const names = files.map((f) => path.basename(f));
+    const deadline = Date.now() + (this.o.sentImagesTimeoutMs ?? 10_000);
+    for (;;) {
+      const got = await sel.chat.sentImages(page, names).catch(() => 0);
+      if (got >= files.length) return;
+      if (Date.now() > deadline) return await this.fail(page, "missing_images", `Tin đến Muse thiếu ảnh (${got}/${files.length} ảnh)`, true);
+      await page.waitForTimeout(500);
+    }
   }
 
   private async screenshot(page: Page, code: string): Promise<string | undefined> {
@@ -505,9 +521,13 @@ export class MuseBot {
         if (fresh.includes("error")) return await this.fail(page, "muse_error", "Muse báo lỗi sau khi gửi", true);
         const url = page.url();
         const composerEmpty = normalize(await composerText(composer)) === "";
-        if (url !== startUrl && sel.chat.threadUrl.test(url)) return { chatUrl: url };
+        if (url !== startUrl && sel.chat.threadUrl.test(url)) {
+          await this.ensureAttached(page, files);
+          return { chatUrl: url };
+        }
         // Ô chat đã trống và yêu cầu hiện trong khung trò chuyện: Muse đã nhận.
         if (composerEmpty && normalize(body).includes(normalize(text).slice(0, 60))) {
+          await this.ensureAttached(page, files);
           // Muse đổi /thread/new → /thread/<id> chậm hơn một chút (có lúc hơn 15 giây, ghi nhận 29/10/2026); chờ để lưu
           // đúng link. Vẫn chưa đổi thì trả rỗng: hàng đợi lấy link sau, trong lúc chờ video (không bao giờ lưu /thread/new).
           await page.waitForURL(sel.chat.threadUrl, { timeout: 45_000 }).catch(() => {});

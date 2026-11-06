@@ -63,6 +63,12 @@ export const chat = {
         })
         .map((el) => ({ src: el.currentSrc || el.src, ready: el.complete && el.naturalWidth >= 256 })),
     ),
+  /**
+   * Số ảnh đính kèm hiện trong khung chat (CON-99): Muse giữ tên file ở `alt` của ảnh trong tin đã gửi (ghi nhận 06/11/2026,
+   * cả Bảng ảnh lẫn Bảng video). Ảnh xem trước trong ô chat nằm ngoài khung chat nên không tính.
+   */
+  sentImages: (p: Page, names: string[]): Promise<number> =>
+    p.locator("[role=log] img").evaluateAll((els, list) => els.filter((el) => list.includes((el as unknown as { alt: string }).alt)).length, names),
   resultVideoCount: (p: Page): Promise<number> =>
     p.locator("video").evaluateAll(
       (els) =>
@@ -89,7 +95,8 @@ export const approval = {
 export const notices = {
   quota: /out of (free )?(credits|tokens|messages)|usage limit|reached (your|the) (weekly |daily )?limit|limit reached|upgrade to continue|hết lượt|hết (token|hạn mức)/i,
   rejected: /can'?t help with (that|this)|i'?m (not able|unable) to help|violates? (our|the) (policies|policy|community standards)|không thể giúp/i,
-  error: /something went wrong|an error occurred|try again later|network error|đã xảy ra lỗi|có lỗi xảy ra/i,
+  // Câu Muse báo hệ thống tạo video lỗi 502 do trợ lý viết nên không cố định (ghi nhận 06/11/2026): "lỗi ở phía hệ thống tạo video (502, sau 3 lần thử nội bộ)".
+  error: /something went wrong|an error occurred|try again later|network error|đã xảy ra lỗi|có lỗi xảy ra|bad gateway|\b502\b.{0,60}(lỗi|error)|(lỗi|error).{0,60}\b502\b|lỗi.{0,30}hệ thống tạo video|hệ thống tạo video.{0,30}lỗi/i,
   /** Muse báo đã làm xong nhưng ô video trong chat không mở được (ghi nhận 29/10/2026; tải lại trang cũng không có). */
   videoMissing: /video not found|không tìm thấy video/i,
   /**
