@@ -4,6 +4,15 @@ Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được �
 
 ## Chưa phát hành
 
+**Trang Nhân vật gọn dạng bảng, lọc được theo khu vực.**
+
+- Mỗi nhân vật là một dòng với ảnh thu nhỏ, nên có nhiều nhân vật vẫn dễ tìm, không phải kéo xa.
+- Bấm ảnh gốc, ảnh 4 góc hoặc ảnh mặt là xem toàn màn hình. Bấm bất kỳ đâu hoặc nhấn Esc để đóng, trang vẫn ở đúng chỗ cũ.
+- Lọc theo Tất cả hoặc từng khu vực, luôn theo thứ tự thêm vào bảng.
+- Đổi tên, xem prompt, xoá nằm trong nút **Sửa** ở cuối dòng. Dấu + trên ảnh vẫn dùng để thêm hoặc đổi ảnh.
+- Nhân vật tạo trong app tự có khu vực. Thêm tay thì phải chọn khu vực.
+- Nhân vật thêm tay từ trước hiện **Chưa có khu vực**: bấm ô Khu vực ngay trên dòng để chọn, chọn xong là lưu.
+
 **Sửa tận gốc lỗi mất ảnh và trang trắng khi tạo nhiều ảnh, video cùng lúc (Bảng video, Bảng ảnh, Tạo nhân vật).**
 
 - **Nguyên nhân:** khoảng 1/3 số lần, Muse tự làm mới ô chat ngay sau khi mở cuộc trò chuyện mới, xoá mất chữ và ảnh bot vừa điền. Đó là gốc của cả trang trắng lẫn tin gửi đi không có ảnh.

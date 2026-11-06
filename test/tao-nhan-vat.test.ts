@@ -28,6 +28,7 @@ import { BangFiles } from "../src/bang/files.js";
 import { BotError, type WatchResult } from "../src/bot/museBot.js";
 import { loadConfig } from "../src/config.js";
 import { openDatabase } from "../src/db/index.js";
+import { MIGRATIONS } from "../src/db/schema.js";
 import { getDailyQuota, getImageQuota } from "../src/db/quota.js";
 import { getSettings } from "../src/db/settings.js";
 import { BatchRunner, type MuseDriver } from "../src/queue/runner.js";
@@ -193,6 +194,20 @@ describe("Nhờ AI điền", () => {
     expect(((await read.json()) as { fields: unknown }).fields).toEqual({ ao: "red shirt" });
     const no = await app.request("/nhan-vat/tao/xem-truoc", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     expect(no.status).toBe(403);
+  });
+});
+
+describe("khu vực của nhân vật (CON-100)", () => {
+  it("migration điền khu vực từ bản nháp, nhân vật thêm tay để trống, chỉ thêm cột", () => {
+    const db = openDatabase(":memory:");
+    const last = MIGRATIONS.length;
+    db.exec("ALTER TABLE nhan_vat RENAME COLUMN khuVuc TO khuVucCu");
+    db.prepare("INSERT INTO nhan_vat (ten, file) VALUES ('Tay', 'a.png'), ('Tao', 'b.png'), ('Hong', 'c.png')").run();
+    const [, tao, hong] = db.prepare("SELECT id FROM nhan_vat ORDER BY id").all() as { id: number }[];
+    db.prepare("INSERT INTO nv_drafts (ten, criteria, core, nhanVatId) VALUES ('Tao', ?, '', ?), ('Hong', '{', '', ?)").run(JSON.stringify({ khuVuc: "East Asian" }), tao!.id, hong!.id);
+    db.exec(MIGRATIONS[last - 1]!);
+    const rows = db.prepare("SELECT ten, khuVuc FROM nhan_vat ORDER BY id").all();
+    expect(rows).toEqual([{ ten: "Tay", khuVuc: null }, { ten: "Tao", khuVuc: "East Asian" }, { ten: "Hong", khuVuc: null }]);
   });
 });
 

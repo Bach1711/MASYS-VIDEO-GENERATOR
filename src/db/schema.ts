@@ -240,4 +240,14 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE runs ADD COLUMN extraSends INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE runs ADD COLUMN extraSentAt TEXT;
   `,
+  // 16. Khu vực của nhân vật (CON-100): nhân vật tạo trong app lấy từ bản nháp; nhân vật thêm tay để trống, người dùng chọn sau.
+  `
+  ALTER TABLE nhan_vat ADD COLUMN khuVuc TEXT;
+  UPDATE nhan_vat SET khuVuc = (
+    SELECT json_extract(d.criteria, '$.khuVuc') FROM nv_drafts d
+    WHERE d.nhanVatId = nhan_vat.id AND json_valid(d.criteria)
+      AND json_extract(d.criteria, '$.khuVuc') IN ('Western European', 'American', 'East Asian', 'Vietnamese')
+    ORDER BY d.id DESC LIMIT 1
+  );
+  `,
 ];

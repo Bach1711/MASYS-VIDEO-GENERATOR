@@ -60,8 +60,20 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
           nav .nav-in { max-width: 1100px; }
           button:disabled { opacity:.45; cursor:not-allowed; }
           button.secondary, a.button.secondary { background:var(--card); color:var(--fg); border-color:var(--border); }
-          .nv-slot { margin:0; text-align:center; }
-          .nv-box { position:relative; height:220px; border-radius:6px; overflow:hidden; background:var(--border); }
+          .nv-box { position:relative; height:72px; border-radius:4px; overflow:hidden; background:var(--border); }
+          .nv-thumb { display:block; width:100%; height:100%; padding:0; border:0; background:none; cursor:zoom-in; }
+          .nv-table td { vertical-align:middle; padding:3px 8px; }
+          .nv-table th { white-space:nowrap; font-size:.85rem; }
+          .nv-table .nv-plus.goc { top:2px; right:2px; }
+          .nv-table .nv-plus b { width:20px; height:20px; font-size:14px; }
+          .nv-table select { width:auto; min-width:0; max-width:170px; padding:4px 6px; font-size:.9rem; }
+          .nv-more-row td { background:var(--bg); padding:10px 12px; }
+          .nv-filter { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+          .nv-filter a { padding:4px 12px; border:1px solid var(--border); border-radius:999px; background:var(--card); color:var(--fg); text-decoration:none; font-size:.9rem; }
+          .nv-filter a.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+          .nv-zoom { position:fixed; inset:0; z-index:100; align-items:center; justify-content:center; background:rgba(0,0,0,.85); cursor:zoom-out; }
+          .nv-zoom:not([hidden]) { display:flex; }
+          .nv-zoom img { max-width:98vw; max-height:98vh; object-fit:contain; }
           .nv-box img { display:block; width:100%; height:100%; object-fit:contain; }
           .nv-box form { margin:0; }
           .nv-plus { position:absolute; cursor:pointer; margin:0; }

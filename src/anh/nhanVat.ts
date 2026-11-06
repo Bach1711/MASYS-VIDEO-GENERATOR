@@ -15,6 +15,8 @@ export interface NhanVat {
   /** Ảnh master khi nhân vật được tạo trong app (CON-81); chỉ để lưu giữ, không gửi Muse trên Bảng ảnh. */
   masterFile: string | null;
   masterBytes: number;
+  /** Khu vực để lọc (CON-100); null = nhân vật thêm tay từ trước, chưa chọn. */
+  khuVuc: string | null;
   createdAt: string;
 }
 
@@ -29,21 +31,21 @@ export function tenProblem(ten: string): string | null {
 }
 
 export function listNhanVat(db: DB): NhanVat[] {
-  return db.prepare("SELECT id, ten, file, bytes, faceFile, faceBytes, masterFile, masterBytes, createdAt FROM nhan_vat WHERE deletedAt IS NULL ORDER BY id").all() as NhanVat[];
+  return db.prepare("SELECT id, ten, file, bytes, faceFile, faceBytes, masterFile, masterBytes, khuVuc, createdAt FROM nhan_vat WHERE deletedAt IS NULL ORDER BY id").all() as NhanVat[];
 }
 
 export function getNhanVat(db: DB, id: number | null | undefined): NhanVat | undefined {
   if (!id) return undefined;
-  return db.prepare("SELECT id, ten, file, bytes, faceFile, faceBytes, masterFile, masterBytes, createdAt FROM nhan_vat WHERE id = ? AND deletedAt IS NULL").get(id) as NhanVat | undefined;
+  return db.prepare("SELECT id, ten, file, bytes, faceFile, faceBytes, masterFile, masterBytes, khuVuc, createdAt FROM nhan_vat WHERE id = ? AND deletedAt IS NULL").get(id) as NhanVat | undefined;
 }
 
 /**
  * Thêm nhân vật. File character sheet đặt tên theo số nhân vật nên cần số trước: ghi tên tạm, lưu file bằng
  * `save(id)`, rồi gắn tên file. `save` ném lỗi thì không thêm gì.
  */
-export function addNhanVat(db: DB, ten: string, save: (id: number) => { file: string; bytes: number; faceFile?: string; faceBytes?: number; masterFile?: string; masterBytes?: number }): number {
+export function addNhanVat(db: DB, ten: string, save: (id: number) => { file: string; bytes: number; faceFile?: string; faceBytes?: number; masterFile?: string; masterBytes?: number }, khuVuc: string | null = null): number {
   return db.transaction(() => {
-    const id = Number(db.prepare("INSERT INTO nhan_vat (ten, file) VALUES (?, '')").run(ten.trim()).lastInsertRowid);
+    const id = Number(db.prepare("INSERT INTO nhan_vat (ten, file, khuVuc) VALUES (?, '', ?)").run(ten.trim(), khuVuc).lastInsertRowid);
     const f = save(id);
     db.prepare("UPDATE nhan_vat SET file = ?, bytes = ?, faceFile = ?, faceBytes = ?, masterFile = ?, masterBytes = ? WHERE id = ?").run(f.file, f.bytes, f.faceFile ?? null, f.faceBytes ?? 0, f.masterFile ?? null, f.masterBytes ?? 0, id);
     return id;
@@ -52,6 +54,10 @@ export function addNhanVat(db: DB, ten: string, save: (id: number) => { file: st
 
 export function renameNhanVat(db: DB, id: number, ten: string): void {
   db.prepare("UPDATE nhan_vat SET ten = ? WHERE id = ? AND deletedAt IS NULL").run(ten.trim(), id);
+}
+
+export function setNhanVatKhuVuc(db: DB, id: number, khuVuc: string): void {
+  db.prepare("UPDATE nhan_vat SET khuVuc = ? WHERE id = ? AND deletedAt IS NULL").run(khuVuc, id);
 }
 
 /** Đổi file character sheet (chỉ ảnh hưởng các lần tạo sau); trả tên file cũ để xoá. */

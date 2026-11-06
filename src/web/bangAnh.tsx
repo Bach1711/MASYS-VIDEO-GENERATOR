@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import type { Context, Hono } from "hono";
 import type { Child } from "hono/jsx";
-import { addNhanVat, deleteNhanVat, fileInUse, getNhanVat, listNhanVat, nhanVatUsage, renameNhanVat, setNhanVatFace, setNhanVatFile, setNhanVatMaster, tenProblem, type NhanVat } from "../anh/nhanVat.js";
+import { addNhanVat, deleteNhanVat, fileInUse, getNhanVat, listNhanVat, nhanVatUsage, renameNhanVat, setNhanVatFace, setNhanVatKhuVuc, setNhanVatFile, setNhanVatMaster, tenProblem, type NhanVat } from "../anh/nhanVat.js";
 import {
   addRow,
   ANH_LABEL_TEXT,
@@ -45,7 +45,7 @@ import type { BatchRunner } from "../queue/runner.js";
 import { APP_NAME } from "../version.js";
 import { Alert, Hidden, truncate } from "./components.js";
 import { Layout } from "./layout.js";
-import { draftOfNhanVat } from "../anh/taoNhanVat.js";
+import { draftOfNhanVat, REGIONS } from "../anh/taoNhanVat.js";
 import { COPY_PROMPT_JS, NvDraftsCard, NvPromptsBox } from "./taoNhanVat.js";
 
 // Bảng ảnh và trang Nhân vật (CON-77, spec v6.3 mục 17.13, D31–D33): chạy độc lập với Bảng video; Muse tạo ảnh theo
@@ -225,40 +225,75 @@ function RowView(props: { row: AnhRow; files: AnhFile[]; locked: boolean; chars:
   );
 }
 
-/** Một ô ảnh trên thẻ nhân vật (CON-88): bấm dấu + chọn ảnh, chọn xong là tải lên ngay. */
+/** Một ô ảnh trên bảng nhân vật (CON-88, CON-100): bấm ảnh xem toàn màn hình; bấm dấu + chọn ảnh, chọn xong là tải lên ngay. */
 function NvSlot(props: { action: string; label: string; ten: string; file: string | null; url: string | null; width: number }) {
   const { action, label, ten, file, url, width } = props;
   const lower = label.charAt(0).toLowerCase() + label.slice(1);
   const verb = `${file ? "Đổi" : "Thêm"} ${lower}`;
   return (
-    <figure class="nv-slot">
-      <div class="nv-box" style={`width:${width}px`}>
-        {file && url && (
-          <a href={url} target="_blank" rel="noreferrer" title={`Bấm để xem ${lower} lớn`}>
-            <img src={url} alt={`${lower} ${ten}`} loading="lazy" />
-          </a>
-        )}
-        <form method="post" action={action} enctype="multipart/form-data">
-          <label class={file ? "nv-plus goc" : "nv-plus giua"} title={verb}>
-            <b>+</b>
-            {!file && <span class="muted small">Chưa có {lower}</span>}
-            <input name="file" type="file" accept="image/jpeg,image/png,image/webp" data-nv-upload="1" aria-label={`${verb} cho ${ten}`} />
-          </label>
-        </form>
-      </div>
-      <figcaption class="small muted">{label}</figcaption>
-    </figure>
+    <div class="nv-box" style={`width:${width}px`}>
+      {file && url && (
+        <button type="button" class="nv-thumb" data-nv-zoom={url} title={`Bấm để xem ${lower} toàn màn hình`}>
+          <img src={url} alt={`${lower} ${ten}`} loading="lazy" />
+        </button>
+      )}
+      <form method="post" action={action} enctype="multipart/form-data">
+        <label class={file ? "nv-plus goc" : "nv-plus giua"} title={verb}>
+          <b>+</b>
+          <input name="file" type="file" accept="image/jpeg,image/png,image/webp" data-nv-upload="1" aria-label={`${verb} cho ${ten}`} />
+        </label>
+      </form>
+    </div>
   );
 }
 
-/** Chọn file xong (bấm xác nhận trên cửa sổ Windows) là gửi luôn; bấm Cancel thì không có sự kiện change nên không đổi gì. */
+/** Giá trị bộ lọc khu vực cho nhân vật chưa chọn khu vực. */
+const NO_REGION = "chua-co";
+const NO_REGION_TEXT = "Chưa có khu vực";
+
+function regionOptions(selected: string | null) {
+  return (
+    <>
+      {!selected && (
+        <option value="" selected disabled>
+          {NO_REGION_TEXT}
+        </option>
+      )}
+      {REGIONS.map((r) => (
+        <option value={r} selected={r === selected}>
+          {r}
+        </option>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Chọn file xong (bấm xác nhận trên cửa sổ Windows) là gửi luôn; bấm Cancel thì không có sự kiện change nên không đổi gì.
+ * Đổi ô khu vực cũng gửi luôn. Bấm ảnh mở toàn màn hình, bấm bất kỳ đâu hoặc Esc thì đóng, trang giữ nguyên chỗ đang xem.
+ */
 const NV_UPLOAD_JS = `
 document.addEventListener("change", function (e) {
   var i = e.target;
-  if (!i.getAttribute || !i.getAttribute("data-nv-upload") || !i.files.length) return;
+  if (!i.getAttribute) return;
+  if (i.getAttribute("data-nv-khu")) return i.form.submit();
+  if (!i.getAttribute("data-nv-upload") || !i.files.length) return;
   i.closest("label").querySelector("b").textContent = "\\u2026";
   i.form.submit();
 });
+(function () {
+  var zoom = document.getElementById("nv-zoom");
+  if (!zoom) return;
+  function close() { zoom.hidden = true; zoom.querySelector("img").removeAttribute("src"); }
+  zoom.addEventListener("click", close);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !zoom.hidden) close(); });
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest && e.target.closest("[data-nv-zoom]");
+    if (t) { zoom.querySelector("img").src = t.getAttribute("data-nv-zoom"); zoom.hidden = false; return; }
+    var m = e.target.closest && e.target.closest("[data-nv-more]");
+    if (m) { var row = document.getElementById(m.getAttribute("data-nv-more")); row.hidden = !row.hidden; }
+  });
+})();
 `;
 
 export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
@@ -881,6 +916,9 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
 
   const nvPage = (c: Context, o: { ok?: string; err?: string } = {}, status: 200 | 400 = 200) => {
     const chars = listNhanVat(db);
+    const khu = c.req.query("khu") ?? "";
+    // Danh sách đã theo thứ tự thêm vào bảng (id tăng dần), lọc không đổi thứ tự.
+    const shown = !khu ? chars : khu === NO_REGION ? chars.filter((ch) => !ch.khuVuc) : chars.filter((ch) => ch.khuVuc === khu);
     const ok = o.ok ?? c.req.query("ok");
     const err = o.err ?? c.req.query("loi");
     return c.html(
@@ -906,75 +944,151 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
           {ok && <Alert kind="ok">{ok}</Alert>}
           {err && <Alert kind="warn">{err}</Alert>}
           <NvDraftsCard db={db} />
-          <form method="post" action={`${NV}/them`} enctype="multipart/form-data" class="card">
-            <h2>+ Thêm nhân vật</h2>
-            <div class="row" style="align-items:center">
-              <input name="ten" type="text" maxlength={60} placeholder="Tên nhân vật, ví dụ: Linh" required aria-label="Tên nhân vật" style="flex:0 1 240px" />
-              <button type="submit">Thêm nhân vật</button>
+          <details class="card" open={!!err}>
+            <summary>
+              <strong>+ Thêm nhân vật</strong>
+            </summary>
+            <form method="post" action={`${NV}/them`} enctype="multipart/form-data" style="margin-top:10px">
+              <div class="row" style="align-items:center">
+                <input name="ten" type="text" maxlength={60} placeholder="Tên nhân vật, ví dụ: Linh" required aria-label="Tên nhân vật" style="flex:0 1 240px" />
+                <select name="khuVuc" required aria-label="Khu vực của nhân vật">
+                  <option value="" selected disabled>
+                    Chọn khu vực
+                  </option>
+                  {REGIONS.map((r) => (
+                    <option value={r}>{r}</option>
+                  ))}
+                </select>
+                <button type="submit">Thêm nhân vật</button>
+              </div>
+              <div class="row" style="align-items:center;margin-top:10px">
+                <label>
+                  Ảnh 4 góc (turnaround) <input name="file" type="file" accept="image/jpeg,image/png,image/webp" required />
+                </label>
+                <label>
+                  Ảnh mặt (face) <input name="face" type="file" accept="image/jpeg,image/png,image/webp" />
+                </label>
+              </div>
+              <div class="muted small hint">Nhận JPG, PNG, WEBP, tối đa 20 MB mỗi ảnh. Ảnh mặt không bắt buộc nhưng giúp Muse giữ mặt giống hơn.</div>
+            </form>
+          </details>
+          {chars.length > 0 && (
+            <div class="nv-filter" role="group" aria-label="Lọc theo khu vực">
+              <a href={NV} class={khu ? "" : "on"} aria-current={khu ? undefined : "true"}>
+                Tất cả ({chars.length})
+              </a>
+              {REGIONS.map((r) => (
+                <a href={`${NV}?${new URLSearchParams({ khu: r }).toString()}`} class={khu === r ? "on" : ""} aria-current={khu === r ? "true" : undefined}>
+                  {r} ({chars.filter((ch) => ch.khuVuc === r).length})
+                </a>
+              ))}
+              {(chars.some((ch) => !ch.khuVuc) || khu === NO_REGION) && (
+                <a href={`${NV}?khu=${NO_REGION}`} class={khu === NO_REGION ? "on" : ""} aria-current={khu === NO_REGION ? "true" : undefined}>
+                  {NO_REGION_TEXT} ({chars.filter((ch) => !ch.khuVuc).length})
+                </a>
+              )}
             </div>
-            <div class="row" style="align-items:center;margin-top:10px">
-              <label>
-                Ảnh 4 góc (turnaround) <input name="file" type="file" accept="image/jpeg,image/png,image/webp" required />
-              </label>
-              <label>
-                Ảnh mặt (face) <input name="face" type="file" accept="image/jpeg,image/png,image/webp" />
-              </label>
-            </div>
-            <div class="muted small hint">Nhận JPG, PNG, WEBP, tối đa 20 MB mỗi ảnh. Ảnh mặt không bắt buộc nhưng giúp Muse giữ mặt giống hơn.</div>
-          </form>
+          )}
           {chars.length === 0 ? (
             <div class="card muted">Chưa có nhân vật nào.</div>
+          ) : shown.length === 0 ? (
+            <div class="card muted">Không có nhân vật nào ở mục này.</div>
           ) : (
-            chars.map((ch) => {
-              const used = nhanVatUsage(db, ch.id);
-              const draft = draftOfNhanVat(db, ch.id);
-              return (
-                <div class="card" id={`nv-${ch.id}`}>
-                  <div class="row" style="align-items:flex-start;gap:16px;flex-wrap:wrap">
-                    <NvSlot action={`${NV}/${ch.id}/goc`} label="Ảnh gốc" ten={ch.ten} file={ch.masterFile} url={ch.masterFile ? sheetUrl(ch.masterFile) : null} width={124} />
-                    <NvSlot action={`${NV}/${ch.id}/file`} label="Ảnh 4 góc" ten={ch.ten} file={ch.file} url={sheetUrl(ch.file)} width={391} />
-                    <NvSlot action={`${NV}/${ch.id}/mat`} label="Ảnh mặt" ten={ch.ten} file={ch.faceFile} url={ch.faceFile ? sheetUrl(ch.faceFile) : null} width={160} />
-                    <div style="flex:1 1 100%;display:flex;flex-direction:column;gap:10px">
-                      <div>
-                        <strong style="font-size:1.1rem">{ch.ten}</strong>{" "}
-                        <span class="muted small">
-                          · {formatBytes(ch.bytes + ch.faceBytes + ch.masterBytes)} · {used} dòng trên Bảng ảnh
-                        </span>
-                      </div>
-                      <form method="post" action={`${NV}/${ch.id}/ten`} class="row" style="align-items:center">
-                        <input name="ten" type="text" maxlength={60} value={ch.ten} required aria-label={`Tên mới cho ${ch.ten}`} style="flex:0 1 220px" />
-                        <button type="submit" class="secondary small">
-                          Đổi tên
-                        </button>
-                      </form>
-                      <NvPromptsBox db={db} nhanVatId={ch.id} />
-                      {draft && (
-                        <a class="small" href={`${NV}/tao/${draft.id}`}>
-                          {ch.faceFile ? "Xem ảnh gốc, tạo lại ảnh" : "Thiếu ảnh face: tạo lại ảnh face"}
-                        </a>
-                      )}
-                      {ch.faceFile && (
-                        <form method="post" action={`${NV}/${ch.id}/mat/xoa`}>
-                          <button type="submit" class="secondary small" onclick={`return confirm(${JSON.stringify(`Xoá ảnh mặt của ${ch.ten}? Các lần tạo sau chỉ gửi ảnh 4 góc.`)})`}>
-                            Xoá ảnh mặt
-                          </button>
-                        </form>
-                      )}
-                      <form method="post" action={`${NV}/${ch.id}/xoa`}>
-                        <button
-                          type="submit"
-                          class="danger small"
-                          onclick={`return confirm(${JSON.stringify(`Xoá nhân vật ${ch.ten}? Ảnh của nhân vật trên máy sẽ bị xoá. Ảnh đã tạo vẫn giữ; ${used} dòng đang chọn nhân vật này cần chọn nhân vật khác.`)})`}
-                        >
-                          Xoá nhân vật
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
+            <div class="scroll">
+              <table class="nv-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Ảnh gốc</th>
+                    <th>Ảnh 4 góc</th>
+                    <th>Ảnh mặt</th>
+                    <th>Nhân vật</th>
+                    <th>Khu vực</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((ch, i) => {
+                    const used = nhanVatUsage(db, ch.id);
+                    const draft = draftOfNhanVat(db, ch.id);
+                    return (
+                      <>
+                        <tr id={`nv-${ch.id}`}>
+                          <td class="muted small">{i + 1}</td>
+                          <td>
+                            <NvSlot action={`${NV}/${ch.id}/goc`} label="Ảnh gốc" ten={ch.ten} file={ch.masterFile} url={ch.masterFile ? sheetUrl(ch.masterFile) : null} width={42} />
+                          </td>
+                          <td>
+                            <NvSlot action={`${NV}/${ch.id}/file`} label="Ảnh 4 góc" ten={ch.ten} file={ch.file} url={sheetUrl(ch.file)} width={128} />
+                          </td>
+                          <td>
+                            <NvSlot action={`${NV}/${ch.id}/mat`} label="Ảnh mặt" ten={ch.ten} file={ch.faceFile} url={ch.faceFile ? sheetUrl(ch.faceFile) : null} width={42} />
+                          </td>
+                          <td>
+                            <strong>{ch.ten}</strong>
+                            <div class="muted small">
+                              {formatBytes(ch.bytes + ch.faceBytes + ch.masterBytes)} · {used} dòng trên Bảng ảnh
+                            </div>
+                          </td>
+                          <td>
+                            <form method="post" action={`${NV}/${ch.id}/khu-vuc`} style="margin:0">
+                              <select name="khuVuc" data-nv-khu="1" aria-label={`Khu vực của ${ch.ten}`}>
+                                {regionOptions(ch.khuVuc)}
+                              </select>
+                            </form>
+                          </td>
+                          <td>
+                            <button type="button" class="secondary small" data-nv-more={`nv-more-${ch.id}`} aria-label={`Sửa ${ch.ten}`}>
+                              Sửa
+                            </button>
+                          </td>
+                        </tr>
+                        <tr id={`nv-more-${ch.id}`} class="nv-more-row" hidden>
+                          <td colspan={7}>
+                            <div style="display:flex;flex-direction:column;gap:10px">
+                              <form method="post" action={`${NV}/${ch.id}/ten`} class="row" style="align-items:center">
+                                <input name="ten" type="text" maxlength={60} value={ch.ten} required aria-label={`Tên mới cho ${ch.ten}`} style="flex:0 1 220px" />
+                                <button type="submit" class="secondary small">
+                                  Đổi tên
+                                </button>
+                              </form>
+                              <NvPromptsBox db={db} nhanVatId={ch.id} />
+                              {draft && (
+                                <a class="small" href={`${NV}/tao/${draft.id}`}>
+                                  {ch.faceFile ? "Xem ảnh gốc, tạo lại ảnh" : "Thiếu ảnh face: tạo lại ảnh face"}
+                                </a>
+                              )}
+                              <div class="row">
+                                {ch.faceFile && (
+                                  <form method="post" action={`${NV}/${ch.id}/mat/xoa`}>
+                                    <button type="submit" class="secondary small" onclick={`return confirm(${JSON.stringify(`Xoá ảnh mặt của ${ch.ten}? Các lần tạo sau chỉ gửi ảnh 4 góc.`)})`}>
+                                      Xoá ảnh mặt
+                                    </button>
+                                  </form>
+                                )}
+                                <form method="post" action={`${NV}/${ch.id}/xoa`}>
+                                  <button
+                                    type="submit"
+                                    class="danger small"
+                                    onclick={`return confirm(${JSON.stringify(`Xoá nhân vật ${ch.ten}? Ảnh của nhân vật trên máy sẽ bị xoá. Ảnh đã tạo vẫn giữ; ${used} dòng đang chọn nhân vật này cần chọn nhân vật khác.`)})`}
+                                  >
+                                    Xoá nhân vật
+                                  </button>
+                                </form>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      </>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
+          <div id="nv-zoom" class="nv-zoom" role="dialog" aria-label="Ảnh phóng to, bấm để đóng" hidden>
+            <img alt="" />
+          </div>
           <script dangerouslySetInnerHTML={{ __html: COPY_PROMPT_JS }} />
           <script dangerouslySetInnerHTML={{ __html: NV_UPLOAD_JS }} />
         </>,
@@ -992,8 +1106,13 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
     const problem = imageProblem(data);
     return problem ? { err: problem } : { data };
   };
+  // Sửa xong về đúng bộ lọc khu vực đang xem.
+  const currentFilter = (c: Context): string | undefined => {
+    const from = c.req.header("referer");
+    return from && URL.canParse(from) ? (new URL(from).searchParams.get("khu") ?? undefined) : undefined;
+  };
   const toNv = (c: Context, o: { ok?: string; loi?: string }) =>
-    c.redirect(`${NV}?${new URLSearchParams(Object.entries(o).filter(([, v]) => v) as [string, string][]).toString()}`, 303);
+    c.redirect(`${NV}?${new URLSearchParams(Object.entries({ ...o, khu: currentFilter(c) }).filter(([, v]) => v) as [string, string][]).toString()}`, 303);
 
   app.post(`${NV}/them`, async (c) => {
     if (!sameSite(c)) return c.text("Yêu cầu không hợp lệ", 403);
@@ -1001,6 +1120,8 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
     const ten = String(body.ten ?? "");
     const why = tenProblem(ten);
     if (why) return nvPage(c, { err: why }, 400);
+    const khuVuc = String(body.khuVuc ?? "");
+    if (!REGIONS.includes(khuVuc as (typeof REGIONS)[number])) return nvPage(c, { err: "Chưa chọn khu vực của nhân vật." }, 400);
     const file = body.file;
     if (!(file instanceof File)) return nvPage(c, { err: "Chưa chọn ảnh 4 góc." }, 400);
     const data = new Uint8Array(await file.arrayBuffer());
@@ -1014,10 +1135,20 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
       file: files.saveNhanVat(nvId, data),
       bytes: data.length,
       ...(faceData ? { faceFile: files.saveNhanVat(nvId, faceData), faceBytes: faceData.length } : {}),
-    }));
+    }), khuVuc);
     if (!getSettings(db).lastNhanVatId) setLastNhanVat(db, id);
     logger.info({ nhanVatId: id }, "Đã thêm nhân vật");
     return toNv(c, { ok: `Đã thêm nhân vật ${ten.trim()}.` });
+  });
+
+  app.post(`${NV}/:id/khu-vuc`, async (c) => {
+    if (!sameSite(c)) return c.text("Yêu cầu không hợp lệ", 403);
+    const nv = getNhanVat(db, Number(c.req.param("id")));
+    if (!nv) return toNv(c, { loi: "Không có nhân vật này." });
+    const khuVuc = String((await c.req.parseBody()).khuVuc ?? "");
+    if (!REGIONS.includes(khuVuc as (typeof REGIONS)[number])) return toNv(c, { loi: "Chưa chọn khu vực của nhân vật." });
+    setNhanVatKhuVuc(db, nv.id, khuVuc);
+    return toNv(c, { ok: `Đã chọn khu vực ${khuVuc} cho ${nv.ten}.` });
   });
 
   app.post(`${NV}/:id/ten`, async (c) => {
