@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **05/11/2026**, sau CON-99 (đang chờ duyệt: sửa gốc lỗi mất ảnh, nhận diện 502). CON-98 đã gộp, chờ phát hành. Trước đó CON-89, CON-90 và CON-91 (v2.10.0 đã phát hành: câu không hỏi lại, hủy lô dừng ngay, Bảng video tự chạy lại dòng lỗi). Trước đó CON-88 và CON-87 (v2.9.0 đã phát hành: tải ảnh ngay trên ô ảnh, ảnh face khung dọc 9:16). Trước đó CON-85 (v2.8.0 đã phát hành: nút Xem prompt, thẻ nhân vật có ảnh gốc, khung ảnh trong prompt). Trước đó CON-82 (v2.7.0 đã phát hành: tạo nhân vật chạy tự động đến hết). Trước đó CON-81 (v2.6.0 đã phát hành: tạo nhân vật ngay trong app bằng Muse). Trước đó CON-80 (v2.5.0 đã phát hành: nhân vật có ảnh 4 góc + ảnh mặt). Trước đó CON-78 (v2.4.0 đã phát hành: xuất ảnh từ Bảng ảnh sang Bảng video). Từ nay nhiều ticket gom vào một bản phát hành khi người phụ trách nói "phát hành". Trước đó CON-79 (v2.3.1 đã phát hành: sửa lỗi huỷ lô chặn cập nhật), CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **06/11/2026**, sau CON-100 (đang chờ duyệt cùng CON-99: trang Nhân vật dạng bảng, lọc khu vực). CON-98 đã gộp, chờ phát hành. Trước đó CON-89, CON-90 và CON-91 (v2.10.0 đã phát hành: câu không hỏi lại, hủy lô dừng ngay, Bảng video tự chạy lại dòng lỗi). Trước đó CON-88 và CON-87 (v2.9.0 đã phát hành: tải ảnh ngay trên ô ảnh, ảnh face khung dọc 9:16). Trước đó CON-85 (v2.8.0 đã phát hành: nút Xem prompt, thẻ nhân vật có ảnh gốc, khung ảnh trong prompt). Trước đó CON-82 (v2.7.0 đã phát hành: tạo nhân vật chạy tự động đến hết). Trước đó CON-81 (v2.6.0 đã phát hành: tạo nhân vật ngay trong app bằng Muse). Trước đó CON-80 (v2.5.0 đã phát hành: nhân vật có ảnh 4 góc + ảnh mặt). Trước đó CON-78 (v2.4.0 đã phát hành: xuất ảnh từ Bảng ảnh sang Bảng video). Từ nay nhiều ticket gom vào một bản phát hành khi người phụ trách nói "phát hành". Trước đó CON-79 (v2.3.1 đã phát hành: sửa lỗi huỷ lô chặn cập nhật), CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v6.3 · Linear: project **MASYS Video Generator**
 
 **Tổng quan:** 26/26 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 5/5 🎉 · GĐ6 4/4 🎉
 
 ```
-[■■■■■■■■■■]  38/39 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-85, CON-87…CON-91, CON-98; chờ duyệt CON-99
+[■■■■■■■■■■]  38/40 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-85, CON-87…CON-91, CON-98; chờ duyệt CON-99, CON-100
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -60,6 +60,7 @@ flowchart LR
         chaylai["Bảng video tự chạy lại<br/>tối đa 3 lần<br/>CON-91"]
         tabtrang["Muse trắng trang<br/>tự mở tab mới làm lại<br/>CON-98"]
         matanh["Tin thiếu ảnh tự gửi lại,<br/>nhận diện lỗi 502<br/>CON-99"]
+        nvbang["Trang Nhân vật dạng bảng,<br/>lọc theo khu vực<br/>CON-100"]
         logo["Logo MASYS: tab Chrome,<br/>thanh trên cùng, Trang chủ<br/>CON-48"]
         shirt["Ghép ảnh áo: cột Ảnh áo,<br/>ảnh thu nhỏ, đoạn ghép áo<br/>trong yêu cầu gửi Muse<br/>CON-46"]
     end
@@ -117,6 +118,7 @@ flowchart LR
     huyngay --> chaylai
     chaylai --> tabtrang
     tabtrang --> matanh
+    matanh --> nvbang
     scan --> shirt
     editor --> shirt
 
@@ -161,6 +163,7 @@ flowchart LR
     class chaylai done
     class tabtrang done
     class matanh review
+    class nvbang review
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -234,9 +237,11 @@ flowchart LR
 | 37 | [CON-91](https://linear.app/conducdaudan/issue/CON-91) | Bảng video tự chạy lại dòng lỗi, tối đa 3 lần (v2.10.0) | 🟩 Xong | [#44](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/44) | 05/11/2026 |
 | 38 | [CON-98](https://linear.app/conducdaudan/issue/CON-98) | Muse trắng trang thì tự mở tab mới làm lại | 🟩 Xong, chờ phát hành | [#46](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/46) | 05/11/2026 |
 | 39 | [CON-99](https://linear.app/conducdaudan/issue/CON-99) | Tin thiếu ảnh tự gửi lại, nhận diện lỗi 502 | 🟦 Chờ duyệt | [#47](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/47) | 06/11/2026 |
+| 40 | [CON-100](https://linear.app/conducdaudan/issue/CON-100) | Trang Nhân vật dạng bảng, xem ảnh toàn màn hình, lọc khu vực | 🟦 Chờ duyệt | [#48](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/48) | 06/11/2026 |
 
 ## Nhật ký cập nhật
 
+- **06/11/2026 · CON-100** (chờ duyệt): trang Nhân vật thành bảng gọn, bấm ảnh xem toàn màn hình, lọc theo khu vực, nhân vật cũ chọn khu vực ngay trên dòng. Thử với bản sao 14 nhân vật thật.
 - **06/11/2026 · CON-99** (chờ duyệt): tìm ra gốc lỗi mất ảnh và trang trắng trên Muse thật: Muse tự làm mới ô chat sau khi mở cuộc trò chuyện mới. Bot chờ đủ 3 giây, đếm ảnh trong tin đã gửi, thiếu thì tự gửi lại tối đa 3 lần, nhận ra lỗi 502. Chạy thật 12/12 ảnh đạt.
 - **05/11/2026 · CON-98** (đã gộp, chờ phát hành): Bảng video, Bảng ảnh, Tạo nhân vật tự xử lý khi Muse trắng trang: chờ trang ổn định, điền lại tối đa 2 lần, thay tab tối đa 3 tab, tất cả trước khi bấm Gửi nên không tốn lượt. Test bằng Muse giả, chưa chạy thật.
 - **05/11/2026 · CON-91** (xong, đã gộp vào main, đã phát hành v2.10.0): dòng lỗi ở Bảng video tự chạy lại sau khi các video khác xong, tổng tối đa 3 lần; 3 dòng lỗi liên tiếp thì tạm dừng lô. D9 đổi riêng cho Bảng video. Nhận biết Muse hỏi lại mới ở mức cơ bản, chưa có mẫu thật.

@@ -141,7 +141,7 @@ const form = (fields: Record<string, string | Blob>) => {
 describe("Nhân vật (D32)", () => {
   it("thêm / đổi tên / đổi file / xoá; file nằm trong tep\\nhan-vat, không đóng gói vào app", async () => {
     const { app, db, dataDir } = setup();
-    const add = await app.request("/nhan-vat/them", { method: "POST", body: form({ ten: " Mai ", file: new File([png(2)], "mai.png") }) });
+    const add = await app.request("/nhan-vat/them", { method: "POST", body: form({ khuVuc: "Vietnamese", ten: " Mai ", file: new File([png(2)], "mai.png") }) });
     expect(add.status).toBe(303);
     const mai = listNhanVat(db).find((n) => n.ten === "Mai")!;
     expect(mai.file).toMatch(/^nv\d+-[a-z0-9]+\.png$/);
@@ -155,7 +155,7 @@ describe("Nhân vật (D32)", () => {
     expect(after.file).not.toBe(mai.file);
     expect(fs.existsSync(path.join(dataDir, "tep", "nhan-vat", mai.file))).toBe(false);
 
-    const bad = await app.request("/nhan-vat/them", { method: "POST", body: form({ ten: "X", file: new File(["chữ"], "a.txt") }) });
+    const bad = await app.request("/nhan-vat/them", { method: "POST", body: form({ khuVuc: "Vietnamese", ten: "X", file: new File(["chữ"], "a.txt") }) });
     expect(bad.status).toBe(400);
     expect(await bad.text()).toContain("Chỉ nhận ảnh JPG, PNG hoặc WEBP.");
 
@@ -165,6 +165,58 @@ describe("Nhân vật (D32)", () => {
     const html = await (await app.request("/nhan-vat")).text();
     expect(html).toContain("Linh");
     expect(html).not.toContain("Mai 2");
+  });
+
+  it("thêm tay phải chọn khu vực; không chọn hoặc sai thì báo lỗi, không lưu (CON-100)", async () => {
+    const t = setup();
+    const before = listNhanVat(t.db).length;
+    const send = (extra: { khuVuc?: string }) => t.app.request("/nhan-vat/them", { method: "POST", body: form({ ten: "Hà", file: new File([png(2)], "h.png"), ...extra }) });
+    for (const extra of [{}, { khuVuc: "Sao Hoả" }]) {
+      const bad = await send(extra);
+      expect(bad.status).toBe(400);
+      expect(await bad.text()).toContain("Chưa chọn khu vực của nhân vật.");
+    }
+    expect(listNhanVat(t.db)).toHaveLength(before);
+    await send({ khuVuc: "East Asian" });
+    expect(listNhanVat(t.db).at(-1)).toMatchObject({ ten: "Hà", khuVuc: "East Asian" });
+  });
+
+  it("lọc khu vực: đúng nhân vật, đúng thứ tự thêm; nhân vật cũ chọn được khu vực ngay trên dòng (CON-100)", async () => {
+    const t = setup();
+    const add = (ten: string, khuVuc: string | null) => addNhanVat(t.db, ten, () => ({ file: `${ten}.png`, bytes: 1 }), khuVuc);
+    const a = add("An", "American");
+    const b = add("Bình", null);
+    const c = add("Chi", "American");
+    add("Dung", "Vietnamese");
+    const names = async (q: string) => {
+      const html = await (await t.app.request(`/nhan-vat${q}`)).text();
+      return [...html.matchAll(/<tr id="nv-\d+">[\s\S]*?<strong>([^<]+)<\/strong>/g)].map((m) => m[1]);
+    };
+    const all = await names("");
+    expect(all.filter((n) => ["An", "Bình", "Chi", "Dung"].includes(n!))).toEqual(["An", "Bình", "Chi", "Dung"]);
+    expect(await names("?khu=American")).toEqual(["An", "Chi"]);
+    expect(await names("?khu=Vietnamese")).toEqual(expect.arrayContaining(["Dung"]));
+    const none = await names("?khu=chua-co");
+    expect(none).toContain("Bình");
+    expect(none).not.toContain("An");
+    expect(await (await t.app.request("/nhan-vat?khu=East%20Asian")).text()).toContain("Không có nhân vật nào ở mục này.");
+
+    const res = await t.app.request(`/nhan-vat/${b}/khu-vuc`, { method: "POST", headers: { Referer: "http://localhost/nhan-vat?khu=chua-co" }, body: form({ khuVuc: "East Asian" }) });
+    expect(res.headers.get("location")).toContain("khu=chua-co");
+    expect(getNhanVat(t.db, b)!.khuVuc).toBe("East Asian");
+    expect(await names("?khu=East%20Asian")).toEqual(["Bình"]);
+    await t.app.request(`/nhan-vat/${c}/khu-vuc`, { method: "POST", body: form({ khuVuc: "Sao Hoả" }) });
+    expect(getNhanVat(t.db, c)!.khuVuc).toBe("American");
+    expect(getNhanVat(t.db, a)!.khuVuc).toBe("American");
+  });
+
+  it("bảng nhân vật: bấm ảnh xem toàn màn hình ở cả 3 loại ảnh, các nút cũ còn đủ (CON-100)", async () => {
+    const t = setup();
+    const id = addNhanVat(t.db, "An", () => ({ file: "a.png", bytes: 1, faceFile: "b.png", faceBytes: 1, masterFile: "c.png", masterBytes: 1 }), "American");
+    const html = await (await t.app.request("/nhan-vat")).text();
+    for (const f of ["a.png", "b.png", "c.png"]) expect(html).toContain(`data-nv-zoom="/nhan-vat/anh/${f}"`);
+    expect(html).toContain('id="nv-zoom"');
+    for (const route of ["goc", "file", "mat", "ten", "mat/xoa", "xoa", "khu-vuc"]) expect(html).toContain(`action="/nhan-vat/${id}/${route}"`);
   });
 
   it("thẻ nhân vật: mỗi ô có dấu + tải ảnh, không còn nút tải riêng (CON-88)", async () => {
@@ -181,7 +233,7 @@ describe("Nhân vật (D32)", () => {
     const { app, db, dataDir, nv, log, run } = setup();
     const onDisk = (f: string) => fs.existsSync(path.join(dataDir, "tep", "nhan-vat", f));
     const before = await (await app.request("/nhan-vat")).text();
-    expect(before).toContain("Chưa có ảnh gốc");
+    expect(before).toContain("Thêm ảnh gốc cho");
     expect(before).toContain("Thêm ảnh gốc");
 
     await app.request(`/nhan-vat/${nv}/goc`, { method: "POST", body: form({ file: new File([png(5)], "g.png") }) });
@@ -211,7 +263,7 @@ describe("Nhân vật (D32)", () => {
   it("ảnh mặt: thêm cùng nhân vật, đổi, xoá; không chọn ảnh mặt vẫn thêm được (CON-80)", async () => {
     const { app, db, dataDir } = setup();
     const onDisk = (f: string) => fs.existsSync(path.join(dataDir, "tep", "nhan-vat", f));
-    await app.request("/nhan-vat/them", { method: "POST", body: form({ ten: "Mai", file: new File([png(2)], "g.png"), face: new File([png(3)], "m.png") }) });
+    await app.request("/nhan-vat/them", { method: "POST", body: form({ khuVuc: "Vietnamese", ten: "Mai", file: new File([png(2)], "g.png"), face: new File([png(3)], "m.png") }) });
     const mai = listNhanVat(db).find((n) => n.ten === "Mai")!;
     expect(mai.faceFile).toMatch(/^nv\d+-[a-z0-9]+\.png$/);
     expect(mai.faceFile).not.toBe(mai.file);
@@ -228,9 +280,9 @@ describe("Nhân vật (D32)", () => {
     expect(getNhanVat(db, mai.id)).toMatchObject({ faceFile: null, faceBytes: 0, file: mai.file });
     expect(onDisk(changed.faceFile!)).toBe(false);
 
-    await app.request("/nhan-vat/them", { method: "POST", body: form({ ten: "Lan", file: new File([png(5)], "g.png"), face: new File([], "") }) });
+    await app.request("/nhan-vat/them", { method: "POST", body: form({ khuVuc: "Vietnamese", ten: "Lan", file: new File([png(5)], "g.png"), face: new File([], "") }) });
     expect(listNhanVat(db).find((n) => n.ten === "Lan")!.faceFile).toBeNull();
-    const bad = await app.request("/nhan-vat/them", { method: "POST", body: form({ ten: "X", file: new File([png(6)], "g.png"), face: new File(["chữ"], "a.txt") }) });
+    const bad = await app.request("/nhan-vat/them", { method: "POST", body: form({ khuVuc: "Vietnamese", ten: "X", file: new File([png(6)], "g.png"), face: new File(["chữ"], "a.txt") }) });
     expect(bad.status).toBe(400);
     expect(await bad.text()).toContain("Ảnh mặt:");
 

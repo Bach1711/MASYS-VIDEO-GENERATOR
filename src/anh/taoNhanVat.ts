@@ -311,6 +311,12 @@ function readChosen(db: DB, files: DraftStore, draftId: number, kind: NvKind): U
   return p ? new Uint8Array(fs.readFileSync(p)) : null;
 }
 
+/** Khu vực trong 12 tiêu chí của bản nháp (CON-100). */
+function draftRegion(draft: NvDraft): string | null {
+  const khuVuc = (JSON.parse(draft.criteria) as Partial<Criteria>).khuVuc;
+  return REGIONS.includes(khuVuc as (typeof REGIONS)[number]) ? khuVuc! : null;
+}
+
 /** Chép ảnh đang chọn sang thư viện Nhân vật. Cần master và turnaround; face có thì kèm. Trả số nhân vật, null = chưa đủ ảnh. */
 export function saveDraft(db: DB, files: DraftStore, draft: NvDraft): number | null {
   const master = readChosen(db, files, draft.id, "master");
@@ -323,7 +329,7 @@ export function saveDraft(db: DB, files: DraftStore, draft: NvDraft): number | n
     masterFile: files.saveNhanVat(nvId, master),
     masterBytes: master.length,
     ...(face ? { faceFile: files.saveNhanVat(nvId, face), faceBytes: face.length } : {}),
-  }));
+  }), draftRegion(draft));
   markDraftSaved(db, draft.id, id);
   if (!getSettings(db).lastNhanVatId) setLastNhanVat(db, id);
   return id;
