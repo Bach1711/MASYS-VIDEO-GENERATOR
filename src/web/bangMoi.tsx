@@ -228,12 +228,20 @@ function ImageCell(props: { row: BangRow; slot: Slot; locked: boolean }) {
   );
 }
 
+/** File tải về khi bấm "Tải các dòng đã chọn" (CON-107): có bản có hook (đã ghép xong) thì lấy bản đó, không thì bản gốc. */
+export function bulkDownload(r: BangRow, hookBusy: boolean): { url: string; name: string } | null {
+  if (!r.videoFile) return null;
+  if (r.hookVideoFile && r.hookJob == null && !hookBusy) return { url: `${videoUrl(r.hookVideoFile)}?tai=1`, name: hookDownloadName(r.id, r.videoAt) };
+  return { url: `${videoUrl(r.videoFile)}?tai=1`, name: downloadName(r.id, r.videoAt) };
+}
+
 function RowView(props: { row: BangRow; locked: boolean; hookOn: boolean; hookBusy: boolean }) {
   const r = props.row;
   const own = labelOf(r);
   const { label, problems } = props.locked && own.label !== "running" ? { label: "running" as const, problems: [] } : own;
+  const dl = bulkDownload(r, props.hookBusy);
   return (
-    <tr data-row={r.id} data-label={label}>
+    <tr data-row={r.id} data-label={label} data-dl={dl?.url} data-dl-name={dl?.name}>
       <td>
         <input type="checkbox" class="pick-row" value={r.id} aria-label={`Chọn dòng ${r.id}`} disabled={props.locked} />
       </td>
@@ -433,8 +441,17 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
 
           <div class="card actionbar">
             <div class="row" style="align-items:center">
+              <button type="button" id="selAll" class="secondary">
+                Chọn tất cả (trang này)
+              </button>
               <button type="button" id="selReady" class="secondary">
                 Chọn mọi dòng sẵn sàng (trang này)
+              </button>
+              <button type="button" id="selDone" class="secondary">
+                Chọn dòng xong (trang này)
+              </button>
+              <button type="button" id="dlBtn" class="secondary" disabled title="Lần đầu Chrome hỏi cho phép tải nhiều file: bấm Cho phép">
+                ⬇ Tải các dòng đã chọn
               </button>
               <button type="button" id="fillToggle" class="secondary">
                 Dải prompt
@@ -449,6 +466,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
                 <input type="checkbox" id="hookOn" checked={hook.on} /> Thêm hook
               </label>
             </div>
+            <div id="dlMsg" class="small muted" aria-live="polite" hidden></div>
             <div class="run-right">
               <span id="runHint" class={`small ${blocked ? "warn-text" : "muted"}`}>{blocked || "Tích các dòng cần tạo video."}</span>
               <button type="button" id="runBtn" disabled data-blocked={blocked ? "1" : ""}>
@@ -1150,8 +1168,16 @@ const CLIENT_JS = `
   function checked() { return Array.prototype.map.call(document.querySelectorAll("input.pick-row:checked"), function (c) { return c.value; }); }
   var runBtn = document.getElementById("runBtn"), runHint = document.getElementById("runHint");
   var delBtn = document.getElementById("delBtn");
+  var dlBtn = document.getElementById("dlBtn"), selAll = document.getElementById("selAll"), dlMsg = document.getElementById("dlMsg");
+  var downloading = false;
+  function pickable() { return Array.prototype.filter.call(document.querySelectorAll("input.pick-row"), function (c) { return !c.disabled; }); }
   function syncRun() {
     delBtn.disabled = checked().length === 0;
+    dlBtn.disabled = downloading || checked().length === 0;
+    var boxes = pickable();
+    var all = boxes.length > 0 && boxes.every(function (c) { return c.checked; });
+    selAll.textContent = all ? "B\\u1ecf ch\\u1ecdn t\\u1ea5t c\\u1ea3" : "Ch\\u1ecdn t\\u1ea5t c\\u1ea3 (trang n\\u00e0y)";
+    selAll.dataset.all = all ? "1" : "";
     if (runBtn.dataset.blocked) return;
     var n = checked().length;
     runBtn.disabled = n === 0;
@@ -1181,10 +1207,46 @@ const CLIENT_JS = `
   });
   // Đang tạo video: tự tải lại 15 giây một lần, trừ khi đang sửa dở.
   if (page.dataset.live) setInterval(function () {
-    if (document.querySelector(".editor") || !document.getElementById("fillBox").hidden || checked().length || document.querySelector(".vid video")) return;
+    if (downloading || document.querySelector(".editor") || !document.getElementById("fillBox").hidden || checked().length || document.querySelector(".vid video")) return;
     if (document.activeElement && document.activeElement.id === "hookDay") return;
     location.reload();
   }, 15000);
+  // Chọn tất cả / Bỏ chọn tất cả: mọi dòng trên trang trừ dòng đang tạo video (ô tích bị khoá).
+  selAll.addEventListener("click", function () {
+    var on = !selAll.dataset.all;
+    pickable().forEach(function (c) { c.checked = on; });
+    syncRun();
+  });
+  // Chọn dòng xong: dòng đã có video.
+  document.getElementById("selDone").addEventListener("click", function () {
+    pickable().forEach(function (c) { c.checked = !!c.closest("tr").dataset.dl; });
+    syncRun();
+  });
+  // Tải các dòng đã chọn: lần lượt từng file, cách nhau một chút để Chrome không bỏ sót; dòng chưa có video thì bỏ qua.
+  dlBtn.addEventListener("click", function () {
+    var rows = Array.prototype.map.call(document.querySelectorAll("input.pick-row:checked"), function (c) { return c.closest("tr"); });
+    var todo = rows.filter(function (tr) { return tr.dataset.dl; });
+    var skipped = rows.filter(function (tr) { return !tr.dataset.dl; }).map(function (tr) { return Number(tr.dataset.row); }).sort(function (a, b) { return a - b; });
+    var skipText = skipped.length ? " B\\u1ecf qua d\\u00f2ng " + skipped.join(", ") + " (ch\\u01b0a c\\u00f3 video)." : "";
+    dlMsg.hidden = false;
+    if (!todo.length) { dlMsg.textContent = "C\\u00e1c d\\u00f2ng \\u0111\\u00e3 ch\\u1ecdn ch\\u01b0a c\\u00f3 video n\\u00e0o \\u0111\\u1ec3 t\\u1ea3i."; return; }
+    downloading = true; syncRun();
+    var i = 0;
+    (function next() {
+      if (i >= todo.length) {
+        downloading = false; syncRun();
+        dlMsg.textContent = "\\u0110\\u00e3 t\\u1ea3i " + todo.length + " video v\\u00e0o th\\u01b0 m\\u1ee5c T\\u1ea3i xu\\u1ed1ng." + skipText;
+        return;
+      }
+      var tr = todo[i++];
+      dlMsg.textContent = "\\u0110ang t\\u1ea3i " + i + "/" + todo.length + ": d\\u00f2ng " + tr.dataset.row + "\u2026";
+      var a = document.createElement("a");
+      a.href = tr.dataset.dl; a.download = tr.dataset.dlName; a.hidden = true;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(next, 700);
+    })();
+  });
+  syncRun();
   document.getElementById("selReady").addEventListener("click", function () {
     var ready = (page.dataset.ready || "").split(",");
     document.querySelectorAll("input.pick-row").forEach(function (c) { c.checked = ready.indexOf(c.value) >= 0; });
