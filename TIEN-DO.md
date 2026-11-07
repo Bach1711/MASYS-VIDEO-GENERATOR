@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **07/11/2026**, sau CON-107 (đang chờ duyệt: Bảng video chọn tất cả, chọn dòng xong, tải các dòng đã chọn). Trước đó phát hành v2.11.0 (CON-98, CON-99, CON-100). Trước đó CON-89, CON-90 và CON-91 (v2.10.0 đã phát hành: câu không hỏi lại, hủy lô dừng ngay, Bảng video tự chạy lại dòng lỗi). Trước đó CON-88 và CON-87 (v2.9.0 đã phát hành: tải ảnh ngay trên ô ảnh, ảnh face khung dọc 9:16). Trước đó CON-85 (v2.8.0 đã phát hành: nút Xem prompt, thẻ nhân vật có ảnh gốc, khung ảnh trong prompt). Trước đó CON-82 (v2.7.0 đã phát hành: tạo nhân vật chạy tự động đến hết). Trước đó CON-81 (v2.6.0 đã phát hành: tạo nhân vật ngay trong app bằng Muse). Trước đó CON-80 (v2.5.0 đã phát hành: nhân vật có ảnh 4 góc + ảnh mặt). Trước đó CON-78 (v2.4.0 đã phát hành: xuất ảnh từ Bảng ảnh sang Bảng video). Từ nay nhiều ticket gom vào một bản phát hành khi người phụ trách nói "phát hành". Trước đó CON-79 (v2.3.1 đã phát hành: sửa lỗi huỷ lô chặn cập nhật), CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **07/11/2026**, sau khi phát hành v2.12.0 (CON-107: Bảng video chọn tất cả, chọn dòng xong, tải các dòng đã chọn). Trước đó phát hành v2.11.0 (CON-98, CON-99, CON-100). Trước đó CON-89, CON-90 và CON-91 (v2.10.0 đã phát hành: câu không hỏi lại, hủy lô dừng ngay, Bảng video tự chạy lại dòng lỗi). Trước đó CON-88 và CON-87 (v2.9.0 đã phát hành: tải ảnh ngay trên ô ảnh, ảnh face khung dọc 9:16). Trước đó CON-85 (v2.8.0 đã phát hành: nút Xem prompt, thẻ nhân vật có ảnh gốc, khung ảnh trong prompt). Trước đó CON-82 (v2.7.0 đã phát hành: tạo nhân vật chạy tự động đến hết). Trước đó CON-81 (v2.6.0 đã phát hành: tạo nhân vật ngay trong app bằng Muse). Trước đó CON-80 (v2.5.0 đã phát hành: nhân vật có ảnh 4 góc + ảnh mặt). Trước đó CON-78 (v2.4.0 đã phát hành: xuất ảnh từ Bảng ảnh sang Bảng video). Từ nay nhiều ticket gom vào một bản phát hành khi người phụ trách nói "phát hành". Trước đó CON-79 (v2.3.1 đã phát hành: sửa lỗi huỷ lô chặn cập nhật), CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v6.3 · Linear: project **MASYS Video Generator**
 
 **Tổng quan:** 26/26 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 5/5 🎉 · GĐ6 4/4 🎉
 
 ```
-[■■■■■■■■■■]  40/41 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-85, CON-87…CON-91, CON-98…CON-100; chờ duyệt CON-107
+[■■■■■■■■■■]  41/41 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-85, CON-87…CON-91, CON-98…CON-100, CON-107
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -166,7 +166,7 @@ flowchart LR
     class tabtrang done
     class matanh done
     class nvbang done
-    class tailoat review
+    class tailoat done
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -241,11 +241,11 @@ flowchart LR
 | 38 | [CON-98](https://linear.app/conducdaudan/issue/CON-98) | Muse trắng trang thì tự mở tab mới làm lại (v2.11.0) | 🟩 Xong | [#46](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/46) | 05/11/2026 |
 | 39 | [CON-99](https://linear.app/conducdaudan/issue/CON-99) | Tin thiếu ảnh tự gửi lại, nhận diện lỗi 502 (v2.11.0) | 🟩 Xong | [#47](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/47) | 06/11/2026 |
 | 40 | [CON-100](https://linear.app/conducdaudan/issue/CON-100) | Trang Nhân vật dạng bảng, xem ảnh toàn màn hình, lọc khu vực (v2.11.0) | 🟩 Xong | [#48](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/48) | 06/11/2026 |
-| 41 | [CON-107](https://linear.app/conducdaudan/issue/CON-107) | Bảng video: chọn tất cả, chọn dòng xong, tải các dòng đã chọn | 🟦 Chờ duyệt | [#50](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/50) | 07/11/2026 |
+| 41 | [CON-107](https://linear.app/conducdaudan/issue/CON-107) | Bảng video: chọn tất cả, chọn dòng xong, tải các dòng đã chọn (v2.12.0) | 🟩 Xong | [#50](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/50) | 07/11/2026 |
 
 ## Nhật ký cập nhật
 
-- **07/11/2026 · CON-107** (chờ duyệt): Bảng video có nút Chọn tất cả, Chọn dòng xong và Tải các dòng đã chọn (mỗi dòng một file, có hook thì bản có hook). Thử trên Chrome với 12 video thật: tải đủ 12, đúng tên.
+- **07/11/2026 · CON-107** (xong, đã gộp vào main, đã phát hành v2.12.0): Bảng video có nút Chọn tất cả, Chọn dòng xong và Tải các dòng đã chọn (mỗi dòng một file, có hook thì bản có hook). Thử trên Chrome với 12 video thật: tải đủ 12, đúng tên.
 - **06/11/2026 · CON-100** (xong, đã gộp vào main, đã phát hành v2.11.0): trang Nhân vật thành bảng gọn, bấm ảnh xem toàn màn hình, lọc theo khu vực, nhân vật cũ chọn khu vực ngay trên dòng. Thử với bản sao 14 nhân vật thật.
 - **06/11/2026 · CON-99** (xong, đã gộp vào main, đã phát hành v2.11.0): tìm ra gốc lỗi mất ảnh và trang trắng trên Muse thật: Muse tự làm mới ô chat sau khi mở cuộc trò chuyện mới. Bot chờ đủ 3 giây, đếm ảnh trong tin đã gửi, thiếu thì tự gửi lại tối đa 3 lần, nhận ra lỗi 502. Chạy thật 12/12 ảnh đạt.
 - **05/11/2026 · CON-98** (xong, đã gộp vào main, đã phát hành v2.11.0): Bảng video, Bảng ảnh, Tạo nhân vật tự xử lý khi Muse trắng trang: chờ trang ổn định, điền lại tối đa 2 lần, thay tab tối đa 3 tab, tất cả trước khi bấm Gửi nên không tốn lượt. Test bằng Muse giả, chưa chạy thật.
