@@ -519,6 +519,7 @@ Người phụ trách chốt thêm trong chat: bỏ hẳn sheet (chỉ giữ nú
 - **Thêm dòng:** một dòng trống, hoặc kéo thả nhiều ảnh vào thì mỗi ảnh thành một dòng mới với ảnh đó là *Mẫu trước*.
 - **Prompt, chọn tất cả, dải prompt, Tạo video, Tạm dừng / Tiếp tục:** như v5.0 (16.2), chỉ khác là ghi vào Bảng chứ không ghi sheet.
 - **Ô Video:** ảnh nhỏ của video, chỉ tải khi bấm ▶ (xem ngay trên trang), **⬇ Tải về** (lưu vào thư mục Tải xuống của trình duyệt, tên file `MASYS_<số dòng>_<YYYYMMDD-HHmm>.mp4`), **🗑 Xoá**.
+- **Chọn và tải hàng loạt (CON-107, 07/11/2026):** thanh dưới Bảng có **Chọn tất cả** (mọi dòng trên trang trừ dòng đang tạo video; mọi dòng đã tích thì thành Bỏ chọn tất cả), **Chọn dòng xong** (dòng đã có video) và **⬇ Tải các dòng đã chọn**: tải lần lượt trong trình duyệt, cách nhau 0,7 giây, mỗi dòng một file cùng tên với nút ⬇; dòng có bản có hook (đã ghép xong) thì tải bản đó, không thì bản gốc; dòng chưa có video bỏ qua và báo số dòng. Chỉ trong trang đang xem (50 dòng). Không gộp zip, không đổi hay xoá file.
 - **Số dòng** (#) tăng dần, không bao giờ đánh lại, kể cả khi đã xoá dòng (D21).
 - **Dòng đang trong lô** khoá sửa và khoá xoá.
 

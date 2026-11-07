@@ -184,6 +184,21 @@ describe("ô Video, xoá, dọn (17.2, 17.9, D26)", () => {
     expect(downloadName(7, "2026-10-29T13:05:00")).toBe("MASYS_7_20261029-1305.mp4");
   });
 
+  it("chọn tất cả, chọn dòng xong, tải các dòng đã chọn: dòng có video ghi sẵn file tải, dòng chưa có thì không (CON-107)", async () => {
+    const { app, db, run } = setup();
+    await run([1]);
+    const row = getRow(db, 1)!;
+    const html = await (await app.request("/")).text();
+    for (const id of ["selAll", "selDone", "dlBtn", "dlMsg"]) expect(html).toContain(`id="${id}"`);
+    expect(html).toMatch(/id="dlBtn" class="secondary" disabled/);
+    const tr1 = html.match(/<tr data-row="1"[^>]*>/)![0];
+    expect(tr1).toContain(`data-dl="/bang-moi/video/${row.videoFile}?tai=1"`);
+    expect(tr1).toContain(`data-dl-name="${downloadName(1, row.videoAt)}"`);
+    const others = [...html.matchAll(/<tr data-row="(\d+)"[^>]*>/g)].filter((m) => m[1] !== "1");
+    expect(others.length).toBeGreaterThan(0);
+    for (const m of others) expect(m[0]).not.toContain("data-dl");
+  });
+
   it("🗑 xoá video của dòng (giữ ảnh, prompt); xoá dòng cùng file; số dòng không dùng lại; thiếu header riêng bị chặn", async () => {
     const { app, db, files, run } = setup();
     await run([1, 2]);

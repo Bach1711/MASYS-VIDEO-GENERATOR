@@ -2,6 +2,15 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+**Bảng video: chọn nhanh và tải nhiều video một lần.**
+
+- **Chọn tất cả:** tích mọi dòng trên trang, bất kể trạng thái. Dòng đang tạo video không tích được. Bấm lần nữa để bỏ chọn hết.
+- **Chọn dòng xong:** tích các dòng đã có video.
+- **⬇ Tải các dòng đã chọn:** tải lần lượt video của các dòng đang tích vào thư mục Tải xuống, mỗi dòng một file. Dòng có hook thì tải bản có hook. Dòng chưa có video được bỏ qua và báo rõ.
+- Lần đầu tải, Chrome có thể hỏi cho phép trang tải nhiều file: bấm **Cho phép** một lần.
+
 ## v2.11.0
 
 **Tạo nhiều ảnh, video cùng lúc ổn định hơn (Bảng video, Bảng ảnh, Tạo nhân vật).**
