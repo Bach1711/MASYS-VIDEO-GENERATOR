@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **09/11/2026**, CON-112 đã gộp, chờ phát hành (Bảng video: nút Bỏ chọn, giữ dòng đã chọn khi đổi trang, tải các dòng đã chọn thành một file zip); tiếp theo CON-113 (cột Người mẫu, tên video "Tên người mẫu + STT"). Trước đó phát hành v2.12.0 (CON-107: Bảng video chọn tất cả, chọn dòng xong, tải các dòng đã chọn). Trước đó phát hành v2.11.0 (CON-98, CON-99, CON-100). Trước đó CON-89, CON-90 và CON-91 (v2.10.0 đã phát hành: câu không hỏi lại, hủy lô dừng ngay, Bảng video tự chạy lại dòng lỗi). Trước đó CON-88 và CON-87 (v2.9.0 đã phát hành: tải ảnh ngay trên ô ảnh, ảnh face khung dọc 9:16). Trước đó CON-85 (v2.8.0 đã phát hành: nút Xem prompt, thẻ nhân vật có ảnh gốc, khung ảnh trong prompt). Trước đó CON-82 (v2.7.0 đã phát hành: tạo nhân vật chạy tự động đến hết). Trước đó CON-81 (v2.6.0 đã phát hành: tạo nhân vật ngay trong app bằng Muse). Trước đó CON-80 (v2.5.0 đã phát hành: nhân vật có ảnh 4 góc + ảnh mặt). Trước đó CON-78 (v2.4.0 đã phát hành: xuất ảnh từ Bảng ảnh sang Bảng video). Từ nay nhiều ticket gom vào một bản phát hành khi người phụ trách nói "phát hành". Trước đó CON-79 (v2.3.1 đã phát hành: sửa lỗi huỷ lô chặn cập nhật), CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **09/11/2026**, CON-113 đã gộp, chờ phát hành (Bảng video: cột Người mẫu tự điền từ Bảng ảnh, video tự đặt tên "Tên người mẫu + STT"). Trước đó CON-112 đã gộp, chờ phát hành (nút Bỏ chọn, giữ dòng đã chọn khi đổi trang, tải các dòng đã chọn thành một file zip). Trước đó phát hành v2.12.0 (CON-107: Bảng video chọn tất cả, chọn dòng xong, tải các dòng đã chọn). Trước đó phát hành v2.11.0 (CON-98, CON-99, CON-100). Trước đó CON-89, CON-90 và CON-91 (v2.10.0 đã phát hành: câu không hỏi lại, hủy lô dừng ngay, Bảng video tự chạy lại dòng lỗi). Trước đó CON-88 và CON-87 (v2.9.0 đã phát hành: tải ảnh ngay trên ô ảnh, ảnh face khung dọc 9:16). Trước đó CON-85 (v2.8.0 đã phát hành: nút Xem prompt, thẻ nhân vật có ảnh gốc, khung ảnh trong prompt). Trước đó CON-82 (v2.7.0 đã phát hành: tạo nhân vật chạy tự động đến hết). Trước đó CON-81 (v2.6.0 đã phát hành: tạo nhân vật ngay trong app bằng Muse). Trước đó CON-80 (v2.5.0 đã phát hành: nhân vật có ảnh 4 góc + ảnh mặt). Trước đó CON-78 (v2.4.0 đã phát hành: xuất ảnh từ Bảng ảnh sang Bảng video). Từ nay nhiều ticket gom vào một bản phát hành khi người phụ trách nói "phát hành". Trước đó CON-79 (v2.3.1 đã phát hành: sửa lỗi huỷ lô chặn cập nhật), CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v6.3 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 42/42 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 5/5 🎉 · GĐ6 20/20 🎉
+**Tổng quan:** 43/43 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 5/5 🎉 · GĐ6 21/21 🎉
 
 ```
-[■■■■■■■■■■]  42/42 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-85, CON-87…CON-91, CON-98…CON-100, CON-107, CON-112 (chờ phát hành)
+[■■■■■■■■■■]  43/43 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-85, CON-87…CON-91, CON-98…CON-100, CON-107, CON-112, CON-113 (hai ticket cuối chờ phát hành)
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -63,6 +63,7 @@ flowchart LR
         nvbang["Trang Nhân vật dạng bảng,<br/>lọc theo khu vực<br/>CON-100"]
         tailoat["Bảng video: chọn tất cả,<br/>tải các dòng đã chọn<br/>CON-107"]
         taizip["Bỏ chọn, giữ chọn qua trang,<br/>tải một file zip<br/>CON-112"]
+        tenvideo["Cột Người mẫu,<br/>tên video theo người mẫu<br/>CON-113"]
         logo["Logo MASYS: tab Chrome,<br/>thanh trên cùng, Trang chủ<br/>CON-48"]
         shirt["Ghép ảnh áo: cột Ảnh áo,<br/>ảnh thu nhỏ, đoạn ghép áo<br/>trong yêu cầu gửi Muse<br/>CON-46"]
     end
@@ -123,6 +124,8 @@ flowchart LR
     matanh --> nvbang
     nvbang --> tailoat
     tailoat --> taizip
+    taizip --> tenvideo
+    xuat --> tenvideo
     scan --> shirt
     editor --> shirt
 
@@ -170,6 +173,7 @@ flowchart LR
     class nvbang done
     class tailoat done
     class taizip done
+    class tenvideo done
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -246,9 +250,11 @@ flowchart LR
 | 40 | [CON-100](https://linear.app/conducdaudan/issue/CON-100) | Trang Nhân vật dạng bảng, xem ảnh toàn màn hình, lọc khu vực (v2.11.0) | 🟩 Xong | [#48](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/48) | 06/11/2026 |
 | 41 | [CON-107](https://linear.app/conducdaudan/issue/CON-107) | Bảng video: chọn tất cả, chọn dòng xong, tải các dòng đã chọn (v2.12.0) | 🟩 Xong | [#50](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/50) | 07/11/2026 |
 | 42 | [CON-112](https://linear.app/conducdaudan/issue/CON-112) | Bảng video: nút Bỏ chọn, giữ dòng đã chọn khi đổi trang, tải thành một file zip | 🟩 Xong | [#52](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/52) | 09/11/2026 |
+| 43 | [CON-113](https://linear.app/conducdaudan/issue/CON-113) | Bảng video: cột Người mẫu tự điền từ Bảng ảnh, video tự đặt tên "Tên người mẫu + STT" | 🟩 Xong | [#53](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/53) | 09/11/2026 |
 
 ## Nhật ký cập nhật
 
+- **09/11/2026 · CON-113** (xong, đã gộp vào main, chờ phát hành): cột Người mẫu trên Bảng video, app tự điền tên + ảnh mặt khi xuất từ Bảng ảnh (cả dòng đã xuất trước đây); video tự đặt tên "Illya Osipov 01", dòng lẻ "Video 01", số không dùng lại. Thử trên Chrome: 2 nhân vật, 5 dòng xuất + 2 dòng lẻ với video thật; tải một dòng ra "Ngọc Ánh 01.mp4", zip giải nén bằng Explorer ra đúng 7 tên.
 - **09/11/2026 · CON-112** (xong, đã gộp vào main, chờ phát hành): Bảng video có nút Bỏ chọn (mọi trang), dòng đã chọn giữ khi đổi trang / lọc / tìm, và Tải các dòng đã chọn gom thành một file zip `Video nguoi mau <ngày> <giờ>.zip`. Thử trên Chrome với 60 dòng, 2 trang: chọn ở cả hai trang, tải 9 video thật (77 MB) ra một zip; giải nén bằng Explorer và Expand-Archive đều ra đủ 9 file giống hệt bản gốc.
 - **07/11/2026 · CON-107** (xong, đã gộp vào main, đã phát hành v2.12.0): Bảng video có nút Chọn tất cả, Chọn dòng xong và Tải các dòng đã chọn (mỗi dòng một file, có hook thì bản có hook). Thử trên Chrome với 12 video thật: tải đủ 12, đúng tên.
 - **06/11/2026 · CON-100** (xong, đã gộp vào main, đã phát hành v2.11.0): trang Nhân vật thành bảng gọn, bấm ảnh xem toàn màn hình, lọc theo khu vực, nhân vật cũ chọn khu vực ngay trên dòng. Thử với bản sao 14 nhân vật thật.

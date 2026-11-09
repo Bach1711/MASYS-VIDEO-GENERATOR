@@ -12,7 +12,6 @@ import { getSettings } from "../src/db/settings.js";
 import { loadConfig } from "../src/config.js";
 import { openDatabase } from "../src/db/index.js";
 import { createApp } from "../src/web/app.js";
-import { downloadName, hookDownloadName } from "../src/web/bangMoi.js";
 
 // CON-112: Bỏ chọn, giữ dòng đã chọn khi đổi trang, tải các dòng đã chọn thành một file zip.
 
@@ -135,7 +134,7 @@ describe("Tải các dòng đã chọn thành một file zip (CON-112)", () => {
     const buf = Buffer.from(await res.arrayBuffer());
     expect(Number(res.headers.get("content-length"))).toBe(buf.length);
     const list = readZip(buf);
-    expect(list.map((f) => f.name)).toEqual([downloadName(1, "2026-11-09T08:30:00Z"), hookDownloadName(2, "2026-11-09T08:30:00Z")]);
+    expect(list.map((f) => f.name)).toEqual(["Video 01.mp4", "Video 02.mp4"]);
     expect(list[0]!.data.equals(Buffer.from(mp4("row1")))).toBe(true);
     expect(list[1]!.data.equals(Buffer.from(mp4("hook2")))).toBe(true);
   });

@@ -166,6 +166,9 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
           ul.mapping { margin:10px 0 14px; padding-left:20px; }
           .hint { margin-top:4px; }
           table.bang-moi td.slot { text-align:center; min-width:76px; }
+          table.bang-moi td.nguoimau { text-align:center; min-width:76px; max-width:120px; word-break:break-word; }
+          table.bang-moi td.nguoimau img.thumb { width:48px; height:48px; margin:0 auto 2px; }
+          .vid-name { font-weight:600; word-break:break-word; max-width:160px; }
           .slot-img { display:flex; flex-direction:column; align-items:center; gap:2px; }
           .slot-tools { display:flex; gap:2px; }
           button.slot-add { width:64px; height:64px; font-size:1.4rem; background:none; color:var(--muted); border:1px dashed var(--border); }

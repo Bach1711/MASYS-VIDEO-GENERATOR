@@ -8,7 +8,7 @@ describe("SQLite schema §9", () => {
     const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as {
       name: string;
     }[]).map((t) => t.name);
-    expect(tables.sort()).toEqual(["anh_files", "anh_rows", "bang_rows", "batches", "nhan_vat", "nv_draft_files", "nv_drafts", "run_events", "runs", "settings", "sheet_configs", "sheet_edits"]);
+    expect(tables.sort()).toEqual(["anh_files", "anh_rows", "bang_rows", "batches", "nhan_vat", "nv_draft_files", "nv_drafts", "run_events", "runs", "settings", "sheet_configs", "sheet_edits", "video_names"]);
 
     const s = db.prepare("SELECT * FROM settings").all() as Record<string, unknown>[];
     expect(s).toHaveLength(1);

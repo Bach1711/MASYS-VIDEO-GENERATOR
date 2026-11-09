@@ -167,18 +167,19 @@ describe("tải video về máy (17.5 bước 6–8)", () => {
 });
 
 describe("ô Video, xoá, dọn (17.2, 17.9, D26)", () => {
-  it("▶ xem / ⬇ tải với tên MASYS_<dòng>_<giờ>.mp4; tên lạ không phục vụ", async () => {
+  it("▶ xem / ⬇ tải với tên video (CON-113: Video 01.mp4); tên lạ không phục vụ", async () => {
     const { app, db, run } = setup();
     await run([1]);
     const row = getRow(db, 1)!;
     const html = await (await app.request("/")).text();
     expect(html).toContain(`data-src="/bang-moi/video/${row.videoFile}"`);
-    expect(html).toContain(`download="${downloadName(1, row.videoAt)}"`);
+    expect(row.videoName).toBe("Video 01");
+    expect(html).toContain(`download="Video 01.mp4"`);
     const v = await app.request(`/bang-moi/video/${row.videoFile}`);
     expect(v.headers.get("content-type")).toBe("video/mp4");
     expect(new Uint8Array(await v.arrayBuffer())).toEqual(MP4);
     const dl = await app.request(`/bang-moi/video/${row.videoFile}?tai=1`);
-    expect(dl.headers.get("content-disposition")).toBe(`attachment; filename="${downloadName(1, row.videoAt)}"`);
+    expect(dl.headers.get("content-disposition")).toBe(`attachment; filename="Video 01.mp4"; filename*=UTF-8''Video%2001.mp4`);
     expect((await app.request("/bang-moi/video/..%2Fdata.db")).status).toBe(404);
     expect((await app.request(`/bang-moi/video/${row.modelFront}`)).status).toBe(404);
     expect(downloadName(7, "2026-10-29T13:05:00")).toBe("MASYS_7_20261029-1305.mp4");
@@ -193,7 +194,7 @@ describe("ô Video, xoá, dọn (17.2, 17.9, D26)", () => {
     expect(html).toMatch(/id="dlBtn" class="secondary" disabled/);
     const tr1 = html.match(/<tr data-row="1"[^>]*>/)![0];
     expect(tr1).toContain(`data-dl="/bang-moi/video/${row.videoFile}?tai=1"`);
-    expect(tr1).toContain(`data-dl-name="${downloadName(1, row.videoAt)}"`);
+    expect(tr1).toContain(`data-dl-name="Video 01.mp4"`);
     const others = [...html.matchAll(/<tr data-row="(\d+)"[^>]*>/g)].filter((m) => m[1] !== "1");
     expect(others.length).toBeGreaterThan(0);
     for (const m of others) expect(m[0]).not.toContain("data-dl");
