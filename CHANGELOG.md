@@ -2,18 +2,15 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
-## Chưa phát hành
+## v2.13.0
 
-**Bảng video: bỏ chọn nhanh, giữ dòng đã chọn khi đổi trang, tải nhiều video thành một file zip.**
+**Bảng video: chọn và tải tiện hơn, video tự đặt tên theo người mẫu.**
 
 - **Bỏ chọn:** nút mới, bấm một lần là bỏ tích mọi dòng đã chọn, kể cả dòng ở trang khác.
 - **Đổi trang không mất dòng đã chọn:** tích ở trang 3, về trang 2 tích tiếp, quay lại trang 3 vẫn còn tích. Đổi bộ lọc hay tìm kiếm cũng vậy. Dưới thanh nút ghi rõ "Đã chọn N dòng (gồm M dòng ở trang khác)". Tạo video, Xoá dòng đã chọn và Tải các dòng đã chọn áp dụng cho mọi dòng đã chọn ở mọi trang. Đóng tab thì danh sách chọn được xoá.
-- **⬇ Tải các dòng đã chọn** giờ gom tất cả video vào **một file zip** tên `Video nguoi mau <ngày> <giờ>.zip`: chỉ bấm Save một lần, rồi giải nén ra thư mục. Dòng có hook thì lấy bản có hook. Dòng chưa có video được bỏ qua và báo rõ.
-
-**Bảng video: cột Người mẫu, video tự đặt tên theo người mẫu.**
-
-- **Cột Người mẫu:** dòng xuất từ Bảng ảnh tự có tên và ảnh mặt của nhân vật. Nhân vật chưa có ảnh mặt thì hiện ảnh 4 góc. Các dòng đã xuất từ trước cũng được tự điền. Dòng tạo lẻ (chọn ảnh từ máy, nhập từ sheet) để trống.
-- **Tên video:** video về là app tự đặt tên theo người mẫu, ví dụ `Illya Osipov 01`, `Illya Osipov 02`…, mỗi người mẫu đánh số riêng. Dòng không có người mẫu thì đặt `Video 01`, `Video 02`… Tên hiện ngay dưới video và dùng khi tải một video hay tải cả file zip. Số đã dùng thì không dùng lại, nên không có hai video trùng tên. Video đã có từ trước cũng được đặt tên theo cách này.
+- **⬇ Tải các dòng đã chọn** giờ gom các video vào **một file zip** tên `Video nguoi mau <ngày> <giờ>.zip`: chỉ bấm Save một lần, rồi giải nén ra thư mục. Dòng có hook thì lấy bản có hook. Dòng chưa có video được bỏ qua và báo rõ.
+- **Cột Người mẫu:** dòng xuất từ Bảng ảnh tự có tên và ảnh mặt của nhân vật (chưa có ảnh mặt thì hiện ảnh 4 góc), kể cả các dòng đã xuất từ trước. Dòng tạo lẻ (chọn ảnh từ máy, nhập từ sheet) để trống.
+- **Video tự đặt tên theo người mẫu:** ví dụ `Illya Osipov 01`, `Illya Osipov 02`…, mỗi người mẫu đánh số riêng; dòng không có người mẫu là `Video 01`, `Video 02`… Tên hiện ngay dưới video và dùng khi tải một video hay tải cả file zip. Số đã dùng thì không dùng lại, nên không có hai video trùng tên. Video đã có trên máy cũng được đặt tên theo cách này.
 - Ô Tìm trên Bảng video tìm được cả theo tên người mẫu.
 
 ## v2.12.0
