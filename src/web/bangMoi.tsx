@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { Readable } from "node:stream";
 import type { Context, Hono } from "hono";
 import type { Child } from "hono/jsx";
 import { hookTextFor, queueHook, setHookClip, setHookText } from "../bang/rows.js";
@@ -7,6 +8,7 @@ import { getHookSettings, setHookDayText, setHookOn } from "../db/settings.js";
 import { cleanupIds, clearRowVideo, deleteRows, rowFiles, importedKeys, isFilter, isSlot, labelOf, listRows, countByFilter, getRow, addRow, setPrompt, setSlot, lockedBangRows, planBangFill, applyBangFill, allRowIds, SLOTS, SLOT_TAG, SLOT_TEXT, FILTERS, FILTER_TEXT, BANG_LABEL_TEXT, type BangFilter, type BangLabel, type BangRow, type Slot } from "../bang/rows.js";
 import { BangFiles, clipProblem, formatBytes, imageProblem, typeOf } from "../bang/files.js";
 import { planImport, runImport, type ImportPlan } from "../bang/importSheet.js";
+import { zipName, zipStream, type ZipEntry } from "../bang/zip.js";
 import { attachmentText, BANG_KIND_TEXT } from "../bang/request.js";
 import { estimateText, insertBangBatch, planBangBatch, type HookChoice } from "../bang/run.js";
 import { activeBatch } from "../db/history.js";
@@ -228,11 +230,16 @@ function ImageCell(props: { row: BangRow; slot: Slot; locked: boolean }) {
   );
 }
 
-/** File tải về khi bấm "Tải các dòng đã chọn" (CON-107): có bản có hook (đã ghép xong) thì lấy bản đó, không thì bản gốc. */
-export function bulkDownload(r: BangRow, hookBusy: boolean): { url: string; name: string } | null {
+/** Video của dòng khi tải nhiều dòng (CON-107, CON-112): có bản có hook (đã ghép xong) thì lấy bản đó, không thì bản gốc. */
+export function bulkFile(r: BangRow, hookBusy: boolean): { file: string; name: string } | null {
   if (!r.videoFile) return null;
-  if (r.hookVideoFile && r.hookJob == null && !hookBusy) return { url: `${videoUrl(r.hookVideoFile)}?tai=1`, name: hookDownloadName(r.id, r.videoAt) };
-  return { url: `${videoUrl(r.videoFile)}?tai=1`, name: downloadName(r.id, r.videoAt) };
+  if (r.hookVideoFile && r.hookJob == null && !hookBusy) return { file: r.hookVideoFile, name: hookDownloadName(r.id, r.videoAt) };
+  return { file: r.videoFile, name: downloadName(r.id, r.videoAt) };
+}
+
+export function bulkDownload(r: BangRow, hookBusy: boolean): { url: string; name: string } | null {
+  const f = bulkFile(r, hookBusy);
+  return f && { url: `${videoUrl(f.file)}?tai=1`, name: f.name };
 }
 
 function RowView(props: { row: BangRow; locked: boolean; hookOn: boolean; hookBusy: boolean }) {
@@ -391,6 +398,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
           <div
             id="bangmoi"
             data-ready={readyIds.join(",")}
+            data-locked={[...locked].join(",")}
             data-self={bangUrl({ filter, q, page: list.page })}
             data-live={live ? "1" : ""}
           >
@@ -450,7 +458,10 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
               <button type="button" id="selDone" class="secondary">
                 Chọn dòng xong (trang này)
               </button>
-              <button type="button" id="dlBtn" class="secondary" disabled title="Lần đầu Chrome hỏi cho phép tải nhiều file: bấm Cho phép">
+              <button type="button" id="selNone" class="secondary" disabled title="Bỏ tích mọi dòng đã chọn, kể cả ở trang khác">
+                Bỏ chọn
+              </button>
+              <button type="button" id="dlBtn" class="secondary" disabled title="Gom video các dòng đã chọn (mọi trang) vào một file zip">
                 ⬇ Tải các dòng đã chọn
               </button>
               <button type="button" id="fillToggle" class="secondary">
@@ -466,7 +477,11 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
                 <input type="checkbox" id="hookOn" checked={hook.on} /> Thêm hook
               </label>
             </div>
+            <div id="selCount" class="small muted" aria-live="polite"></div>
             <div id="dlMsg" class="small muted" aria-live="polite" hidden></div>
+            <form id="zipForm" method="post" action={`${BASE}/tai-zip`} hidden>
+              <input type="hidden" name="ids" value="" />
+            </form>
             <div class="run-right">
               <span id="runHint" class={`small ${blocked ? "warn-text" : "muted"}`}>{blocked || "Tích các dòng cần tạo video."}</span>
               <button type="button" id="runBtn" disabled data-blocked={blocked ? "1" : ""}>
@@ -678,6 +693,52 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
     logger.info({ rows: ok }, "Bảng mới: đã xoá dòng");
     const skipped = ids.length - ok.length;
     return c.json({ ok: true, message: `Đã xoá ${ok.length} dòng.${skipped ? ` Bỏ qua ${skipped} dòng đang tạo video.` : ""}` });
+  });
+
+  /** Tải các dòng đã chọn thành một file zip (CON-112): video có trên máy của từng dòng; dòng chưa có video bị bỏ qua. */
+  const zipPlan = (ids: number[]) => {
+    const entries: ZipEntry[] = [];
+    const skipped: number[] = [];
+    for (const id of [...new Set(ids)].sort((a, b) => a - b)) {
+      const r = getRow(db, id);
+      const f = r && bulkFile(r, !!deps.hooks?.isBusy(id));
+      const p = f && files.videoPath(f.file);
+      if (!f || !p) {
+        skipped.push(id);
+        continue;
+      }
+      const st = fs.statSync(p);
+      entries.push({ name: f.name, path: p, size: st.size, mtime: st.mtime });
+    }
+    return { entries, skipped };
+  };
+  const idList = (v: unknown) => (Array.isArray(v) ? v : String(v ?? "").split(/[,\s]+/)).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+
+  app.post(`${BASE}/tai-zip/xem`, async (c) => {
+    if (!fromPage(c)) return deny(c);
+    const body = await json(c);
+    const plan = zipPlan(idList(body?.rows));
+    const bytes = plan.entries.reduce((n, e) => n + e.size, 0);
+    return c.json({ ok: true, count: plan.entries.length, skipped: plan.skipped, bytes: formatBytes(bytes) });
+  });
+
+  // Gửi bằng form (trình duyệt tự hiện hộp Save cho file zip), nên kiểm tra Sec-Fetch-Site như /chay.
+  app.post(`${BASE}/tai-zip`, async (c) => {
+    const site = c.req.header("sec-fetch-site");
+    if (site && site !== "same-origin" && site !== "none") return c.text("Yêu cầu không hợp lệ", 403);
+    const body = await c.req.parseBody();
+    const plan = zipPlan(idList(body.ids));
+    if (!plan.entries.length) return c.text("Các dòng đã chọn chưa có video nào để tải.", 404);
+    const { stream, size } = zipStream(plan.entries);
+    const name = zipName();
+    logger.info({ files: plan.entries.length, bytes: size }, "Bảng mới: tải zip");
+    stream.on("error", (e) => logger.warn({ err: e }, "Bảng mới: tải zip bị dừng"));
+    return c.body(Readable.toWeb(stream) as ReadableStream, 200, {
+      "Content-Type": "application/zip",
+      "Content-Length": String(size),
+      "Content-Disposition": `attachment; filename="${name}"; filename*=UTF-8''${encodeURIComponent(name)}`,
+      "Cache-Control": "no-store",
+    });
   });
 
   /** Dọn tất cả (17.9, D26): hỏi lại, hiện số dòng và dung lượng sẽ giải phóng. */
@@ -1164,31 +1225,61 @@ const CLIENT_JS = `
     });
   });
 
-  // Chọn dòng.
-  function checked() { return Array.prototype.map.call(document.querySelectorAll("input.pick-row:checked"), function (c) { return c.value; }); }
+  // Chọn dòng (CON-112): danh sách dòng đã chọn giữ trong tab này (sessionStorage), đổi trang / lọc / tìm / tự tải lại
+  // không mất; đóng tab thì hết. Dòng đang tạo video (khoá) tự rời danh sách.
+  var SEL_KEY = "bangMoiChon";
+  var sel = {};
+  try { (JSON.parse(sessionStorage.getItem(SEL_KEY) || "[]") || []).forEach(function (id) { sel[String(id)] = 1; }); } catch (e) {}
+  (page.dataset.locked || "").split(",").forEach(function (id) { if (id) delete sel[id]; });
+  function saveSel() { try { sessionStorage.setItem(SEL_KEY, JSON.stringify(Object.keys(sel).map(Number))); } catch (e) {} }
+  function checked() { return Object.keys(sel).map(Number).sort(function (a, b) { return a - b; }).map(String); }
   var runBtn = document.getElementById("runBtn"), runHint = document.getElementById("runHint");
-  var delBtn = document.getElementById("delBtn");
+  var delBtn = document.getElementById("delBtn"), selNone = document.getElementById("selNone"), selCount = document.getElementById("selCount");
   var dlBtn = document.getElementById("dlBtn"), selAll = document.getElementById("selAll"), dlMsg = document.getElementById("dlMsg");
-  var downloading = false;
-  function pickable() { return Array.prototype.filter.call(document.querySelectorAll("input.pick-row"), function (c) { return !c.disabled; }); }
+  var zipForm = document.getElementById("zipForm");
+  function boxes() { return Array.prototype.slice.call(document.querySelectorAll("input.pick-row")); }
+  function pickable() { return boxes().filter(function (c) { return !c.disabled; }); }
+  function setBox(c, on) { c.checked = on; if (on) sel[c.value] = 1; else delete sel[c.value]; }
+  boxes().forEach(function (c) { if (c.disabled) delete sel[c.value]; else c.checked = !!sel[c.value]; });
+  saveSel();
+  // Số dòng đã chọn, có bao nhiêu dòng nằm ở trang khác.
+  function selSummary(mid) {
+    var n = checked().length;
+    var here = boxes().filter(function (c) { return c.checked; }).length;
+    return n + " d\\u00f2ng" + (mid || "") + (n > here ? " (g\\u1ed3m " + (n - here) + " d\\u00f2ng \\u1edf trang kh\\u00e1c)" : "");
+  }
+  function countText() { return checked().length ? "\\u0110\\u00e3 ch\\u1ecdn " + selSummary() + "." : "Ch\\u01b0a ch\\u1ecdn d\\u00f2ng n\\u00e0o."; }
   function syncRun() {
-    delBtn.disabled = checked().length === 0;
-    dlBtn.disabled = downloading || checked().length === 0;
-    var boxes = pickable();
-    var all = boxes.length > 0 && boxes.every(function (c) { return c.checked; });
-    selAll.textContent = all ? "B\\u1ecf ch\\u1ecdn t\\u1ea5t c\\u1ea3" : "Ch\\u1ecdn t\\u1ea5t c\\u1ea3 (trang n\\u00e0y)";
+    saveSel();
+    var n = checked().length;
+    delBtn.disabled = n === 0;
+    dlBtn.disabled = n === 0;
+    selNone.disabled = n === 0;
+    selCount.textContent = countText();
+    var list = pickable();
+    var all = list.length > 0 && list.every(function (c) { return c.checked; });
+    selAll.textContent = all ? "B\\u1ecf ch\\u1ecdn t\\u1ea5t c\\u1ea3 (trang n\\u00e0y)" : "Ch\\u1ecdn t\\u1ea5t c\\u1ea3 (trang n\\u00e0y)";
     selAll.dataset.all = all ? "1" : "";
     if (runBtn.dataset.blocked) return;
-    var n = checked().length;
     runBtn.disabled = n === 0;
-    runHint.textContent = n ? "\\u0110\\u00e3 ch\\u1ecdn " + n + " d\\u00f2ng." : "T\\u00edch c\\u00e1c d\\u00f2ng c\\u1ea7n t\\u1ea1o video.";
+    runHint.textContent = n ? "B\\u1ea5m \\u25b6 T\\u1ea1o video \\u0111\\u1ec3 t\\u1ea1o video cho c\\u00e1c d\\u00f2ng \\u0111\\u00e3 ch\\u1ecdn." : "T\\u00edch c\\u00e1c d\\u00f2ng c\\u1ea7n t\\u1ea1o video.";
   }
-  document.querySelectorAll("input.pick-row").forEach(function (c) { c.addEventListener("change", syncRun); });
+  boxes().forEach(function (c) { c.addEventListener("change", function () { setBox(c, c.checked); syncRun(); }); });
   runBtn.addEventListener("click", function () { location.href = "/bang-moi/chuan-bi?ids=" + checked().join(","); });
+  // Bỏ chọn: mọi dòng ở mọi trang.
+  selNone.addEventListener("click", function () {
+    sel = {};
+    boxes().forEach(function (c) { c.checked = false; });
+    syncRun();
+  });
   delBtn.addEventListener("click", function () {
     var ids = checked();
-    if (!ids.length || !confirm("Xo\\u00e1 " + ids.length + " d\\u00f2ng \\u0111\\u00e3 ch\\u1ecdn c\\u00f9ng \\u1ea3nh v\\u00e0 video c\\u1ee7a ch\\u00fang? Kh\\u00f4ng l\\u1ea5y l\\u1ea1i \\u0111\\u01b0\\u1ee3c.")) return;
-    postJson("/bang-moi/xoa", { rows: ids.map(Number) }).then(function (r) { reload(r.message); });
+    if (!ids.length || !confirm("Xo\\u00e1 " + selSummary(" \\u0111\\u00e3 ch\\u1ecdn") + " c\\u00f9ng \\u1ea3nh v\\u00e0 video c\\u1ee7a ch\\u00fang? Kh\\u00f4ng l\\u1ea5y l\\u1ea1i \\u0111\\u01b0\\u1ee3c.")) return;
+    postJson("/bang-moi/xoa", { rows: ids.map(Number) }).then(function (r) {
+      ids.forEach(function (id) { delete sel[id]; });
+      saveSel();
+      reload(r.message);
+    });
   });
   // Ô Video: ▶ mới tải video và phát ngay trên trang; 🗑 xoá video khỏi dòng.
   document.querySelectorAll("button.vid-play").forEach(function (b) {
@@ -1205,51 +1296,42 @@ const CLIENT_JS = `
       postJson("/bang-moi/xoa-video", { row: row }).then(function (r) { if (r.ok) location.reload(); else alert(r.message); });
     });
   });
-  // Đang tạo video: tự tải lại 15 giây một lần, trừ khi đang sửa dở.
+  // Đang tạo video: tự tải lại 15 giây một lần, trừ khi đang sửa dở. Dòng đã chọn vẫn giữ sau khi tải lại (CON-112).
   if (page.dataset.live) setInterval(function () {
-    if (downloading || document.querySelector(".editor") || !document.getElementById("fillBox").hidden || checked().length || document.querySelector(".vid video")) return;
+    if (document.querySelector(".editor") || !document.getElementById("fillBox").hidden || document.querySelector(".vid video")) return;
     if (document.activeElement && document.activeElement.id === "hookDay") return;
     location.reload();
   }, 15000);
   // Chọn tất cả / Bỏ chọn tất cả: mọi dòng trên trang trừ dòng đang tạo video (ô tích bị khoá).
   selAll.addEventListener("click", function () {
     var on = !selAll.dataset.all;
-    pickable().forEach(function (c) { c.checked = on; });
+    pickable().forEach(function (c) { setBox(c, on); });
     syncRun();
   });
-  // Chọn dòng xong: dòng đã có video.
+  // Chọn dòng xong: dòng đã có video (trên trang này; dòng đã chọn ở trang khác giữ nguyên).
   document.getElementById("selDone").addEventListener("click", function () {
-    pickable().forEach(function (c) { c.checked = !!c.closest("tr").dataset.dl; });
+    pickable().forEach(function (c) { setBox(c, !!c.closest("tr").dataset.dl); });
     syncRun();
   });
-  // Tải các dòng đã chọn: lần lượt từng file, cách nhau một chút để Chrome không bỏ sót; dòng chưa có video thì bỏ qua.
+  // Tải các dòng đã chọn (CON-112): tool gom video của mọi dòng đã chọn (mọi trang) vào một file zip, bấm Save một lần.
   dlBtn.addEventListener("click", function () {
-    var rows = Array.prototype.map.call(document.querySelectorAll("input.pick-row:checked"), function (c) { return c.closest("tr"); });
-    var todo = rows.filter(function (tr) { return tr.dataset.dl; });
-    var skipped = rows.filter(function (tr) { return !tr.dataset.dl; }).map(function (tr) { return Number(tr.dataset.row); }).sort(function (a, b) { return a - b; });
-    var skipText = skipped.length ? " B\\u1ecf qua d\\u00f2ng " + skipped.join(", ") + " (ch\\u01b0a c\\u00f3 video)." : "";
+    var ids = checked();
+    if (!ids.length) return;
     dlMsg.hidden = false;
-    if (!todo.length) { dlMsg.textContent = "C\\u00e1c d\\u00f2ng \\u0111\\u00e3 ch\\u1ecdn ch\\u01b0a c\\u00f3 video n\\u00e0o \\u0111\\u1ec3 t\\u1ea3i."; return; }
-    downloading = true; syncRun();
-    var i = 0;
-    (function next() {
-      if (i >= todo.length) {
-        downloading = false; syncRun();
-        dlMsg.textContent = "\\u0110\\u00e3 t\\u1ea3i " + todo.length + " video v\\u00e0o th\\u01b0 m\\u1ee5c T\\u1ea3i xu\\u1ed1ng." + skipText;
-        return;
-      }
-      var tr = todo[i++];
-      dlMsg.textContent = "\\u0110ang t\\u1ea3i " + i + "/" + todo.length + ": d\\u00f2ng " + tr.dataset.row + "\u2026";
-      var a = document.createElement("a");
-      a.href = tr.dataset.dl; a.download = tr.dataset.dlName; a.hidden = true;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(next, 700);
-    })();
+    dlMsg.textContent = "\\u0110ang ki\\u1ec3m tra\\u2026";
+    postJson("/bang-moi/tai-zip/xem", { rows: ids.map(Number) }).then(function (r) {
+      var skipText = r.skipped && r.skipped.length ? " B\\u1ecf qua d\\u00f2ng " + r.skipped.join(", ") + " (ch\\u01b0a c\\u00f3 video)." : "";
+      if (!r.ok) { dlMsg.textContent = r.message; return; }
+      if (!r.count) { dlMsg.textContent = "C\\u00e1c d\\u00f2ng \\u0111\\u00e3 ch\\u1ecdn ch\\u01b0a c\\u00f3 video n\\u00e0o \\u0111\\u1ec3 t\\u1ea3i."; return; }
+      zipForm.elements.ids.value = ids.join(",");
+      zipForm.submit();
+      dlMsg.textContent = "\\u0110ang gom " + r.count + " video (" + r.bytes + ") v\\u00e0o m\\u1ed9t file zip. Khi Chrome h\\u1ecfi, b\\u1ea5m Save m\\u1ed9t l\\u1ea7n r\\u1ed3i gi\\u1ea3i n\\u00e9n ra th\\u01b0 m\\u1ee5c." + skipText;
+    }, function () { dlMsg.textContent = "Kh\\u00f4ng k\\u1ebft n\\u1ed1i \\u0111\\u01b0\\u1ee3c tool."; });
   });
   syncRun();
   document.getElementById("selReady").addEventListener("click", function () {
     var ready = (page.dataset.ready || "").split(",");
-    document.querySelectorAll("input.pick-row").forEach(function (c) { c.checked = ready.indexOf(c.value) >= 0; });
+    pickable().forEach(function (c) { setBox(c, ready.indexOf(c.value) >= 0); });
     syncRun();
   });
 
