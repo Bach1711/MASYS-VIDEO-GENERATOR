@@ -2,6 +2,14 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+**Bảng video: bỏ chọn nhanh, giữ dòng đã chọn khi đổi trang, tải nhiều video thành một file zip.**
+
+- **Bỏ chọn:** nút mới, bấm một lần là bỏ tích mọi dòng đã chọn, kể cả dòng ở trang khác.
+- **Đổi trang không mất dòng đã chọn:** tích ở trang 3, về trang 2 tích tiếp, quay lại trang 3 vẫn còn tích. Đổi bộ lọc hay tìm kiếm cũng vậy. Dưới thanh nút ghi rõ "Đã chọn N dòng (gồm M dòng ở trang khác)". Tạo video, Xoá dòng đã chọn và Tải các dòng đã chọn áp dụng cho mọi dòng đã chọn ở mọi trang. Đóng tab thì danh sách chọn được xoá.
+- **⬇ Tải các dòng đã chọn** giờ gom tất cả video vào **một file zip** tên `Video nguoi mau <ngày> <giờ>.zip`: chỉ bấm Save một lần, rồi giải nén ra thư mục. Dòng có hook thì lấy bản có hook. Dòng chưa có video được bỏ qua và báo rõ.
+
 ## v2.12.0
 
 **Bảng video: chọn nhanh và tải nhiều video một lần.**
