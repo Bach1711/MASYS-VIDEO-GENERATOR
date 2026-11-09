@@ -23,6 +23,13 @@ export interface BangRow {
   videoBytes: number | null;
   videoAt: string | null;
   importedFrom: string | null;
+  /** Người mẫu (CON-113): chỉ app điền khi xuất từ Bảng ảnh; tên chụp lúc xuất. */
+  nhanVatId?: number | null;
+  nguoiMau?: string | null;
+  /** Ảnh mặt của nhân vật (không có thì ảnh 4 góc); null khi nhân vật đã bị xoá. */
+  nguoiMauAnh?: string | null;
+  /** Tên video khi tải về, không có đuôi (CON-113): "<Người mẫu> 01" hoặc "Video 01". */
+  videoName?: string | null;
   /** Hook đầu video (CON-74, D30): clip (tep\hook), câu riêng (null = dùng câu chung hôm nay), bản có hook (tep\video). */
   hookClip?: string | null;
   hookText?: string | null;
@@ -122,11 +129,11 @@ function where(filter: BangFilter, q: string, now: Date): { sql: string; args: u
   const term = q.trim();
   if (term) {
     if (/^\d+$/.test(term)) {
-      parts.push("(id = ? OR prompt LIKE ? ESCAPE '\\')");
-      args.push(Number(term), `%${likeEscape(term)}%`);
+      parts.push("(id = ? OR prompt LIKE ? ESCAPE '\\' OR nguoiMau LIKE ? ESCAPE '\\')");
+      args.push(Number(term), `%${likeEscape(term)}%`, `%${likeEscape(term)}%`);
     } else {
-      parts.push("prompt LIKE ? ESCAPE '\\'");
-      args.push(`%${likeEscape(term)}%`);
+      parts.push("(prompt LIKE ? ESCAPE '\\' OR nguoiMau LIKE ? ESCAPE '\\')");
+      args.push(`%${likeEscape(term)}%`, `%${likeEscape(term)}%`);
     }
   }
   return { sql: parts.join(" AND "), args };
@@ -134,7 +141,8 @@ function where(filter: BangFilter, q: string, now: Date): { sql: string; args: u
 
 const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
-const COLS = `id, createdAt, prompt, modelFront, shirtFront, modelBack, shirtBack, videoFile, videoBytes, videoAt, importedFrom,
+const COLS = `id, createdAt, prompt, modelFront, shirtFront, modelBack, shirtBack, videoFile, videoBytes, videoAt, importedFrom, nhanVatId, nguoiMau, videoName,
+  (SELECT coalesce(n.faceFile, n.file) FROM nhan_vat n WHERE n.id = bang_rows.nhanVatId AND n.deletedAt IS NULL) AS nguoiMauAnh,
   hookClip, hookText, hookVideoFile, hookVideoBytes, hookJob, hookError,
   ${LAST_STATE} AS runState, ${lastRun("error")} AS runError, ${lastRun("museChatUrl")} AS museChatUrl`;
 
@@ -164,12 +172,61 @@ export function getRow(db: DB, id: number): BangRow | undefined {
   return db.prepare(`SELECT ${COLS} FROM bang_rows WHERE id = ? AND deletedAt IS NULL`).get(id) as BangRow | undefined;
 }
 
-/** Thêm một dòng; trả số dòng mới. */
-export function addRow(db: DB, init: { prompt?: string; importedFrom?: string } & Partial<Record<Slot, string | null>> = {}): number {
+/** Thêm một dòng; trả số dòng mới. Người mẫu chỉ có khi xuất từ Bảng ảnh (CON-113). */
+export function addRow(
+  db: DB,
+  init: { prompt?: string; importedFrom?: string; nhanVatId?: number | null; nguoiMau?: string | null } & Partial<Record<Slot, string | null>> = {},
+): number {
   const r = db
-    .prepare("INSERT INTO bang_rows (prompt, modelFront, shirtFront, modelBack, shirtBack, importedFrom) VALUES (?, ?, ?, ?, ?, ?)")
-    .run(init.prompt ?? "", init.modelFront ?? null, init.shirtFront ?? null, init.modelBack ?? null, init.shirtBack ?? null, init.importedFrom ?? null);
+    .prepare("INSERT INTO bang_rows (prompt, modelFront, shirtFront, modelBack, shirtBack, importedFrom, nhanVatId, nguoiMau) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(
+      init.prompt ?? "",
+      init.modelFront ?? null,
+      init.shirtFront ?? null,
+      init.modelBack ?? null,
+      init.shirtBack ?? null,
+      init.importedFrom ?? null,
+      init.nhanVatId ?? null,
+      init.nguoiMau?.trim() || null,
+    );
   return Number(r.lastInsertRowid);
+}
+
+// ---------- Tên video (CON-113) ----------
+
+/** Phần tên của video: tên người mẫu bỏ ký tự Windows không cho dùng trong tên file; không có thì "Video". */
+export function videoBaseName(nguoiMau: string | null | undefined): string {
+  const clean = (nguoiMau ?? "")
+    .normalize("NFC")
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/[. ]+$/, "");
+  return clean || "Video";
+}
+
+/** Khoá bộ đếm: cùng người mẫu dù khác hoa thường / khoảng trắng thì dùng chung dãy số. */
+const nameKey = (base: string) => base.toLocaleLowerCase("vi");
+
+/** Lấy số tiếp theo của người mẫu (không bao giờ dùng lại) và trả tên video "<tên> 01". */
+export function nextVideoName(db: DB, nguoiMau: string | null | undefined): string {
+  const base = videoBaseName(nguoiMau);
+  const row = db
+    .prepare("INSERT INTO video_names (key, last) VALUES (?, 1) ON CONFLICT(key) DO UPDATE SET last = last + 1 RETURNING last")
+    .get(nameKey(base)) as { last: number };
+  return `${base} ${String(row.last).padStart(2, "0")}`;
+}
+
+/** Video đã có từ trước CON-113: đặt tên một lần, theo thứ tự video về. Trả số video vừa đặt tên. */
+export function nameOldVideos(db: DB): number {
+  const rows = db
+    .prepare("SELECT id, nguoiMau FROM bang_rows WHERE videoFile IS NOT NULL AND videoName IS NULL ORDER BY coalesce(videoAt, createdAt), id")
+    .all() as { id: number; nguoiMau: string | null }[];
+  const set = db.prepare("UPDATE bang_rows SET videoName = ? WHERE id = ?");
+  db.transaction(() => {
+    for (const r of rows) set.run(nextVideoName(db, r.nguoiMau), r.id);
+  })();
+  return rows.length;
 }
 
 export function setPrompt(db: DB, id: number, prompt: string): void {
@@ -188,13 +245,15 @@ export function setSlot(db: DB, id: number, slot: Slot, name: string | null): st
  * Trả các file cũ cần xoá (video cũ, bản có hook cũ).
  */
 export function setRowVideo(db: DB, id: number, name: string, bytes: number, at = new Date().toISOString()): string[] {
-  const old = db.prepare("SELECT videoFile, hookVideoFile FROM bang_rows WHERE id = ?").get(id) as { videoFile: string | null; hookVideoFile: string | null } | undefined;
-  db.prepare("UPDATE bang_rows SET videoFile = ?, videoBytes = ?, videoAt = ?, hookVideoFile = NULL, hookVideoBytes = NULL, hookJob = NULL, hookError = NULL WHERE id = ?").run(
-    name,
-    bytes,
-    at,
-    id,
-  );
+  const old = db.prepare("SELECT videoFile, hookVideoFile, nguoiMau FROM bang_rows WHERE id = ?").get(id) as
+    | { videoFile: string | null; hookVideoFile: string | null; nguoiMau: string | null }
+    | undefined;
+  // Video mới (kể cả tạo lại) lấy số tiếp theo của người mẫu (CON-113).
+  db.transaction(() => {
+    db.prepare(
+      "UPDATE bang_rows SET videoFile = ?, videoBytes = ?, videoAt = ?, videoName = ?, hookVideoFile = NULL, hookVideoBytes = NULL, hookJob = NULL, hookError = NULL WHERE id = ?",
+    ).run(name, bytes, at, nextVideoName(db, old?.nguoiMau), id);
+  })();
   return [old?.videoFile, old?.hookVideoFile].filter((f): f is string => !!f && f !== name);
 }
 
@@ -203,7 +262,7 @@ export function clearRowVideo(db: DB, id: number): string[] {
   const old = db.prepare("SELECT videoFile, hookVideoFile FROM bang_rows WHERE id = ? AND deletedAt IS NULL").get(id) as
     | { videoFile: string | null; hookVideoFile: string | null }
     | undefined;
-  db.prepare("UPDATE bang_rows SET videoFile = NULL, videoBytes = NULL, videoAt = NULL, hookVideoFile = NULL, hookVideoBytes = NULL, hookJob = NULL, hookError = NULL WHERE id = ?").run(id);
+  db.prepare("UPDATE bang_rows SET videoFile = NULL, videoBytes = NULL, videoAt = NULL, videoName = NULL, hookVideoFile = NULL, hookVideoBytes = NULL, hookJob = NULL, hookError = NULL WHERE id = ?").run(id);
   return [old?.videoFile, old?.hookVideoFile].filter((f): f is string => !!f);
 }
 

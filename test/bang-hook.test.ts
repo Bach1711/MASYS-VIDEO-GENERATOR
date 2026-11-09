@@ -344,10 +344,11 @@ describe("Bảng: ô Thêm hook, cột Hook, Ghép hook", () => {
     const html = await (await app.request("/")).text();
     expect(html).toContain("Có hook<");
     expect(html).toContain("Ghép lại hook");
-    // Tải các dòng đã chọn (CON-107): dòng có hook thì tải bản có hook.
-    expect(html.match(/<tr data-row="1"[^>]*>/)![0]).toContain(`data-dl="/bang-moi/video/${hv.name}?tai=1" data-dl-name="MASYS_1_20261102-0830_hook.mp4"`);
+    // Tải các dòng đã chọn (CON-107): dòng có hook thì tải bản có hook; bản có hook cùng tên video (CON-113).
+    expect(html.match(/<tr data-row="1"[^>]*>/)![0]).toContain(`data-dl="/bang-moi/video/${hv.name}?tai=1" data-dl-name="Video 01.mp4"`);
     const dl = await app.request(`/bang-moi/video/${hv.name}?tai=1`);
-    expect(dl.headers.get("content-disposition")).toBe(`attachment; filename="${hookDownloadName(1, "2026-11-02T08:30:00")}"`);
+    expect(dl.headers.get("content-disposition")).toBe(`attachment; filename="Video 01.mp4"; filename*=UTF-8''Video%2001.mp4`);
+    // Tên cũ chỉ còn dùng cho dòng chưa có tên video.
     expect(hookDownloadName(1, "2026-11-02T08:30:00")).toBe("MASYS_1_20261102-0830_hook.mp4");
 
     // Xoá dòng: xoá cả clip hook và bản có hook.

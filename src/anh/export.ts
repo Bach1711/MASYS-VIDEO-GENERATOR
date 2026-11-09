@@ -62,7 +62,11 @@ export function applyExport(
     const written: string[] = [];
     try {
       db.transaction(() => {
-        const bangRowId = addBangRow(db, {});
+        // Người mẫu của dòng Bảng video (CON-113): nhân vật của dòng ảnh, tên chụp lúc xuất (cả khi nhân vật đã bị xoá).
+        const nv = it.row.nhanVatId
+          ? (db.prepare("SELECT id, ten FROM nhan_vat WHERE id = ?").get(it.row.nhanVatId) as { id: number; ten: string } | undefined)
+          : undefined;
+        const bangRowId = addBangRow(db, { nhanVatId: nv?.id ?? null, nguoiMau: nv?.ten ?? null });
         const copy = (f: AnhFile, tag: "mau-truoc" | "mau-sau") => {
           const src = files.anhTaoPath(f.file);
           if (!src) throw new Error(`không còn file ảnh ${tag === "mau-truoc" ? "mặt trước" : "quay lưng"}`);

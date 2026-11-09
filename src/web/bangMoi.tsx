@@ -5,7 +5,7 @@ import type { Child } from "hono/jsx";
 import { hookTextFor, queueHook, setHookClip, setHookText } from "../bang/rows.js";
 import type { HookMerger } from "../bang/hook.js";
 import { getHookSettings, setHookDayText, setHookOn } from "../db/settings.js";
-import { cleanupIds, clearRowVideo, deleteRows, rowFiles, importedKeys, isFilter, isSlot, labelOf, listRows, countByFilter, getRow, addRow, setPrompt, setSlot, lockedBangRows, planBangFill, applyBangFill, allRowIds, SLOTS, SLOT_TAG, SLOT_TEXT, FILTERS, FILTER_TEXT, BANG_LABEL_TEXT, type BangFilter, type BangLabel, type BangRow, type Slot } from "../bang/rows.js";
+import { cleanupIds, clearRowVideo, deleteRows, rowFiles, importedKeys, isFilter, isSlot, labelOf, listRows, countByFilter, getRow, addRow, setPrompt, setSlot, lockedBangRows, planBangFill, applyBangFill, allRowIds, nameOldVideos, SLOTS, SLOT_TAG, SLOT_TEXT, FILTERS, FILTER_TEXT, BANG_LABEL_TEXT, type BangFilter, type BangLabel, type BangRow, type Slot } from "../bang/rows.js";
 import { BangFiles, clipProblem, formatBytes, imageProblem, typeOf } from "../bang/files.js";
 import { planImport, runImport, type ImportPlan } from "../bang/importSheet.js";
 import { zipName, zipStream, type ZipEntry } from "../bang/zip.js";
@@ -68,6 +68,44 @@ export function downloadName(row: number, at: string | null): string {
 /** Tên file bản có hook khi tải về: MASYS_<dòng>_<giờ>_hook.mp4 (D30). */
 export const hookDownloadName = (row: number, at: string | null) => downloadName(row, at).replace(/\.mp4$/, "_hook.mp4");
 
+/**
+ * Tên file khi tải video của dòng (CON-113): "<Người mẫu> 01.mp4" / "Video 01.mp4"; bản có hook cùng tên.
+ * Dòng chưa có tên video (không xảy ra sau khi tool mở) thì dùng tên cũ MASYS_….
+ */
+export function videoFileName(r: Pick<BangRow, "id" | "videoAt" | "videoName">, hook = false): string {
+  if (r.videoName) return `${r.videoName}.mp4`;
+  return hook ? hookDownloadName(r.id, r.videoAt) : downloadName(r.id, r.videoAt);
+}
+
+/** Header tải file có tên tiếng Việt: filename* (UTF-8) cho trình duyệt, filename không dấu cho chương trình cũ. */
+export function attachmentHeader(name: string): string {
+  const ascii = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .replace(/[^\x20-\x7e]|["\\]/g, "_");
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+}
+
+const nvImageUrl = (name: string) => `/nhan-vat/anh/${encodeURIComponent(name)}`;
+
+/** Ô Người mẫu (CON-113): app tự điền khi xuất từ Bảng ảnh (ảnh mặt + tên); dòng lẻ để trống. */
+function NguoiMauCell(props: { row: BangRow }) {
+  const r = props.row;
+  if (!r.nguoiMau) return <td class="nguoimau muted">—</td>;
+  return (
+    <td class="nguoimau" title="Người mẫu, app tự điền khi xuất từ Bảng ảnh">
+      {r.nguoiMauAnh && (
+        <a href={nvImageUrl(r.nguoiMauAnh)} target="_blank" rel="noreferrer" title="Bấm để xem ảnh lớn">
+          <img class="thumb" src={nvImageUrl(r.nguoiMauAnh)} alt={`Ảnh mặt ${r.nguoiMau}`} loading="lazy" width="48" height="48" />
+        </a>
+      )}
+      <div class="small">{r.nguoiMau}</div>
+    </td>
+  );
+}
+
 /** Phần hook trong ô Video (D30): bản có hook (▶ ⬇), đang ghép, lỗi ghép, nút Ghép hook. */
 function HookVideoPart(props: { row: BangRow; locked: boolean; busy: boolean }) {
   const r = props.row;
@@ -80,7 +118,7 @@ function HookVideoPart(props: { row: BangRow; locked: boolean; busy: boolean }) 
           <button type="button" class="edit vid-play" title="Xem bản có hook" aria-label={`Xem bản có hook dòng ${r.id}`}>
             ▶
           </button>
-          <a class="edit" href={`${videoUrl(r.hookVideoFile)}?tai=1`} download={hookDownloadName(r.id, r.videoAt)} title="Tải bản có hook" aria-label={`Tải bản có hook dòng ${r.id}`}>
+          <a class="edit" href={`${videoUrl(r.hookVideoFile)}?tai=1`} download={videoFileName(r, true)} title="Tải bản có hook" aria-label={`Tải bản có hook dòng ${r.id}`}>
             ⬇
           </a>
         </div>
@@ -168,7 +206,7 @@ function VideoCell(props: { row: BangRow; locked: boolean; label: BangLabel; hoo
           <span class="vid-icon">▶</span>
         </button>
         <div class="vid-tools">
-          <a class="edit" href={`${videoUrl(r.videoFile)}?tai=1`} download={downloadName(r.id, r.videoAt)} title="Tải về máy" aria-label={`Tải video dòng ${r.id}`}>
+          <a class="edit" href={`${videoUrl(r.videoFile)}?tai=1`} download={videoFileName(r)} title="Tải về máy" aria-label={`Tải video dòng ${r.id}`}>
             ⬇
           </a>
           {!props.locked && (
@@ -177,6 +215,11 @@ function VideoCell(props: { row: BangRow; locked: boolean; label: BangLabel; hoo
             </button>
           )}
         </div>
+        {r.videoName && (
+          <div class="small vid-name" title="Tên file khi tải về">
+            {r.videoName}
+          </div>
+        )}
         <div class="small muted">
           {r.videoBytes ? formatBytes(r.videoBytes) : ""}
           {r.museChatUrl && (
@@ -233,8 +276,8 @@ function ImageCell(props: { row: BangRow; slot: Slot; locked: boolean }) {
 /** Video của dòng khi tải nhiều dòng (CON-107, CON-112): có bản có hook (đã ghép xong) thì lấy bản đó, không thì bản gốc. */
 export function bulkFile(r: BangRow, hookBusy: boolean): { file: string; name: string } | null {
   if (!r.videoFile) return null;
-  if (r.hookVideoFile && r.hookJob == null && !hookBusy) return { file: r.hookVideoFile, name: hookDownloadName(r.id, r.videoAt) };
-  return { file: r.videoFile, name: downloadName(r.id, r.videoAt) };
+  if (r.hookVideoFile && r.hookJob == null && !hookBusy) return { file: r.hookVideoFile, name: videoFileName(r, true) };
+  return { file: r.videoFile, name: videoFileName(r) };
 }
 
 export function bulkDownload(r: BangRow, hookBusy: boolean): { url: string; name: string } | null {
@@ -253,6 +296,7 @@ function RowView(props: { row: BangRow; locked: boolean; hookOn: boolean; hookBu
         <input type="checkbox" class="pick-row" value={r.id} aria-label={`Chọn dòng ${r.id}`} disabled={props.locked} />
       </td>
       <td>{r.id}</td>
+      <NguoiMauCell row={r} />
       {SLOTS.map((s) => (
         <ImageCell row={r} slot={s} locked={props.locked} />
       ))}
@@ -286,6 +330,9 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
   const { db, config } = deps;
   const files = new BangFiles(config.dataDir);
   const clientEmail = config.serviceAccount.ok ? config.serviceAccount.clientEmail : "";
+  // Video đã có từ trước CON-113: đặt tên "<Người mẫu> 01" / "Video 01" một lần khi tool mở.
+  const named = nameOldVideos(db);
+  if (named) logger.info({ videos: named }, "Bảng mới: đã đặt tên cho video có từ trước");
 
   const board = (c: Context) => {
     const filter = isFilter(c.req.query("loc")) ? (c.req.query("loc") as BangFilter) : "all";
@@ -338,7 +385,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
             </div>
             <form method="get" action={BASE} class="row" style="flex-wrap:nowrap">
               {filter !== "all" && <Hidden name="loc" value={filter} />}
-              <input type="search" name="q" value={q} placeholder="Tìm số dòng hoặc chữ trong prompt" aria-label="Tìm" />
+              <input type="search" name="q" value={q} placeholder="Tìm số dòng, chữ trong prompt, tên người mẫu" aria-label="Tìm" />
               <button type="submit" class="secondary">
                 Tìm
               </button>
@@ -411,6 +458,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
                     <tr>
                       <th>Chọn</th>
                       <th>Dòng</th>
+                      <th>Người mẫu</th>
                       {SLOTS.map((s) => (
                         <th>{SLOT_TEXT[s]}</th>
                       ))}
@@ -532,12 +580,11 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
     if (!p) return c.text("Không có video", 404);
     const headers: Record<string, string> = { "Content-Type": "video/mp4", "Cache-Control": "private, max-age=31536000, immutable" };
     if (c.req.query("tai")) {
-      const row = db.prepare("SELECT id, videoAt, hookVideoFile FROM bang_rows WHERE videoFile = ? OR hookVideoFile = ?").get(name, name) as
-        | { id: number; videoAt: string | null; hookVideoFile: string | null }
+      const row = db.prepare("SELECT id, videoAt, videoName, hookVideoFile FROM bang_rows WHERE videoFile = ? OR hookVideoFile = ?").get(name, name) as
+        | { id: number; videoAt: string | null; videoName: string | null; hookVideoFile: string | null }
         | undefined;
-      const id = row?.id ?? Number(name.split("-")[0]);
-      const file = row?.hookVideoFile === name ? hookDownloadName(id, row.videoAt) : downloadName(id, row?.videoAt ?? null);
-      headers["Content-Disposition"] = `attachment; filename="${file}"`;
+      const file = row ? videoFileName(row, row.hookVideoFile === name) : downloadName(Number(name.split("-")[0]), null);
+      headers["Content-Disposition"] = attachmentHeader(file);
     }
     return c.body(fs.readFileSync(p), 200, headers);
   });
@@ -708,7 +755,10 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
         continue;
       }
       const st = fs.statSync(p);
-      entries.push({ name: f.name, path: p, size: st.size, mtime: st.mtime });
+      // Tên video không trùng nhau (CON-113); phòng khi trùng thì thêm "(2)" để file trong zip không đè nhau.
+      let name = f.name;
+      for (let n = 2; entries.some((e) => e.name.toLowerCase() === name.toLowerCase()); n++) name = f.name.replace(/\.mp4$/, ` (${n}).mp4`);
+      entries.push({ name, path: p, size: st.size, mtime: st.mtime });
     }
     return { entries, skipped };
   };
@@ -736,7 +786,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
     return c.body(Readable.toWeb(stream) as ReadableStream, 200, {
       "Content-Type": "application/zip",
       "Content-Length": String(size),
-      "Content-Disposition": `attachment; filename="${name}"; filename*=UTF-8''${encodeURIComponent(name)}`,
+      "Content-Disposition": attachmentHeader(name),
       "Cache-Control": "no-store",
     });
   });

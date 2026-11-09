@@ -250,4 +250,23 @@ export const MIGRATIONS: string[] = [
     ORDER BY d.id DESC LIMIT 1
   );
   `,
+  // 17. Người mẫu và tên video (CON-113). nhanVatId + nguoiMau (tên chụp lúc xuất, giữ cả khi nhân vật bị xoá / đổi tên)
+  // chỉ app điền, khi xuất từ Bảng ảnh. videoName = "<Người mẫu> 01" / "Video 01", đặt khi video về.
+  // video_names: số cuối đã dùng của từng người mẫu (key đã chuẩn hoá; dòng lẻ là "video"), để số không dùng lại.
+  // Dòng đã xuất trước bản này: điền lại từ anh_rows.exportedBangRowId. Video đã có được đặt tên lúc tool mở (nameOldVideos).
+  `
+  ALTER TABLE bang_rows ADD COLUMN nhanVatId INTEGER;
+  ALTER TABLE bang_rows ADD COLUMN nguoiMau TEXT;
+  ALTER TABLE bang_rows ADD COLUMN videoName TEXT;
+  CREATE TABLE video_names (
+    key  TEXT PRIMARY KEY,
+    last INTEGER NOT NULL DEFAULT 0
+  );
+  UPDATE bang_rows SET
+    nhanVatId = (SELECT a.nhanVatId FROM anh_rows a JOIN nhan_vat n ON n.id = a.nhanVatId
+                 WHERE a.exportedBangRowId = bang_rows.id ORDER BY a.id DESC LIMIT 1),
+    nguoiMau = (SELECT n.ten FROM anh_rows a JOIN nhan_vat n ON n.id = a.nhanVatId
+                WHERE a.exportedBangRowId = bang_rows.id ORDER BY a.id DESC LIMIT 1)
+  WHERE id IN (SELECT exportedBangRowId FROM anh_rows WHERE exportedBangRowId IS NOT NULL AND nhanVatId IS NOT NULL);
+  `,
 ];
