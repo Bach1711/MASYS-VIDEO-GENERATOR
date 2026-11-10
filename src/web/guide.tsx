@@ -52,10 +52,11 @@ export function registerGuideRoutes(app: Hono) {
                   (tên <code>MASYS_&lt;số dòng&gt;_&lt;giờ&gt;.mp4</code>), <strong>🗑</strong> để xoá.
                 </li>
                 <li>
-                  Muốn có <strong>hook</strong> ở đầu video: tích <strong>Thêm hook</strong> ở thanh nút dưới Bảng, điền <em>Câu hook chung hôm nay</em>, rồi
-                  bấm <strong>+</strong> ở cột <strong>Hook</strong> của từng dòng để chọn clip hook (đã tải và cắt sẵn từ YouTube). Dòng cần
-                  câu khác thì bấm ✎ ở cột Hook. Video về là tool tự ghép: clip hook giữa khung đen, câu hook ở trên, mờ dần sang video. Bản có hook
-                  tải bằng ⬇ cạnh chữ <em>Có hook</em>; bản gốc vẫn giữ. Dòng đã có video thì bấm <strong>Ghép hook</strong>, không tốn lượt Muse.
+                  Muốn có <strong>hook</strong> trong video: tích <strong>Thêm hook</strong> ở thanh nút dưới Bảng, rồi bấm <strong>+</strong> ở cột{" "}
+                  <strong>Hook</strong> của từng dòng để chọn <em>clip hook mẫu</em> (video có hook bạn muốn bắt chước). Video người mẫu về thì bot gửi
+                  clip mẫu cho Muse trong cùng cuộc trò chuyện để Muse chèn hook; dòng chỉ <em>Xong</em> khi có video có hook, ô Video chỉ hiện bản có
+                  hook (bản gốc vẫn giữ trên máy). Mỗi dòng có hook tính <strong>2 lượt</strong>. Chèn chưa ưng thì bấm <strong>Ghép lại hook</strong>
+                  (tính 1 lượt).
                 </li>
                 <li>
                   Dùng xong thì <strong>Dọn tất cả</strong> để xoá các dòng Xong cùng ảnh và video, giải phóng chỗ trên máy. Dung lượng đang dùng hiện ở

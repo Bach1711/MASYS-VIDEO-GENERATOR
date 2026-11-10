@@ -2,6 +2,16 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+**Hook do Muse chèn vào video, theo clip hook mẫu của từng dòng.**
+
+- **Tích Thêm hook rồi Tạo video:** video người mẫu về thì bot gửi tiếp cho Muse, trong cùng cuộc trò chuyện, clip hook mẫu của dòng kèm câu *"Đây là video mẫu có hook, hãy xem video và tạo hook y hệt video mẫu trong video bạn vừa tạo"*, rồi tải video có hook về. Trong lúc chờ, ô Video ghi **⏳ Muse đang chèn hook…**; dòng chỉ **Xong** khi đã có video có hook. Bản gốc vẫn giữ trên máy.
+- **Mỗi dòng có hook tính 2 lượt** trong giới hạn video mỗi ngày (video người mẫu + video có hook). Trang xác nhận báo trước số lượt cần.
+- **Ghép lại hook** trên dòng đã có video: bot mở lại cuộc trò chuyện Muse cũ của video đó và nhờ Muse chèn hook lần nữa (tính 1 lượt). Cuộc trò chuyện không còn thì tool báo tạo lại video.
+- **Bỏ cách ghép hook trên máy:** không còn ô câu hook chung, câu hook riêng và ô "Clip có chữ sẵn"; cột Hook chỉ cần clip hook mẫu. Bản zip nhẹ hơn vì không còn kèm ffmpeg.
+- Muse chèn hook lỗi hoặc quá giờ: dòng giữ video gốc, ô Video ghi lý do, bấm **Ghép lại hook** để thử lại.
+
 ## v2.14.0
 
 **Hook đầu video dùng được trọn vẹn: tạo video là có hook, thấy và tải đúng bản có hook.**

@@ -2,30 +2,39 @@ import type { DB } from "../db/index.js";
 import type { BangTemplateKind, Settings } from "../db/settings.js";
 import type { BangSnapshot } from "../queue/runner.js";
 import { buildBangRequest, type BangRequest } from "./request.js";
-import { getRow, hookJobFor, labelOf, lockedBangRows, type BangRow } from "./rows.js";
+import { getRow, labelOf, lockedBangRows, type BangRow } from "./rows.js";
 
 // Tạo lô từ Bảng mới (CON-52, spec 17.5): mỗi dòng một lượt, ảnh đính kèm theo thứ tự 17.4.
 // Lô của Bảng mới không có sheet / thư mục Drive (batches.source = 'bang').
 
 export const BANG_BATCH_TAB = "Bảng mới";
 
+/**
+ * Tin thứ hai nhờ Muse chèn hook (CON-137, thay D30 cũ): gửi trong cùng cuộc trò chuyện sau khi video người mẫu về,
+ * kèm clip hook mẫu của dòng. Nguyên văn của người phụ trách (10/11/2026), không sửa nếu chưa hỏi.
+ */
+export const HOOK_PROMPT = "Đây là video mẫu có hook, hãy xem video và tạo hook y hệt video mẫu trong video bạn vừa tạo";
+
+/** Pha của lượt Bảng video đang nhờ Muse chèn hook (runs.anhPhase, dùng chung cột với Bảng ảnh). */
+export const HOOK_PHASE = "hook";
+
 export interface BangPlannedRun {
   row: BangRow;
   request: BangRequest;
   /** Dòng đã có video (tạo lại). */
   overwrite: boolean;
-  /** Câu hook sẽ ghép khi video về (CON-74, D30); không có = không thêm hook. */
+  /** Tin nhờ Muse chèn hook (CON-137) gửi sau khi video về; không có = không thêm hook. */
   hookText?: string;
-  /** Câu hook là câu riêng của dòng (không phải câu chung hôm nay). */
-  hookOwn?: boolean;
 }
 
-/** Lô có thêm hook (D30): câu hook chung hôm nay (có thể trống nếu mọi dòng có câu riêng). */
+/** Lô có thêm hook (CON-137): mỗi dòng cần clip hook mẫu còn trên máy. */
 export interface HookChoice {
-  dayText: string;
   /** Clip hook còn trên máy không (mặc định coi như còn). */
   clipExists?: (name: string) => boolean;
 }
+
+/** Số lượt Muse một dòng dùng: có hook thì 2 (video người mẫu + video chèn hook), CON-137. */
+export const runsCost = (runs: Pick<BangPlannedRun, "hookText">[]): number => runs.reduce((n, r) => n + (r.hookText != null ? 2 : 1), 0);
 
 export interface BangBatchPlan {
   runs: BangPlannedRun[];
@@ -54,18 +63,12 @@ export function planBangBatch(db: DB, ids: number[], s: Pick<Settings, BangTempl
     }
     const run: BangPlannedRun = { row, request: req, overwrite: labelOf(row).label === "done" };
     if (hook) {
-      // Thêm hook thì mỗi dòng cần clip riêng và một câu (câu riêng hoặc câu chung hôm nay); thiếu thì báo trước khi chạy.
-      const missing: string[] = [];
-      if (!row.hookClip || (hook.clipExists && !hook.clipExists(row.hookClip))) missing.push("chưa có clip hook (bấm + ở cột Hook)");
-      // Clip có chữ sẵn (CON-136) thì không cần câu: hookText = "" (ghép không vẽ chữ).
-      const text = hookJobFor(row, hook.dayText);
-      if (text == null) missing.push("chưa có câu hook (điền câu hook chung hôm nay hoặc câu riêng của dòng, hoặc tích Clip có chữ sẵn)");
-      if (missing.length || text == null) {
-        rejected.push({ id, why: missing.join("; ") });
+      // Thêm hook thì mỗi dòng cần clip hook mẫu riêng; thiếu thì báo trước khi chạy (không có video về mà thiếu hook).
+      if (!row.hookClip || (hook.clipExists && !hook.clipExists(row.hookClip))) {
+        rejected.push({ id, why: "chưa có clip hook (bấm + ở cột Hook)" });
         continue;
       }
-      run.hookText = text;
-      run.hookOwn = !!row.hookText?.trim();
+      run.hookText = HOOK_PROMPT;
     }
     runs.push(run);
   }
@@ -85,7 +88,11 @@ export function insertBangBatch(db: DB, extra: string, runs: BangPlannedRun[]): 
     );
     const insertEvent = db.prepare("INSERT INTO run_events (runId, fromState, toState, message) VALUES (?, NULL, 'queued', ?)");
     for (const r of runs) {
-      const snap: BangSnapshot = { attachments: r.request.attachments.map((a) => a.name), prompt: r.row.prompt.trim() };
+      const snap: BangSnapshot = {
+        attachments: r.request.attachments.map((a) => a.name),
+        prompt: r.row.prompt.trim(),
+        ...(r.hookText != null && r.row.hookClip ? { hookClip: r.row.hookClip } : {}),
+      };
       const { lastInsertRowid: runId } = insertRun.run(
         batchId,
         r.row.id,
@@ -96,9 +103,45 @@ export function insertBangBatch(db: DB, extra: string, runs: BangPlannedRun[]): 
         r.overwrite ? 1 : 0,
         r.hookText ?? null,
       );
-      insertEvent.run(runId, `Tạo lô #${batchId} từ Bảng mới, ${snap.attachments.length} ảnh${r.overwrite ? " (tạo lại)" : ""}${r.hookText == null ? "" : r.hookText ? ", có hook" : ", có hook (clip có chữ sẵn)"}`);
+      insertEvent.run(runId, `Tạo lô #${batchId} từ Bảng mới, ${snap.attachments.length} ảnh${r.overwrite ? " (tạo lại)" : ""}${r.hookText != null ? ", có hook (nhờ Muse chèn)" : ""}`);
     }
     return batchId;
+  })();
+}
+
+/**
+ * Ghép lại hook (CON-137) cho dòng đã có video: một lô một lượt, chỉ gửi tin chèn hook vào cuộc trò chuyện Muse cũ của
+ * dòng (lượt ở pha hook ngay từ đầu, không gửi lại yêu cầu tạo video). Trả lý do không làm được, hoặc số lô.
+ */
+export function insertHookOnlyBatch(db: DB, id: number, opts: { clipExists: (name: string) => boolean }): { batchId: number } | { why: string } {
+  const row = getRow(db, id);
+  if (!row) return { why: `Không có dòng ${id}.` };
+  if (lockedBangRows(db).has(id)) return { why: `Dòng ${id} đang tạo video.` };
+  if (!row.videoFile) return { why: `Dòng ${id} chưa có video.` };
+  if (!row.hookClip || !opts.clipExists(row.hookClip)) return { why: `Dòng ${id} chưa có clip hook: bấm + ở cột Hook để chọn.` };
+  const chat = (
+    db
+      .prepare("SELECT museChatUrl FROM runs WHERE bangRowId = ? AND state = 'done' AND museChatUrl IS NOT NULL ORDER BY id DESC LIMIT 1")
+      .get(id) as { museChatUrl: string } | undefined
+  )?.museChatUrl;
+  if (!chat) return { why: `Không còn cuộc trò chuyện Muse của video dòng ${id}: bấm Tạo video (có tích Thêm hook) để làm lại.` };
+  return db.transaction(() => {
+    const { lastInsertRowid } = db
+      .prepare("INSERT INTO batches (spreadsheetId, tab, driveFolderId, extraRequest, status, source) VALUES ('', ?, '', NULL, 'queued', 'bang')")
+      .run(BANG_BATCH_TAB);
+    const batchId = Number(lastInsertRowid);
+    const snap: BangSnapshot = { attachments: [], prompt: row.prompt.trim(), hookClip: row.hookClip! };
+    const { lastInsertRowid: runId } = db
+      .prepare(
+        `INSERT INTO runs (batchId, rowNumber, bangRowId, inputSnapshot, promptSent, requestText, overwrite, state, hookText, anhPhase, museChatUrl)
+         VALUES (?, ?, ?, ?, ?, ?, 1, 'queued', ?, ?, ?)`,
+      )
+      .run(batchId, id, id, JSON.stringify(snap), row.prompt.trim(), HOOK_PROMPT, HOOK_PROMPT, HOOK_PHASE, chat);
+    db.prepare("INSERT INTO run_events (runId, fromState, toState, message) VALUES (?, NULL, 'queued', ?)").run(
+      runId,
+      `Tạo lô #${batchId}: ghép lại hook cho dòng ${id} trong cuộc trò chuyện Muse cũ`,
+    );
+    return { batchId };
   })();
 }
 

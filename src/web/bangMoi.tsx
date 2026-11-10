@@ -2,15 +2,14 @@ import fs from "node:fs";
 import { Readable } from "node:stream";
 import type { Context, Hono } from "hono";
 import type { Child } from "hono/jsx";
-import { hookJobFor, queueHook, setHookClip, setHookNoText, setHookText } from "../bang/rows.js";
-import type { HookMerger } from "../bang/hook.js";
-import { getHookSettings, setHookDayText, setHookOn } from "../db/settings.js";
+import { setHookClip } from "../bang/rows.js";
+import { getHookSettings, setHookOn } from "../db/settings.js";
 import { cleanupIds, clearRowVideo, deleteRows, rowFiles, importedKeys, isFilter, isSlot, labelOf, listRows, countByFilter, getRow, addRow, setPrompt, setSlot, lockedBangRows, planBangFill, applyBangFill, allRowIds, nameOldVideos, SLOTS, SLOT_TAG, SLOT_TEXT, FILTERS, FILTER_TEXT, BANG_LABEL_TEXT, type BangFilter, type BangLabel, type BangRow, type Slot } from "../bang/rows.js";
 import { BangFiles, clipProblem, formatBytes, imageProblem, typeOf } from "../bang/files.js";
 import { planImport, runImport, type ImportPlan } from "../bang/importSheet.js";
 import { zipName, zipStream, type ZipEntry } from "../bang/zip.js";
 import { attachmentText, BANG_KIND_TEXT } from "../bang/request.js";
-import { estimateText, insertBangBatch, planBangBatch, type HookChoice } from "../bang/run.js";
+import { estimateText, insertBangBatch, insertHookOnlyBatch, planBangBatch, runsCost, type HookChoice } from "../bang/run.js";
 import { activeBatch } from "../db/history.js";
 import { getSettings } from "../db/settings.js";
 import type { BatchRunner } from "../queue/runner.js";
@@ -38,7 +37,6 @@ export interface BangMoiDeps {
   sheets?: SheetsClient;
   drive?: DriveClient;
   runner?: BatchRunner;
-  hooks?: HookMerger;
 }
 
 const BADGE: Record<BangLabel, string> = { ready: "b-ready", missing_data: "b-missing_data", running: "b-running", done: "b-has_video", review: "b-missing_data" };
@@ -113,11 +111,11 @@ function HookTools(props: { row: BangRow; locked: boolean }) {
     <div class="hookpart small">
       {r.hookError && (
         <div class="warn-text" title={r.hookError}>
-          Ghép hook lỗi: {truncate(r.hookError, 50)}
+          Chèn hook lỗi: {truncate(r.hookError, 50)}
         </div>
       )}
       {!props.locked && r.hookClip && (
-        <button type="button" class="secondary small hook-merge">
+        <button type="button" class="secondary small hook-merge" title="Gửi lại clip hook mẫu cho Muse trong cuộc trò chuyện cũ của video này (tính 1 lượt)">
           {r.hookVideoFile || r.hookError ? "Ghép lại hook" : "Ghép hook"}
         </button>
       )}
@@ -126,21 +124,21 @@ function HookTools(props: { row: BangRow; locked: boolean }) {
 }
 
 /**
- * Video hiện ở ô Video (CON-135): đang ghép hook thì chưa hiện video nào; đã có bản có hook thì chỉ hiện bản đó
- * (bản gốc vẫn giữ trên máy để ghép lại); không thì bản gốc.
+ * Video hiện ở ô Video (CON-135): Muse đang chèn hook (CON-137) thì chưa hiện video nào; đã có bản có hook thì chỉ hiện
+ * bản đó (bản gốc vẫn giữ trên máy); không thì bản gốc.
  */
-export function shownVideo(r: BangRow, hookBusy: boolean): { kind: "pending" } | { kind: "hook" | "plain"; file: string; bytes?: number | null } | null {
+export function shownVideo(r: BangRow): { kind: "pending" } | { kind: "hook" | "plain"; file: string; bytes?: number | null } | null {
   if (!r.videoFile) return null;
-  if (r.hookJob != null || hookBusy) return { kind: "pending" };
+  if (r.hookJob != null) return { kind: "pending" };
   if (r.hookVideoFile) return { kind: "hook", file: r.hookVideoFile, bytes: r.hookVideoBytes };
   return { kind: "plain", file: r.videoFile, bytes: r.videoBytes };
 }
 
-/** Ô Hook (D30): clip hook của dòng (bắt buộc khi thêm hook) và câu hook riêng (trống = câu chung hôm nay). */
+/** Ô Hook (CON-137): clip hook mẫu của dòng (bắt buộc khi thêm hook); bot gửi clip này cho Muse để chèn hook. */
 function HookCell(props: { row: BangRow; locked: boolean }) {
   const r = props.row;
   return (
-    <td class="hook" data-value={r.hookText ?? ""}>
+    <td class="hook">
       <div class="hook-clip">
         {r.hookClip ? (
           <>
@@ -167,29 +165,14 @@ function HookCell(props: { row: BangRow; locked: boolean }) {
           </button>
         )}
       </div>
-      {r.hookNoText ? (
-        <div class="small muted">(không vẽ câu hook)</div>
-      ) : (
-        <div class="cellwrap small">
-          <div class="cellbody">{r.hookText ? `“${truncate(r.hookText, 80)}”` : <span class="muted">(câu chung hôm nay)</span>}</div>
-          {!props.locked && (
-            <button type="button" class="edit hooktext-edit" title="Câu hook riêng của dòng này" aria-label={`Sửa câu hook dòng ${r.id}`}>
-              ✎
-            </button>
-          )}
-        </div>
-      )}
-      <label class="inline small hook-notext" title="Clip đã có câu chữ (ví dụ lấy từ TikTok): tool chỉ ghép clip, không vẽ thêm câu hook đè lên">
-        <input type="checkbox" class="hook-notext-box" checked={!!r.hookNoText} disabled={props.locked} /> Clip có chữ sẵn
-      </label>
     </td>
   );
 }
 
 /** Ô Video (17.2): ảnh nhỏ (ảnh người mẫu) + ▶ xem ngay trên trang (chỉ tải khi bấm), ⬇ Tải về, 🗑 Xoá. */
-function VideoCell(props: { row: BangRow; locked: boolean; label: BangLabel; hookOn?: boolean; hookBusy?: boolean }) {
+function VideoCell(props: { row: BangRow; locked: boolean; label: BangLabel; hookOn?: boolean }) {
   const r = props.row;
-  const shown = shownVideo(r, !!props.hookBusy);
+  const shown = shownVideo(r);
   if (!shown) {
     return (
       <td>
@@ -212,7 +195,7 @@ function VideoCell(props: { row: BangRow; locked: boolean; label: BangLabel; hoo
     return (
       <td class="video">
         <div class="vid">
-          <div class="muted">⏳ Đang ghép hook…</div>
+          <div class="muted">⏳ Muse đang chèn hook…</div>
           {r.videoName && <div class="small vid-name">{r.videoName}</div>}
           <div class="small muted">{muse}</div>
         </div>
@@ -302,22 +285,22 @@ function ImageCell(props: { row: BangRow; slot: Slot; locked: boolean }) {
  * Video của dòng khi tải nhiều dòng (CON-107, CON-112): đúng video đang hiện ở ô Video (CON-135), tức bản có hook
  * nếu đã ghép xong, không thì bản gốc; đang ghép hook thì chưa tải.
  */
-export function bulkFile(r: BangRow, hookBusy: boolean): { file: string; name: string } | null {
-  const v = shownVideo(r, hookBusy);
+export function bulkFile(r: BangRow): { file: string; name: string } | null {
+  const v = shownVideo(r);
   if (!v || v.kind === "pending") return null;
   return { file: v.file, name: videoFileName(r, v.kind === "hook") };
 }
 
-export function bulkDownload(r: BangRow, hookBusy: boolean): { url: string; name: string } | null {
-  const f = bulkFile(r, hookBusy);
+export function bulkDownload(r: BangRow): { url: string; name: string } | null {
+  const f = bulkFile(r);
   return f && { url: `${videoUrl(f.file)}?tai=1`, name: f.name };
 }
 
-function RowView(props: { row: BangRow; locked: boolean; hookOn: boolean; hookBusy: boolean }) {
+function RowView(props: { row: BangRow; locked: boolean; hookOn: boolean }) {
   const r = props.row;
   const own = labelOf(r);
   const { label, problems } = props.locked && own.label !== "running" ? { label: "running" as const, problems: [] } : own;
-  const dl = bulkDownload(r, props.hookBusy);
+  const dl = bulkDownload(r);
   return (
     <tr data-row={r.id} data-label={label} data-dl={dl?.url} data-dl-name={dl?.name}>
       <td>
@@ -339,7 +322,7 @@ function RowView(props: { row: BangRow; locked: boolean; hookOn: boolean; hookBu
         </div>
       </td>
       {props.hookOn && <HookCell row={r} locked={props.locked} />}
-      <VideoCell row={r} locked={props.locked} label={label} hookOn={props.hookOn} hookBusy={props.hookBusy} />
+      <VideoCell row={r} locked={props.locked} label={label} hookOn={props.hookOn} />
       <td>
         <span class={`badge ${BADGE[label]}`}>{BANG_LABEL_TEXT[label]}</span>
         {problems.length > 0 && (
@@ -375,9 +358,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
     const active = activeBatch(db);
     const blocked = active ? `Lô #${active.id} chưa xong. Đợi xong (hoặc Tiếp tục / Huỷ lô đang tạm dừng) rồi tạo video tiếp.` : "";
     const hook = getHookSettings(db);
-    const hookBusy = (id: number) => !!deps.hooks?.isBusy(id);
-    const merging = list.rows.some((r) => r.hookJob != null || hookBusy(r.id));
-    const live = (!!active && deps.runner?.runningBatchId === active.id && locked.size > 0) || merging;
+    const live = !!active && deps.runner?.runningBatchId === active.id && locked.size > 0;
     return c.html(
       page(
         "Bảng",
@@ -491,14 +472,14 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
                         <th>{SLOT_TEXT[s]}</th>
                       ))}
                       <th>Prompt</th>
-                      {hook.on && <th title="Clip hook (mỗi video một clip) và câu hook riêng; trống thì dùng câu chung hôm nay">Hook</th>}
+                      {hook.on && <th title="Clip hook mẫu của dòng: bot gửi clip này cho Muse để chèn hook vào video">Hook</th>}
                       <th>Video</th>
                       <th>Trạng thái</th>
                     </tr>
                   </thead>
                   <tbody>
                     {list.rows.map((r) => (
-                      <RowView row={r} locked={locked.has(r.id)} hookOn={hook.on} hookBusy={hookBusy(r.id)} />
+                      <RowView row={r} locked={locked.has(r.id)} hookOn={hook.on} />
                     ))}
                   </tbody>
                 </table>
@@ -549,7 +530,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
               <a class="button secondary" href={`${BASE}/don`}>
                 Dọn tất cả
               </a>
-              <label class="inline hook-toggle" title="Ghép clip hook + câu hook vào đầu mỗi video (như video mẫu)">
+              <label class="inline hook-toggle" title="Video về thì nhờ Muse chèn hook theo clip hook mẫu của từng dòng (mỗi dòng tính 2 lượt)">
                 <input type="checkbox" id="hookOn" checked={hook.on} /> Thêm hook
               </label>
             </div>
@@ -565,21 +546,9 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
               </button>
             </div>
             {hook.on && (
-              <div id="hookBox" class="hookbar">
-                <div class="row" style="align-items:center;flex-wrap:nowrap">
-                  <label for="hookDay" style="white-space:nowrap">
-                    <strong>Câu hook chung hôm nay</strong>
-                  </label>
-                  <input id="hookDay" type="text" value={hook.dayText} maxlength={200} placeholder="Ví dụ: I want this shirt but I'm broke..." style="flex:1" />
-                  <button type="button" id="hookDaySave" class="secondary">
-                    Lưu
-                  </button>
-                  <span id="hookMsg" class="small" aria-live="polite"></span>
-                </div>
-                <div class="muted small hint">
-                  Dòng có câu riêng (✎ ở cột Hook) thì dùng câu riêng. Mỗi dòng cần <strong>clip hook</strong> riêng (+ ở cột Hook). Video về là tool
-                  tự ghép, bản gốc vẫn giữ.
-                </div>
+              <div id="hookBox" class="hookbar muted small">
+                Mỗi dòng cần <strong>clip hook mẫu</strong> (+ ở cột Hook). Video người mẫu về thì bot gửi clip mẫu cho Muse trong cùng cuộc trò
+                chuyện để Muse chèn hook; dòng chỉ Xong khi có video có hook (bản gốc vẫn giữ). Mỗi dòng có hook tính <strong>2 lượt</strong>.
               </div>
             )}
           </div>
@@ -687,16 +656,12 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
 
   // ---------- Hook đầu video (CON-74, D30) ----------
 
-  /** Ô "Thêm hook" và câu hook chung hôm nay. */
+  /** Ô "Thêm hook" (CON-137: không còn câu hook, Muse chèn hook theo clip mẫu). */
   app.post(`${BASE}/hook-chung`, async (c) => {
     if (!fromPage(c)) return deny(c);
     const body = await json(c);
     if (!body) return c.json({ ok: false, message: "Yêu cầu không hợp lệ" }, 400);
     if (typeof body.on === "boolean") setHookOn(db, body.on);
-    if (typeof body.text === "string") {
-      if (body.text.length > 200) return c.json({ ok: false, message: "Câu hook dài quá (tối đa 200 ký tự)." });
-      setHookDayText(db, body.text);
-    }
     return c.json({ ok: true });
   });
 
@@ -727,48 +692,26 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
     return c.json({ ok: true });
   });
 
-  /** Câu hook riêng của dòng; trống = dùng câu chung hôm nay. */
-  app.post(`${BASE}/cau-hook`, async (c) => {
-    if (!fromPage(c)) return deny(c);
-    const body = await json(c);
-    const id = Number(body?.row);
-    if (!body) return c.json({ ok: false, message: "Yêu cầu không hợp lệ" }, 400);
-    const why = editable(id);
-    if (why) return c.json({ ok: false, message: why }, 409);
-    const text = String(body.text ?? "");
-    if (text.length > 200) return c.json({ ok: false, message: "Câu hook dài quá (tối đa 200 ký tự)." });
-    setHookText(db, id, text);
-    return c.json({ ok: true });
-  });
-
-  /** "Clip có chữ sẵn" (CON-136): bật thì tool không vẽ câu hook cho dòng này. Ghép lại hook để áp dụng cho video đã có. */
-  app.post(`${BASE}/hook-khong-chu`, async (c) => {
-    if (!fromPage(c)) return deny(c);
-    const body = await json(c);
-    const id = Number(body?.row);
-    if (!body || typeof body.on !== "boolean") return c.json({ ok: false, message: "Yêu cầu không hợp lệ" }, 400);
-    const why = editable(id);
-    if (why) return c.json({ ok: false, message: why }, 409);
-    setHookNoText(db, id, body.on);
-    return c.json({ ok: true });
-  });
-
-  /** Ghép hook cho dòng đã có video (không tốn lượt Muse). */
+  /**
+   * Ghép lại hook (CON-137): nhờ Muse chèn hook lần nữa trong cuộc trò chuyện cũ của video (tính 1 lượt). Chạy như một lô
+   * một dòng; cuộc trò chuyện không còn thì báo tạo lại video.
+   */
   app.post(`${BASE}/ghep-hook`, async (c) => {
     if (!fromPage(c)) return deny(c);
     const id = Number((await json(c))?.row);
     const why = editable(id);
     if (why) return c.json({ ok: false, message: why }, 409);
-    const r = getRow(db, id)!;
-    if (!r.videoFile) return c.json({ ok: false, message: `Dòng ${id} chưa có video.` });
-    if (!r.hookClip || !files.clipPath(r.hookClip)) return c.json({ ok: false, message: `Dòng ${id} chưa có clip hook: bấm + ở cột Hook để chọn.` });
-    const text = hookJobFor(r, getHookSettings(db).dayText);
-    if (text == null)
-      return c.json({ ok: false, message: "Chưa có câu hook: điền câu hook chung hôm nay hoặc câu riêng của dòng (✎ ở cột Hook), hoặc tích Clip có chữ sẵn." });
-    if (!deps.hooks) return c.json({ ok: false, message: "Bộ ghép hook chưa sẵn sàng." });
-    queueHook(db, id, text);
-    deps.hooks.enqueue(id);
-    return c.json({ ok: true, message: `Đang ghép hook cho dòng ${id}.` });
+    const runner = deps.runner;
+    if (!runner) return c.json({ ok: false, message: "Bot chưa sẵn sàng." });
+    const active = activeBatch(db);
+    if (active) return c.json({ ok: false, message: `Lô #${active.id} chưa xong. Đợi xong rồi ghép lại hook.` });
+    if (getDailyQuota(db).remaining <= 0) return c.json({ ok: false, message: "Hôm nay đã đủ giới hạn video." });
+    const made = insertHookOnlyBatch(db, id, { clipExists: (n) => !!files.clipPath(n) });
+    if ("why" in made) return c.json({ ok: false, message: made.why });
+    const started = runner.start(made.batchId);
+    if (!started.ok) return c.json({ ok: false, message: started.message });
+    logger.info({ batchId: made.batchId, row: id }, "Bảng mới: ghép lại hook");
+    return c.json({ ok: true, message: `Đang nhờ Muse chèn lại hook cho dòng ${id} (lô #${made.batchId}).` });
   });
 
   /** Xoá các dòng đã chọn cùng ảnh và video (D26); dòng đang tạo video bị bỏ qua. */
@@ -790,7 +733,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
     const skipped: number[] = [];
     for (const id of [...new Set(ids)].sort((a, b) => a - b)) {
       const r = getRow(db, id);
-      const f = r && bulkFile(r, !!deps.hooks?.isBusy(id));
+      const f = r && bulkFile(r);
       const p = f && files.videoPath(f.file);
       if (!f || !p) {
         skipped.push(id);
@@ -971,7 +914,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
   });
 
   // ---------- Tạo video (CON-52, spec 17.4, 17.5) ----------
-  const hookChoice = (): HookChoice => ({ dayText: getHookSettings(db).dayText, clipExists: (n) => !!files.clipPath(n) });
+  const hookChoice = (): HookChoice => ({ clipExists: (n) => !!files.clipPath(n) });
 
   app.get(`${BASE}/chuan-bi`, (c) => {
     const ids = parseIds(c.req.query("ids") ?? "");
@@ -984,7 +927,9 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
     const plan = planBangBatch(db, ids, getSettings(db), extra, withHook ? hookChoice() : undefined);
     const quota = getDailyQuota(db);
     const active = activeBatch(db);
-    const over = plan.runs.length > quota.remaining;
+    // Có hook thì mỗi dòng tính 2 lượt (CON-137).
+    const cost = runsCost(plan.runs);
+    const over = cost > quota.remaining;
     const can = plan.runs.length > 0 && !active && !over;
     return c.html(
       page(
@@ -998,7 +943,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
           {active && <Alert kind="warn">Lô #{active.id} chưa xong. Đợi xong (hoặc Tiếp tục / Huỷ lô đang tạm dừng) rồi tạo video tiếp.</Alert>}
           {over && (
             <Alert kind="warn">
-              Hôm nay còn {quota.remaining} lượt (đã tạo {quota.used}/{quota.limit}) nhưng đang chọn {plan.runs.length} dòng. Bỏ bớt dòng, hoặc nâng
+              Hôm nay còn {quota.remaining} lượt (đã tạo {quota.used}/{quota.limit}) nhưng {plan.runs.length} dòng đang chọn cần {cost} lượt. Bỏ bớt dòng, hoặc nâng
               giới hạn ở <a href="/settings">Cài đặt</a>.
             </Alert>
           )}
@@ -1018,13 +963,8 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
             <Hidden name="ids" value={ids.join(",")} />
             <Hidden name="hook" value="0" />
             <label class="inline" style="margin-bottom:8px">
-              <input type="checkbox" name="hook" value="1" checked={withHook} onchange="this.form.submit()" /> <strong>Thêm hook</strong> vào đầu video
-              {withHook && (
-                <span class="muted">
-                  {" "}
-                  · câu chung hôm nay: {hookSet.dayText ? `“${hookSet.dayText}”` : <em>(chưa điền, điền ở Bảng)</em>}
-                </span>
-              )}
+              <input type="checkbox" name="hook" value="1" checked={withHook} onchange="this.form.submit()" /> <strong>Thêm hook</strong>
+              {withHook && <span class="muted"> · video về thì nhờ Muse chèn hook theo clip mẫu của dòng; mỗi dòng tính 2 lượt</span>}
             </label>
             <label for="extra">Yêu cầu thêm chung (không bắt buộc)</label>
             <textarea id="extra" name="extra" rows={2} placeholder="Ví dụ: chuyển động chậm, ánh sáng giữ như ảnh">
@@ -1058,13 +998,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
                   <a href={clipUrl(r.row.hookClip)} target="_blank" rel="noreferrer">
                     🎬 clip hook
                   </a>{" "}
-                  {r.hookText ? (
-                    <>
-                      + “{r.hookText}” <span class="muted">({r.hookOwn ? "câu riêng của dòng" : "câu chung hôm nay"})</span>
-                    </>
-                  ) : (
-                    <span class="muted">(clip có chữ sẵn, không vẽ câu hook)</span>
-                  )}
+                  <span class="muted">· tin thứ hai gửi Muse: “{r.hookText}” (tính 2 lượt)</span>
                 </div>
               )}
               <details>
@@ -1109,7 +1043,8 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
     const plan = planBangBatch(db, parseIds(String(body.ids ?? "")), getSettings(db), extra, body.hook === "1" ? hookChoice() : undefined);
     if (plan.runs.length === 0) return back("msg", "Không có dòng nào tạo video được.");
     const quota = getDailyQuota(db);
-    if (plan.runs.length > quota.remaining) return back("msg", `Hôm nay chỉ còn ${quota.remaining} lượt.`);
+    const cost = runsCost(plan.runs);
+    if (cost > quota.remaining) return back("msg", `Hôm nay chỉ còn ${quota.remaining} lượt, cần ${cost} lượt (dòng có hook tính 2 lượt).`);
     const batchId = insertBangBatch(db, extra, plan.runs);
     logger.info({ batchId, rows: plan.runs.map((r) => r.row.id) }, "Đã tạo lô từ Bảng mới");
     const started = runner.start(batchId);
@@ -1467,25 +1402,13 @@ const CLIENT_JS = `
   });
 
   // Hook \\u0111\\u1ea7u video (CON-74): \\u00f4 Th\\u00eam hook, c\\u00e2u hook chung h\\u00f4m nay, clip hook v\\u00e0 c\\u00e2u ri\\u00eang c\\u1ee7a t\\u1eebng d\\u00f2ng, Gh\\u00e9p hook.
-  var hookOn = document.getElementById("hookOn"), hookBox = document.getElementById("hookBox"), hookMsg = document.getElementById("hookMsg");
+  var hookOn = document.getElementById("hookOn");
   hookOn.addEventListener("change", function () {
     postJson("/bang-moi/hook-chung", { on: hookOn.checked }).then(function (r) {
       if (!r.ok) { alert(r.message); return; }
       location.reload();
     });
   });
-  function saveDay() {
-    var v = document.getElementById("hookDay").value;
-    hookMsg.textContent = "\\u0110ang l\\u01b0u\\u2026";
-    postJson("/bang-moi/hook-chung", { text: v }).then(function (r) {
-      hookMsg.className = r.ok ? "small ok-text" : "small warn-text";
-      hookMsg.textContent = r.ok ? (v.trim() ? "\\u0110\\u00e3 l\\u01b0u c\\u00e2u hook chung h\\u00f4m nay." : "\\u0110\\u00e3 xo\\u00e1 c\\u00e2u hook chung.") : r.message;
-    });
-  }
-  if (hookBox) {
-    document.getElementById("hookDaySave").addEventListener("click", saveDay);
-    document.getElementById("hookDay").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); saveDay(); } });
-  }
   var clipPick = document.getElementById("clipPick"), clipTarget = null;
   function clipsOnly(list) { return Array.prototype.filter.call(list, function (f) { return /^video\\//.test(f.type) || /\\.(mp4|mov|webm|mkv)$/i.test(f.name); }); }
   function uploadClip(td, file) {
@@ -1516,40 +1439,9 @@ const CLIENT_JS = `
       postJson("/bang-moi/bo-clip-hook", { row: Number(b.closest("tr").dataset.row) }).then(function (r) { if (r.ok) location.reload(); else alert(r.message); });
     });
   });
-  document.querySelectorAll("button.hooktext-edit").forEach(function (b) {
-    b.addEventListener("click", function () {
-      var td = b.closest("td");
-      if (td.querySelector(".editor")) return;
-      var row = Number(td.closest("tr").dataset.row);
-      var box = el("div", "editor"), input = el("input");
-      input.type = "text"; input.maxLength = 200; input.value = td.dataset.value; input.placeholder = "\\u0110\\u1ec3 tr\\u1ed1ng = d\\u00f9ng c\\u00e2u chung h\\u00f4m nay"; box.appendChild(input);
-      var bar = el("div", "row"), save = el("button", "small", "L\\u01b0u"), cancel = el("button", "secondary small", "Hu\\u1ef7"), msg = el("span", "small warn-text");
-      save.type = cancel.type = "button";
-      bar.appendChild(save); bar.appendChild(cancel); bar.appendChild(msg); box.appendChild(bar);
-      cancel.addEventListener("click", function () { box.remove(); });
-      save.addEventListener("click", function () {
-        save.disabled = true;
-        postJson("/bang-moi/cau-hook", { row: row, text: input.value }).then(function (r) {
-          if (r.ok) return reload("\\u0110\\u00e3 l\\u01b0u c\\u00e2u hook d\\u00f2ng " + row + ".");
-          save.disabled = false; msg.textContent = r.message;
-        });
-      });
-      td.appendChild(box); input.focus();
-    });
-  });
-  // "Clip có chữ sẵn" (CON-136): lưu ngay; dòng đã có bản có hook thì nhắc Ghép lại hook.
-  document.querySelectorAll("input.hook-notext-box").forEach(function (cb) {
-    cb.addEventListener("change", function () {
-      var tr = cb.closest("tr"), row = Number(tr.dataset.row);
-      cb.disabled = true;
-      postJson("/bang-moi/hook-khong-chu", { row: row, on: cb.checked }).then(function (r) {
-        if (!r.ok) { cb.disabled = false; cb.checked = !cb.checked; return alert(r.message); }
-        reload(tr.querySelector("button.hook-merge") ? "\\u0110\\u00e3 l\\u01b0u d\\u00f2ng " + row + ". B\\u1ea5m Gh\\u00e9p l\\u1ea1i hook \\u0111\\u1ec3 \\u00e1p d\\u1ee5ng cho video \\u0111\\u00e3 c\\u00f3." : "\\u0110\\u00e3 l\\u01b0u d\\u00f2ng " + row + ".");
-      });
-    });
-  });
   document.querySelectorAll("button.hook-merge").forEach(function (b) {
     b.addEventListener("click", function () {
+      if (!confirm("Nh\\u1edd Muse ch\\u00e8n l\\u1ea1i hook cho d\\u00f2ng n\\u00e0y trong cu\\u1ed9c tr\\u00f2 chuy\\u1ec7n c\\u0169? T\\u00ednh 1 l\\u01b0\\u1ee3t.")) return;
       b.disabled = true;
       postJson("/bang-moi/ghep-hook", { row: Number(b.closest("tr").dataset.row) }).then(function (r) {
         if (r.ok) return reload(r.message);
