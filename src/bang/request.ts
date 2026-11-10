@@ -15,7 +15,7 @@ Yêu cầu thêm: {yeu_cau_them}
 Luôn giữ nguyên hình in trên áo, không làm méo hay đổi chữ/hình.
 Tạo xong thì gửi video ngay trong cuộc trò chuyện này. Không lưu lên Google Drive, không sửa Google Sheet.`;
 
-export const DEFAULT_BANG_SHIRT_TEMPLATE = `Trước khi tạo video, hãy ghép chiếc áo ở ảnh 2 vào người mẫu ở ảnh 1: chỉ thay chiếc áo, giữ nguyên khuôn mặt, tóc, dáng, tư thế, nền, bối cảnh và ánh sáng của ảnh 1, giữ nguyên hình in trên áo. Dùng ảnh vừa ghép để tạo video. Không cần lưu ảnh vừa ghép.`;
+export const DEFAULT_BANG_SHIRT_TEMPLATE = `Trước khi tạo video, hãy ghép chiếc áo ở ảnh 2 vào người mẫu ở ảnh 1: chỉ thay chiếc áo, giữ nguyên khuôn mặt, tóc, dáng, tư thế, nền, bối cảnh và ánh sáng của ảnh 1, giữ nguyên hình in trên áo. Gửi ảnh vừa ghép vào cuộc trò chuyện này trước, rồi mới dùng chính ảnh đó để tạo video.`;
 
 /**
  * Mẫu hai mặt (CON-73, đội duyệt 30/10/2026). Ghép ra ảnh A, B trước rồi làm video chỉ từ hai ảnh đó; không cho người mẫu
@@ -44,7 +44,15 @@ Tạo xong thì gửi video ngay trong cuộc trò chuyện này. Không lưu l�
  */
 export const NO_ASK_LINE = "Không hỏi lại, không đưa ra lựa chọn, không xin xác nhận. Thực hiện ngay yêu cầu; nếu có chỗ mơ hồ, hãy tự chọn cách hiểu có khả năng đúng nhất và làm luôn.";
 
-const withNoAsk = (text: string) => `${text.trimEnd()}\n${NO_ASK_LINE}`;
+/**
+ * Quy trình ảnh trước, video sau (CON-138, người phụ trách duyệt 10/11/2026): Muse luôn tạo ảnh và gửi vào khung chat
+ * trước rồi mới tạo video từ chính ảnh đó. Tool tự thêm vào mọi yêu cầu tạo video, kể cả mẫu đã lưu riêng ở Cài đặt.
+ * Nguyên văn đã duyệt, không sửa nếu chưa hỏi.
+ */
+export const IMAGE_FIRST_LINE =
+  "Luôn làm đúng 2 bước theo thứ tự, không gộp, không bỏ bước: Bước 1 – tạo ảnh người mẫu đã mặc đúng chiếc áo, đúng khung hình mở đầu của video, và gửi ảnh đó vào cuộc trò chuyện này. Bước 2 – chỉ sau khi ảnh đã hiện trong cuộc trò chuyện, tạo video từ chính ảnh vừa gửi. Không tạo video thẳng từ ảnh đính kèm.";
+
+const withNoAsk = (text: string) => `${text.trimEnd()}\n${IMAGE_FIRST_LINE}\n${NO_ASK_LINE}`;
 
 export const BANG_DEFAULTS: Record<BangTemplateKind, string> = {
   bangTemplate: DEFAULT_BANG_TEMPLATE,

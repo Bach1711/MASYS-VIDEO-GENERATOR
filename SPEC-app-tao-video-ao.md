@@ -575,6 +575,8 @@ Tạo xong thì gửi video ngay trong cuộc trò chuyện này. Không lưu l�
 
 **Câu không hỏi lại (CON-89):** tool tự thêm `NO_ASK_LINE` vào cuối mọi yêu cầu tạo video, sau khi điền mẫu, nên máy đã lưu mẫu riêng cũng có. Bảng ảnh và Tạo nhân vật không thêm.
 
+**Ảnh trước, video sau (CON-138, người phụ trách duyệt 10/11/2026):** tool tự thêm `IMAGE_FIRST_LINE` vào mọi yêu cầu tạo video của Bảng video, ngay trước câu không hỏi lại, kể cả mẫu đã lưu riêng: *"Luôn làm đúng 2 bước theo thứ tự, không gộp, không bỏ bước: Bước 1 – tạo ảnh người mẫu đã mặc đúng chiếc áo, đúng khung hình mở đầu của video, và gửi ảnh đó vào cuộc trò chuyện này. Bước 2 – chỉ sau khi ảnh đã hiện trong cuộc trò chuyện, tạo video từ chính ảnh vừa gửi. Không tạo video thẳng từ ảnh đính kèm."* Đoạn ghép áo gốc đổi câu cuối thành *"Gửi ảnh vừa ghép vào cuộc trò chuyện này trước, rồi mới dùng chính ảnh đó để tạo video."* Bot không kiểm tra ảnh đã có trước video (người phụ trách không yêu cầu, làm lại tốn lượt); vẫn chỉ tải video. Bảng theo sheet (luồng cũ) không đổi.
+
 ### 17.5 Chạy một lượt (thay F5 cho Bảng mới)
 1. **Đọc lại dòng** trong SQLite: còn đủ file ảnh trên đĩa, prompt còn, chưa có video (trừ Ghi đè). Thiếu → `needs_review`, không gửi.
 2. Mở **cuộc trò chuyện mới** (side chat, D7). Ghi `museChatUrl` ngay khi có.
