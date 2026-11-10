@@ -336,7 +336,12 @@ describe("Bảng: ô Thêm hook, cột Hook, Ghép hook", () => {
     expect(await (await post("/bang-moi/ghep-hook", { row: 1 })).json()).toEqual({ ok: true, message: "Đang ghép hook cho dòng 1." });
     expect(enqueued).toEqual([1]);
     expect(getRow(db, 1)!.hookJob).toBe("Chung");
-    expect(await (await app.request("/")).text()).toContain("Đang ghép hook…");
+    const orig = getRow(db, 1)!.videoFile!;
+    const busyHtml = await (await app.request("/")).text();
+    expect(busyHtml).toContain("Đang ghép hook…");
+    // Đang ghép (CON-135): chưa cho xem hay tải bản gốc, chưa có trong Tải các dòng đã chọn.
+    expect(busyHtml).not.toContain(`/bang-moi/video/${orig}`);
+    expect(busyHtml.match(/<tr data-row="1"[^>]*>/)![0]).not.toContain("data-dl=");
 
     const hv = files.newHookVideo(1);
     fs.writeFileSync(hv.path, MP4);
@@ -344,6 +349,16 @@ describe("Bảng: ô Thêm hook, cột Hook, Ghép hook", () => {
     const html = await (await app.request("/")).text();
     expect(html).toContain("Có hook<");
     expect(html).toContain("Ghép lại hook");
+    // Có bản có hook (CON-135): ô Video chỉ hiện bản có hook (xem, tải), bản gốc ẩn nhưng vẫn còn trên máy.
+    expect(html).toContain(`data-src="/bang-moi/video/${hv.name}"`);
+    expect(html).toContain(`href="/bang-moi/video/${hv.name}?tai=1" download="Video 01.mp4"`);
+    expect(html).not.toContain(`/bang-moi/video/${orig}`);
+    expect(files.videoPath(orig)).toBeTruthy();
+    // Bảng video dùng hết chiều ngang để cột Video không bị khuất khi bật hook.
+    expect(html).toContain('<main class="wide">');
+    setHookOn(db, false);
+    expect(await (await app.request("/")).text()).toContain(`data-src="/bang-moi/video/${hv.name}"`);
+    setHookOn(db, true);
     // Tải các dòng đã chọn (CON-107): dòng có hook thì tải bản có hook; bản có hook cùng tên video (CON-113).
     expect(html.match(/<tr data-row="1"[^>]*>/)![0]).toContain(`data-dl="/bang-moi/video/${hv.name}?tai=1" data-dl-name="Video 01.mp4"`);
     const dl = await app.request(`/bang-moi/video/${hv.name}?tai=1`);

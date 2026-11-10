@@ -106,36 +106,34 @@ function NguoiMauCell(props: { row: BangRow }) {
   );
 }
 
-/** Phần hook trong ô Video (D30): bản có hook (▶ ⬇), đang ghép, lỗi ghép, nút Ghép hook. */
-function HookVideoPart(props: { row: BangRow; locked: boolean; busy: boolean }) {
+/** Phần hook dưới video (D30): lỗi ghép và nút Ghép hook / Ghép lại hook. */
+function HookTools(props: { row: BangRow; locked: boolean }) {
   const r = props.row;
-  const pending = r.hookJob != null || props.busy;
   return (
     <div class="hookpart small">
-      {r.hookVideoFile && !pending && (
-        <div class="vid" data-src={videoUrl(r.hookVideoFile)} title={r.hookVideoBytes ? `Bản có hook, ${formatBytes(r.hookVideoBytes)}` : "Bản có hook"}>
-          <span class="muted">Có hook</span>
-          <button type="button" class="edit vid-play" title="Xem bản có hook" aria-label={`Xem bản có hook dòng ${r.id}`}>
-            ▶
-          </button>
-          <a class="edit" href={`${videoUrl(r.hookVideoFile)}?tai=1`} download={videoFileName(r, true)} title="Tải bản có hook" aria-label={`Tải bản có hook dòng ${r.id}`}>
-            ⬇
-          </a>
-        </div>
-      )}
-      {pending && <div class="muted">⏳ Đang ghép hook…</div>}
-      {!pending && r.hookError && (
+      {r.hookError && (
         <div class="warn-text" title={r.hookError}>
           Ghép hook lỗi: {truncate(r.hookError, 50)}
         </div>
       )}
-      {!pending && !props.locked && r.hookClip && (
+      {!props.locked && r.hookClip && (
         <button type="button" class="secondary small hook-merge">
           {r.hookVideoFile || r.hookError ? "Ghép lại hook" : "Ghép hook"}
         </button>
       )}
     </div>
   );
+}
+
+/**
+ * Video hiện ở ô Video (CON-135): đang ghép hook thì chưa hiện video nào; đã có bản có hook thì chỉ hiện bản đó
+ * (bản gốc vẫn giữ trên máy để ghép lại); không thì bản gốc.
+ */
+export function shownVideo(r: BangRow, hookBusy: boolean): { kind: "pending" } | { kind: "hook" | "plain"; file: string; bytes?: number | null } | null {
+  if (!r.videoFile) return null;
+  if (r.hookJob != null || hookBusy) return { kind: "pending" };
+  if (r.hookVideoFile) return { kind: "hook", file: r.hookVideoFile, bytes: r.hookVideoBytes };
+  return { kind: "plain", file: r.videoFile, bytes: r.videoBytes };
 }
 
 /** Ô Hook (D30): clip hook của dòng (bắt buộc khi thêm hook) và câu hook riêng (trống = câu chung hôm nay). */
@@ -184,8 +182,8 @@ function HookCell(props: { row: BangRow; locked: boolean }) {
 /** Ô Video (17.2): ảnh nhỏ (ảnh người mẫu) + ▶ xem ngay trên trang (chỉ tải khi bấm), ⬇ Tải về, 🗑 Xoá. */
 function VideoCell(props: { row: BangRow; locked: boolean; label: BangLabel; hookOn?: boolean; hookBusy?: boolean }) {
   const r = props.row;
-  const showHook = !!r.videoFile && (props.hookOn || !!r.hookVideoFile || r.hookJob != null || !!props.hookBusy);
-  if (!r.videoFile) {
+  const shown = shownVideo(r, !!props.hookBusy);
+  if (!shown) {
     return (
       <td>
         {r.museChatUrl ? (
@@ -198,15 +196,33 @@ function VideoCell(props: { row: BangRow; locked: boolean; label: BangLabel; hoo
       </td>
     );
   }
+  const muse = r.museChatUrl && (
+    <a href={r.museChatUrl} target="_blank" rel="noreferrer" title="Mở cuộc trò chuyện Muse của dòng này">
+      Muse ↗
+    </a>
+  );
+  if (shown.kind === "pending") {
+    return (
+      <td class="video">
+        <div class="vid">
+          <div class="muted">⏳ Đang ghép hook…</div>
+          {r.videoName && <div class="small vid-name">{r.videoName}</div>}
+          <div class="small muted">{muse}</div>
+        </div>
+      </td>
+    );
+  }
+  const hook = shown.kind === "hook";
   return (
     <td class="video">
-      <div class="vid" data-src={videoUrl(r.videoFile)}>
-        <button type="button" class="vid-play" title="Xem video" aria-label={`Xem video dòng ${r.id}`}>
+      <div class="vid" data-src={videoUrl(shown.file)}>
+        <button type="button" class="vid-play" title={hook ? "Xem video (đã có hook)" : "Xem video"} aria-label={`Xem video dòng ${r.id}`}>
           {r.modelFront ? <img class="thumb" src={imageUrl(r.modelFront)} alt="" loading="lazy" width="64" height="64" /> : <span class="thumb" />}
           <span class="vid-icon">▶</span>
         </button>
+        {hook && <span class="badge">Có hook</span>}
         <div class="vid-tools">
-          <a class="edit" href={`${videoUrl(r.videoFile)}?tai=1`} download={videoFileName(r)} title="Tải về máy" aria-label={`Tải video dòng ${r.id}`}>
+          <a class="edit" href={`${videoUrl(shown.file)}?tai=1`} download={videoFileName(r, hook)} title="Tải về máy" aria-label={`Tải video dòng ${r.id}`}>
             ⬇
           </a>
           {!props.locked && (
@@ -221,24 +237,26 @@ function VideoCell(props: { row: BangRow; locked: boolean; label: BangLabel; hoo
           </div>
         )}
         <div class="small muted">
-          {r.videoBytes ? formatBytes(r.videoBytes) : ""}
-          {r.museChatUrl && (
+          {shown.bytes ? formatBytes(shown.bytes) : ""}
+          {muse && (
             <>
-              {" · "}
-              <a href={r.museChatUrl} target="_blank" rel="noreferrer" title="Mở cuộc trò chuyện Muse của dòng này">
-                Muse ↗
-              </a>
+              {shown.bytes ? " · " : ""}
+              {muse}
             </>
           )}
         </div>
       </div>
-      {showHook && <HookVideoPart row={r} locked={props.locked} busy={!!props.hookBusy} />}
+      {(props.hookOn || hook || !!r.hookError) && <HookTools row={r} locked={props.locked} />}
     </td>
   );
 }
 
-function page(title: string, body: Child) {
-  return <Layout title={`${title} · ${APP_NAME}`}>{body}</Layout>;
+function page(title: string, body: Child, wide = false) {
+  return (
+    <Layout title={`${title} · ${APP_NAME}`} wide={wide}>
+      {body}
+    </Layout>
+  );
 }
 
 function ImageCell(props: { row: BangRow; slot: Slot; locked: boolean }) {
@@ -273,11 +291,14 @@ function ImageCell(props: { row: BangRow; slot: Slot; locked: boolean }) {
   );
 }
 
-/** Video của dòng khi tải nhiều dòng (CON-107, CON-112): có bản có hook (đã ghép xong) thì lấy bản đó, không thì bản gốc. */
+/**
+ * Video của dòng khi tải nhiều dòng (CON-107, CON-112): đúng video đang hiện ở ô Video (CON-135), tức bản có hook
+ * nếu đã ghép xong, không thì bản gốc; đang ghép hook thì chưa tải.
+ */
 export function bulkFile(r: BangRow, hookBusy: boolean): { file: string; name: string } | null {
-  if (!r.videoFile) return null;
-  if (r.hookVideoFile && r.hookJob == null && !hookBusy) return { file: r.hookVideoFile, name: videoFileName(r, true) };
-  return { file: r.videoFile, name: videoFileName(r) };
+  const v = shownVideo(r, hookBusy);
+  if (!v || v.kind === "pending") return null;
+  return { file: v.file, name: videoFileName(r, v.kind === "hook") };
 }
 
 export function bulkDownload(r: BangRow, hookBusy: boolean): { url: string; name: string } | null {
@@ -560,6 +581,7 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
           <input type="file" id="clipPick" accept="video/mp4,video/quicktime,video/webm,video/x-matroska,.mp4,.mov,.webm,.mkv" hidden />
           <script dangerouslySetInnerHTML={{ __html: CLIENT_JS }} />
         </>,
+        true,
       ),
     );
   };

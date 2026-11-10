@@ -14,7 +14,14 @@ export function setUpdateBanner(fn: (() => Child) | undefined) {
   updateBanner = fn;
 }
 
-export function Layout(props: { title: string; children: Child; /** Bảng tự hiện lô đang chạy nên không cần dải báo lô. */ hideStatus?: boolean }) {
+export function Layout(props: {
+  title: string;
+  children: Child;
+  /** Bảng tự hiện lô đang chạy nên không cần dải báo lô. */
+  hideStatus?: boolean;
+  /** Trang có bảng nhiều cột (Bảng video, CON-135): dùng hết chiều ngang màn hình. */
+  wide?: boolean;
+}) {
   return (
     <html lang="vi">
       <head>
@@ -175,9 +182,12 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
           button.slot-add:hover { color:var(--link); border-color:var(--link); }
           td.slot.over, .dropzone.over { outline:2px dashed var(--link); outline-offset:-2px; }
           td.slot.busy { opacity:.5; }
-          table.bang-moi td.hook { min-width:170px; max-width:230px; }
+          main.wide { max-width:none; }
+          table.bang-moi td.prompt { min-width:200px; }
+          table.bang-moi td.hook { min-width:150px; max-width:220px; }
           .hook-clip { white-space:nowrap; }
-          table.bang-moi td.video { min-width:140px; }
+          table.bang-moi td.video { min-width:196px; }
+          .vid .badge { display:inline-block; padding:0 6px; border-radius:999px; background:var(--ok-bg); color:var(--ok-fg); font-size:.8rem; }
           .hookpart .vid { white-space:nowrap; }
           .hook-clip { margin-bottom:4px; }
           td.hook button.slot-add { width:48px; height:48px; }
@@ -231,7 +241,7 @@ export function Layout(props: { title: string; children: Child; /** Bảng tự 
             </details>
           </div>
         </nav>
-        <main>
+        <main class={props.wide ? "wide" : undefined}>
           {updateBanner?.()}
           {!props.hideStatus && statusBanner?.()}
           {props.children}

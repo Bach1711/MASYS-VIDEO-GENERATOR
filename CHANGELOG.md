@@ -2,6 +2,12 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+- **Bảng video khi bật Thêm hook:** bảng dùng hết chiều ngang màn hình, cột Video không còn bị khuất bên phải (vừa cả màn hình laptop 1366 px).
+- **Dòng đã ghép hook xong thì ô Video chỉ hiện bản có hook**, có nhãn **Có hook**: ▶ xem và ⬇ tải đều ra bản có hook, tên như cũ (`Illya Osipov 01.mp4`…). Bản gốc vẫn giữ trên máy để ghép lại hook khi đổi clip hay đổi câu.
+- Đang ghép hook thì ô Video ghi **⏳ Đang ghép hook…** và chưa cho xem hay tải, kể cả khi tải các dòng đã chọn, để không lấy nhầm bản chưa có hook.
+
 ## v2.13.0
 
 **Bảng video: chọn và tải tiện hơn, video tự đặt tên theo người mẫu.**
