@@ -1,4 +1,4 @@
-import { NO_ASK_LINE } from "../src/bang/request.js";
+import { IMAGE_FIRST_LINE, NO_ASK_LINE } from "../src/bang/request.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -433,6 +433,7 @@ describe("mẫu hai mặt mới làm mẫu gốc (CON-73)", () => {
     }
     db.prepare("UPDATE settings SET twoSidedTemplate = ? WHERE id = 1").run("Mẫu riêng của tôi: {prompt}");
     expect(text()).toBe(`Mẫu riêng của tôi: vuốt tóc
+${IMAGE_FIRST_LINE}
 ${NO_ASK_LINE}`);
   });
 });
