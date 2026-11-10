@@ -2,13 +2,15 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
-## Chưa phát hành
+## v2.14.0
 
-- **Bảng video khi bật Thêm hook:** bảng dùng hết chiều ngang màn hình, cột Video không còn bị khuất bên phải (vừa cả màn hình laptop 1366 px).
-- **Dòng đã ghép hook xong thì ô Video chỉ hiện bản có hook**, có nhãn **Có hook**: ▶ xem và ⬇ tải đều ra bản có hook, tên như cũ (`Illya Osipov 01.mp4`…). Bản gốc vẫn giữ trên máy để ghép lại hook khi đổi clip hay đổi câu.
-- Đang ghép hook thì ô Video ghi **⏳ Đang ghép hook…** và chưa cho xem hay tải, kể cả khi tải các dòng đã chọn, để không lấy nhầm bản chưa có hook.
-- **Đã tích Thêm hook trên Bảng thì bấm ▶ Tạo video là trang xác nhận tích sẵn "Thêm hook vào đầu video".** Trước đây ô này mặc định không tích, nên dễ chạy ra video không có hook. Muốn chạy không hook thì bỏ tích ngay trên trang đó. Dòng thiếu clip hook vẫn bị chặn và báo rõ trước khi gửi Muse.
-- **Ô "Clip có chữ sẵn"** trong cột Hook của từng dòng: dùng khi clip hook đã có câu chữ (ví dụ lấy từ TikTok). Tích ô này thì tool chỉ ghép clip vào đầu video, không vẽ thêm câu hook đè lên, và dòng đó không cần câu hook. Dòng đã có video thì bấm **Ghép lại hook** để làm lại theo ô này.
+**Hook đầu video dùng được trọn vẹn: tạo video là có hook, thấy và tải đúng bản có hook.**
+
+- **Tích Thêm hook trên Bảng rồi bấm ▶ Tạo video thì trang xác nhận đã tích sẵn "Thêm hook vào đầu video".** Trước đây ô này mặc định không tích nên dễ ra video không có hook. Muốn chạy không hook thì bỏ tích ngay trên trang đó. Dòng thiếu clip hook bị chặn và báo rõ trước khi gửi Muse.
+- **Ô "Clip có chữ sẵn"** trong cột Hook của từng dòng, dùng khi clip đã có câu chữ (ví dụ lấy từ TikTok): tool chỉ ghép clip vào đầu video, không vẽ thêm câu đè lên, và dòng đó không cần câu hook. Dòng đã có video thì bấm **Ghép lại hook** để làm lại theo ô này.
+- **Bật Thêm hook không còn khuất cột Video:** Bảng video dùng hết chiều ngang màn hình, vừa cả laptop 1366 px.
+- **Dòng đã ghép hook xong thì ô Video chỉ hiện bản có hook**, có nhãn **Có hook**: ▶ xem và ⬇ tải (một dòng hay cả file zip) đều ra bản có hook, tên như cũ (`Illya Osipov 01.mp4`…). Bản gốc vẫn giữ trên máy để ghép lại khi đổi clip hay đổi câu.
+- Đang ghép hook thì ô Video ghi **⏳ Đang ghép hook…** và chưa cho xem hay tải, để không lấy nhầm bản chưa có hook.
 
 ## v2.13.0
 
