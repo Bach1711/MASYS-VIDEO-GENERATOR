@@ -80,15 +80,24 @@ export function hookLayout(clip: { width: number; height: number }, captionHeigh
   return { clipTop, clipHeight, captionY };
 }
 
-/** Đồ thị lọc ffmpeg: [0] clip hook, [1] video Muse, [2] ảnh câu hook (PNG nền trong). */
-export function hookFilter(clipSec: number, captionY: number): string {
+/**
+ * Đồ thị lọc ffmpeg: [0] clip hook, [1] video Muse, [2] ảnh câu hook (PNG nền trong).
+ * captionY null (clip có chữ sẵn, CON-136): không có ảnh câu hook, chỉ clip rồi mờ sang video.
+ */
+export function hookFilter(clipSec: number, captionY: number | null): string {
   const frame = `fps=${HOOK_FPS},scale=${HOOK_W}:${HOOK_H}:force_original_aspect_ratio=decrease,pad=${HOOK_W}:${HOOK_H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1`;
   const d = clipSec.toFixed(3);
   const offset = (clipSec - FADE_SEC).toFixed(3);
+  const head =
+    captionY == null
+      ? [`[0:v]${frame},trim=duration=${d},setpts=PTS-STARTPTS,format=yuv420p,settb=AVTB[h]`]
+      : [
+          `[0:v]${frame},trim=duration=${d},setpts=PTS-STARTPTS[bg]`,
+          `[2:v]format=rgba[cap]`,
+          `[bg][cap]overlay=x=(W-w)/2:y=${captionY}:eof_action=repeat,format=yuv420p,settb=AVTB[h]`,
+        ];
   return [
-    `[0:v]${frame},trim=duration=${d},setpts=PTS-STARTPTS[bg]`,
-    `[2:v]format=rgba[cap]`,
-    `[bg][cap]overlay=x=(W-w)/2:y=${captionY}:eof_action=repeat,format=yuv420p,settb=AVTB[h]`,
+    ...head,
     `[1:v]${frame},format=yuv420p,setpts=PTS-STARTPTS,settb=AVTB[m]`,
     `[h][m]xfade=transition=fade:duration=${FADE_SEC}:offset=${offset},format=yuv420p[out]`,
   ].join(";");
@@ -143,20 +152,25 @@ export async function mergeHook(o: MergeInput): Promise<void> {
     throw new Error("video Muse không đọc được");
   });
   const cap = path.join(o.tmpDir, `cau-hook-${process.pid}-${Date.now().toString(36)}.png`);
+  // Câu rỗng = clip có chữ sẵn (CON-136): không vẽ câu, không cần Chrome.
+  const withText = !!o.text.trim();
   try {
-    let height: number;
-    try {
-      ({ height } = await o.renderCaption(o.text, cap));
-    } catch (e) {
-      logger.warn({ err: e }, "Không vẽ được câu hook");
-      throw new Error("không vẽ được câu hook (cần Google Chrome trên máy)");
+    let captionY: number | null = null;
+    if (withText) {
+      let height: number;
+      try {
+        ({ height } = await o.renderCaption(o.text, cap));
+      } catch (e) {
+        logger.warn({ err: e }, "Không vẽ được câu hook");
+        throw new Error("không vẽ được câu hook (cần Google Chrome trên máy)");
+      }
+      captionY = hookLayout(clip, height).captionY;
     }
-    const { captionY } = hookLayout(clip, height);
     const args = [
       "-hide_banner", "-y",
       "-i", o.clip,
       "-i", o.video,
-      "-i", cap,
+      ...(withText ? ["-i", cap] : []),
       "-filter_complex", hookFilter(clip.duration, captionY),
       "-map", "[out]", "-an",
       "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
@@ -248,7 +262,7 @@ export class HookMerger {
     if (!video) return setHookError(this.db, id, "không còn file video trên máy");
     const clip = r.hookClip ? this.files.clipPath(r.hookClip) : undefined;
     if (!clip) return setHookError(this.db, id, "chưa có clip hook (bấm + ở cột Hook để chọn)");
-    if (!text.trim()) return setHookError(this.db, id, "chưa có câu hook");
+    // text "" = clip có chữ sẵn (CON-136): ghép clip, không vẽ câu hook.
     const ffmpeg = (this.o.ffmpeg ?? findFfmpeg)();
     if (!ffmpeg) return setHookError(this.db, id, "không tìm thấy ffmpeg (bộ ghép video đi kèm tool); giải nén lại bản zip");
     const out = this.files.newHookVideo(id);
