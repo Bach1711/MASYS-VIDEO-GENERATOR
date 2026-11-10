@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { BangFiles, clipProblem, dirOf, sniffClip } from "../src/bang/files.js";
 import { captionHtml, findFfmpeg, hookFilter, hookLayout, HookMerger, parseProbe, probe, type CaptionRenderer } from "../src/bang/hook.js";
-import { addRow, clearRowVideo, getRow, hookTextFor, queueHook, rowFiles, setHookClip, setHookText, setRowVideo } from "../src/bang/rows.js";
+import { addRow, clearRowVideo, getRow, hookJobFor, hookTextFor, queueHook, rowFiles, setHookClip, setHookNoText, setHookText, setRowVideo } from "../src/bang/rows.js";
 import { insertBangBatch, planBangBatch } from "../src/bang/run.js";
 import type { WatchResult } from "../src/bot/museBot.js";
 import { loadConfig } from "../src/config.js";
@@ -108,8 +108,8 @@ describe("Tạo video có hook: kiểm tra trước khi chạy", () => {
     const noDay = planBangBatch(db, [1, 2, 3], s, "", { dayText: "", clipExists: exists });
     expect(noDay.runs.map((r) => [r.row.id, r.hookText, r.hookOwn])).toEqual([[2, "Câu riêng dòng 2", true]]);
     expect(noDay.rejected).toEqual([
-      { id: 1, why: "chưa có câu hook (điền câu hook chung hôm nay hoặc câu riêng của dòng)" },
-      { id: 3, why: "chưa có clip hook (bấm + ở cột Hook); chưa có câu hook (điền câu hook chung hôm nay hoặc câu riêng của dòng)" },
+      { id: 1, why: "chưa có câu hook (điền câu hook chung hôm nay hoặc câu riêng của dòng, hoặc tích Clip có chữ sẵn)" },
+      { id: 3, why: "chưa có clip hook (bấm + ở cột Hook); chưa có câu hook (điền câu hook chung hôm nay hoặc câu riêng của dòng, hoặc tích Clip có chữ sẵn)" },
     ]);
 
     const plan = planBangBatch(db, [1, 2], s, "", { dayText: "Chung", clipExists: exists });
@@ -126,6 +126,24 @@ describe("Tạo video có hook: kiểm tra trước khi chạy", () => {
     files.removeAny(getRow(db, 1)!.hookClip);
     expect(planBangBatch(db, [1], s, "", { dayText: "Chung", clipExists: exists }).rejected[0]!.why).toBe("chưa có clip hook (bấm + ở cột Hook)");
     expect(planBangBatch(db, [3], s, "").runs[0]!.hookText).toBeUndefined();
+  });
+
+  it("Clip có chữ sẵn (CON-136): không cần câu hook, lượt ghi câu rỗng = ghép không vẽ chữ", () => {
+    const { db, files } = setup();
+    setHookClip(db, 1, files.saveClip(1, MP4));
+    setHookText(db, 1, "Câu riêng");
+    expect(hookJobFor(getRow(db, 1)!, "")).toBe("Câu riêng");
+    expect(hookJobFor(getRow(db, 2)!, "")).toBeNull();
+    setHookNoText(db, 1, true);
+    expect(getRow(db, 1)!.hookNoText).toBe(1);
+    expect(hookJobFor(getRow(db, 1)!, "Chung")).toBe("");
+    const plan = planBangBatch(db, [1], getSettings(db), "", { dayText: "", clipExists: (n) => !!files.clipPath(n) });
+    expect(plan.rejected).toEqual([]);
+    expect(plan.runs[0]!.hookText).toBe("");
+    const batchId = insertBangBatch(db, "", plan.runs);
+    expect(db.prepare("SELECT hookText FROM runs WHERE batchId = ?").get(batchId)).toEqual({ hookText: "" });
+    setHookNoText(db, 1, false);
+    expect(getRow(db, 1)!.hookNoText).toBe(0);
   });
 
   it("video về từ lô có hook → dòng vào hàng chờ ghép; lô không hook thì không", async () => {
@@ -163,6 +181,11 @@ describe("Tạo video có hook: kiểm tra trước khi chạy", () => {
     await runOnce(false);
     expect(queued).toEqual([1]);
     expect(getRow(db, 1)!.hookJob).toBeNull();
+    // Clip có chữ sẵn (CON-136): vẫn vào hàng chờ ghép, câu rỗng.
+    setHookNoText(db, 1, true);
+    await runOnce(true);
+    expect(queued).toEqual([1, 1]);
+    expect(getRow(db, 1)).toMatchObject({ hookJob: "" });
   });
 });
 
@@ -183,6 +206,11 @@ describe("ghép hook (ffmpeg)", () => {
     expect(f).toContain("trim=duration=6.500");
     expect(f).toContain("overlay=x=(W-w)/2:y=364");
     expect(f).toContain("xfade=transition=fade:duration=0.5:offset=6.000");
+    // Clip có chữ sẵn (CON-136): không có ảnh câu hook.
+    const g = hookFilter(6.5, null);
+    expect(g).not.toContain("overlay");
+    expect(g).not.toContain("[2:v]");
+    expect(g).toContain("xfade=transition=fade:duration=0.5:offset=6.000");
   });
 
   it("câu hook: chữ được thoát HTML, khung bo góc từng dòng", () => {
@@ -244,6 +272,19 @@ describe("ghép hook (ffmpeg)", () => {
     merger.enqueue(1);
     await merger.idle();
     expect(getRow(db, 1)).toMatchObject({ hookJob: null, hookError: "clip hook không đọc được (không phải video hoặc bị hỏng)", hookVideoFile: second, videoFile: video });
+
+    // Clip có chữ sẵn (CON-136): câu rỗng → không vẽ câu (không gọi Chrome), vẫn ra video đủ dài.
+    setHookClip(db, 1, files.saveClip(1, fs.readFileSync(path.join(src, "clip.mp4"))));
+    captions.length = 0;
+    queueHook(db, 1, "");
+    merger.enqueue(1);
+    await merger.idle();
+    const plain = getRow(db, 1)!;
+    expect(plain).toMatchObject({ hookJob: null, hookError: null });
+    expect(captions).toEqual([]);
+    const info2 = await probe(ffmpeg!, files.videoPath(plain.hookVideoFile!)!);
+    expect([info2.width, info2.height]).toEqual([1080, 1920]);
+    expect(info2.duration).toBeCloseTo(4.5, 1);
   }, 120_000);
 
   it("không chờ ghép / thiếu clip / không thấy ffmpeg → báo lý do, không chạy ffmpeg; tool mở lại thì ghép tiếp", async () => {
@@ -317,7 +358,25 @@ describe("Bảng: ô Thêm hook, cột Hook, Ghép hook", () => {
     expect(html).toContain("Dòng 2: chưa có clip hook (bấm + ở cột Hook); chưa có câu hook");
     expect(html).toContain("“Câu riêng”");
     expect(html).toContain('name="ids" value="1,2"');
+    // CON-136: mở từ Bảng (không có tham số hook) thì theo ô Thêm hook trên Bảng; bỏ tích trên trang (hook=0) thì chạy không hook.
+    const fromBoard = await (await app.request("/bang-moi/chuan-bi?ids=1,2")).text();
+    expect(fromBoard).toContain("Tạo video · 1 dòng");
+    expect(fromBoard).toMatch(/<input type="checkbox" name="hook" value="1" checked=""/);
+    expect(await (await app.request("/bang-moi/chuan-bi?ids=1,2&hook=0")).text()).toContain("Tạo video · 2 dòng");
+    expect(await (await app.request("/bang-moi/chuan-bi?ids=1,2&hook=0&hook=1")).text()).toContain("Tạo video · 1 dòng");
+    setHookOn(db, false);
     expect(await (await app.request("/bang-moi/chuan-bi?ids=1,2")).text()).toContain("Tạo video · 2 dòng");
+    setHookOn(db, true);
+
+    // Clip có chữ sẵn: lưu ngay, không cần câu, cột Hook ghi rõ.
+    expect(await (await post("/bang-moi/hook-khong-chu", { row: 1, on: true })).json()).toEqual({ ok: true });
+    expect(getRow(db, 1)!.hookNoText).toBe(1);
+    const board = await (await app.request("/")).text();
+    expect(board).toContain("(không vẽ câu hook)");
+    expect(board).toMatch(/class="hook-notext-box" checked=""/);
+    expect(await (await app.request("/bang-moi/chuan-bi?ids=1")).text()).toContain("(clip có chữ sẵn, không vẽ câu hook)");
+    expect(await (await post("/bang-moi/hook-khong-chu", { row: 1, on: "x" })).json()).toMatchObject({ ok: false });
+    expect(await (await post("/bang-moi/hook-khong-chu", { row: 1, on: false })).json()).toEqual({ ok: true });
 
     expect(await (await post("/bang-moi/bo-clip-hook", { row: 1 })).json()).toEqual({ ok: true });
     expect(getRow(db, 1)!.hookClip).toBeNull();

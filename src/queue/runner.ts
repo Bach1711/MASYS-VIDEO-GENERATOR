@@ -949,9 +949,10 @@ export class BatchRunner {
         const name = files.saveVideo(run.rowNumber, data);
         for (const old of setRowVideo(this.db, run.rowNumber, name, data.length)) files.removeAny(old);
         const note = count > 1 ? `; cuộc trò chuyện có ${count} video, lấy video mới nhất` : "";
-        const hook = run.hookText?.trim();
-        moveRun(this.db, run.id, "downloading", "done", `Đã tải video về máy (${formatBytes(data.length)})${note}${hook ? "; đang ghép hook" : ""}`, { doneAt: now() });
-        if (hook) {
+        // runs.hookText: NULL = lô không thêm hook, "" = ghép không vẽ chữ (clip có chữ sẵn, CON-136).
+        const hook = run.hookText == null ? null : run.hookText.trim();
+        moveRun(this.db, run.id, "downloading", "done", `Đã tải video về máy (${formatBytes(data.length)})${note}${hook != null ? "; đang ghép hook" : ""}`, { doneAt: now() });
+        if (hook != null) {
           queueHook(this.db, run.rowNumber, hook);
           this.o.onHookJob?.(run.rowNumber);
         }

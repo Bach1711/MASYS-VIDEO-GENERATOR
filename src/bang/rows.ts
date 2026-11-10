@@ -35,8 +35,10 @@ export interface BangRow {
   hookText?: string | null;
   hookVideoFile?: string | null;
   hookVideoBytes?: number | null;
-  /** Câu hook đang chờ ghép; null = không chờ. */
+  /** Câu hook đang chờ ghép; null = không chờ, "" = ghép không vẽ chữ (CON-136). */
   hookJob?: string | null;
+  /** Clip hook đã có chữ sẵn (CON-136): 1 = không vẽ câu hook. */
+  hookNoText?: number | null;
   hookError?: string | null;
   /** Lượt tạo video gần nhất của dòng (CON-52); null = chưa chạy lần nào. */
   runState: string | null;
@@ -143,7 +145,7 @@ const likeEscape = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 const COLS = `id, createdAt, prompt, modelFront, shirtFront, modelBack, shirtBack, videoFile, videoBytes, videoAt, importedFrom, nhanVatId, nguoiMau, videoName,
   (SELECT coalesce(n.faceFile, n.file) FROM nhan_vat n WHERE n.id = bang_rows.nhanVatId AND n.deletedAt IS NULL) AS nguoiMauAnh,
-  hookClip, hookText, hookVideoFile, hookVideoBytes, hookJob, hookError,
+  hookClip, hookText, hookVideoFile, hookVideoBytes, hookJob, hookError, hookNoText,
   ${LAST_STATE} AS runState, ${lastRun("error")} AS runError, ${lastRun("museChatUrl")} AS museChatUrl`;
 
 /** Một trang của Bảng, dòng mới nhất trước. */
@@ -290,7 +292,21 @@ export function hookTextFor(r: Pick<BangRow, "hookText">, dayText: string): stri
   return r.hookText?.trim() || dayText.trim();
 }
 
-/** Xếp dòng vào hàng chờ ghép hook với câu `text`. */
+/** "Clip có chữ sẵn" (CON-136): bật thì tool không vẽ câu hook cho dòng này. */
+export function setHookNoText(db: DB, id: number, on: boolean): void {
+  db.prepare("UPDATE bang_rows SET hookNoText = ? WHERE id = ? AND deletedAt IS NULL").run(on ? 1 : 0, id);
+}
+
+/**
+ * Câu đem ghép cho dòng (CON-136): "" khi clip có chữ sẵn (ghép không vẽ chữ), câu riêng / câu chung hôm nay,
+ * hoặc null khi cần câu mà chưa có câu nào.
+ */
+export function hookJobFor(r: Pick<BangRow, "hookText" | "hookNoText">, dayText: string): string | null {
+  if (r.hookNoText) return "";
+  return hookTextFor(r, dayText) || null;
+}
+
+/** Xếp dòng vào hàng chờ ghép hook với câu `text` ("" = không vẽ chữ). */
 export function queueHook(db: DB, id: number, text: string): void {
   db.prepare("UPDATE bang_rows SET hookJob = ?, hookError = NULL WHERE id = ? AND deletedAt IS NULL").run(text, id);
 }

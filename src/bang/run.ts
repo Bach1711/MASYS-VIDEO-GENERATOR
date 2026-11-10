@@ -2,7 +2,7 @@ import type { DB } from "../db/index.js";
 import type { BangTemplateKind, Settings } from "../db/settings.js";
 import type { BangSnapshot } from "../queue/runner.js";
 import { buildBangRequest, type BangRequest } from "./request.js";
-import { getRow, hookTextFor, labelOf, lockedBangRows, type BangRow } from "./rows.js";
+import { getRow, hookJobFor, labelOf, lockedBangRows, type BangRow } from "./rows.js";
 
 // Tạo lô từ Bảng mới (CON-52, spec 17.5): mỗi dòng một lượt, ảnh đính kèm theo thứ tự 17.4.
 // Lô của Bảng mới không có sheet / thư mục Drive (batches.source = 'bang').
@@ -57,9 +57,10 @@ export function planBangBatch(db: DB, ids: number[], s: Pick<Settings, BangTempl
       // Thêm hook thì mỗi dòng cần clip riêng và một câu (câu riêng hoặc câu chung hôm nay); thiếu thì báo trước khi chạy.
       const missing: string[] = [];
       if (!row.hookClip || (hook.clipExists && !hook.clipExists(row.hookClip))) missing.push("chưa có clip hook (bấm + ở cột Hook)");
-      const text = hookTextFor(row, hook.dayText);
-      if (!text) missing.push("chưa có câu hook (điền câu hook chung hôm nay hoặc câu riêng của dòng)");
-      if (missing.length) {
+      // Clip có chữ sẵn (CON-136) thì không cần câu: hookText = "" (ghép không vẽ chữ).
+      const text = hookJobFor(row, hook.dayText);
+      if (text == null) missing.push("chưa có câu hook (điền câu hook chung hôm nay hoặc câu riêng của dòng, hoặc tích Clip có chữ sẵn)");
+      if (missing.length || text == null) {
         rejected.push({ id, why: missing.join("; ") });
         continue;
       }
@@ -95,7 +96,7 @@ export function insertBangBatch(db: DB, extra: string, runs: BangPlannedRun[]): 
         r.overwrite ? 1 : 0,
         r.hookText ?? null,
       );
-      insertEvent.run(runId, `Tạo lô #${batchId} từ Bảng mới, ${snap.attachments.length} ảnh${r.overwrite ? " (tạo lại)" : ""}${r.hookText ? ", có hook" : ""}`);
+      insertEvent.run(runId, `Tạo lô #${batchId} từ Bảng mới, ${snap.attachments.length} ảnh${r.overwrite ? " (tạo lại)" : ""}${r.hookText == null ? "" : r.hookText ? ", có hook" : ", có hook (clip có chữ sẵn)"}`);
     }
     return batchId;
   })();

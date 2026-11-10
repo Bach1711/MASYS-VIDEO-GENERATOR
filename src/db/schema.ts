@@ -269,4 +269,9 @@ export const MIGRATIONS: string[] = [
                 WHERE a.exportedBangRowId = bang_rows.id ORDER BY a.id DESC LIMIT 1)
   WHERE id IN (SELECT exportedBangRowId FROM anh_rows WHERE exportedBangRowId IS NOT NULL AND nhanVatId IS NOT NULL);
   `,
+  // 18. "Clip có chữ sẵn" (CON-136): 1 = clip hook đã có câu chữ, tool không vẽ câu hook, chỉ ghép clip.
+  // Khi đó hookJob / runs.hookText là "" (chuỗi rỗng = ghép không chữ; NULL vẫn là không ghép).
+  `
+  ALTER TABLE bang_rows ADD COLUMN hookNoText INTEGER NOT NULL DEFAULT 0;
+  `,
 ];

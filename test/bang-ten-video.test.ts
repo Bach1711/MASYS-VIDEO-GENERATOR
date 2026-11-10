@@ -119,11 +119,13 @@ describe("cột Người mẫu tự điền từ Bảng ảnh", () => {
 
   it("bản cũ lên bản này: dòng đã xuất được điền người mẫu, video có sẵn được đặt tên theo thứ tự video về", () => {
     const db = new Database(":memory:");
-    for (const m of MIGRATIONS.slice(0, -1)) db.exec(m);
+    // Migration của CON-113 (tạo bảng video_names); các migration sau nó chạy tiếp ở cuối.
+    const m17 = MIGRATIONS.findIndex((m) => m.includes("CREATE TABLE video_names"));
+    for (const m of MIGRATIONS.slice(0, m17)) db.exec(m);
     db.prepare("INSERT INTO nhan_vat (id, ten, file) VALUES (1, 'Mai', 'nv1.png')").run();
     db.prepare("INSERT INTO bang_rows (id, videoFile, videoAt) VALUES (1, '1-video-a.mp4', '2026-11-08T10:00:00Z'), (2, '2-video-a.mp4', '2026-11-07T10:00:00Z'), (3, '3-video-a.mp4', '2026-11-06T10:00:00Z'), (4, NULL, NULL)").run();
     db.prepare("INSERT INTO anh_rows (nhanVatId, exportedBangRowId) VALUES (1, 1), (1, 2), (1, 4)").run();
-    db.exec(MIGRATIONS[MIGRATIONS.length - 1]!);
+    for (const m of MIGRATIONS.slice(m17)) db.exec(m);
     const rows = () => db.prepare("SELECT id, nhanVatId, nguoiMau, videoName FROM bang_rows ORDER BY id").all();
     expect(rows()).toEqual([
       { id: 1, nhanVatId: 1, nguoiMau: "Mai", videoName: null },
