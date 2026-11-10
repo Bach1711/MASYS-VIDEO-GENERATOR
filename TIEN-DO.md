@@ -266,7 +266,7 @@ flowchart LR
 | 44 | [CON-135](https://linear.app/conducdaudan/issue/CON-135) | Bảng video: bật Thêm hook thì cột Video bị khuất; ô Video chỉ hiện bản có hook (v2.14.0) | 🟩 Xong | [#55](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/55) | 10/11/2026 |
 | 45 | [CON-136](https://linear.app/conducdaudan/issue/CON-136) | Bảng video: đã bật Thêm hook thì Tạo video luôn ghép hook; ô "Clip có chữ sẵn" (v2.14.0) | 🟩 Xong | [#57](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/57) | 10/11/2026 |
 | 46 | [CON-137](https://linear.app/conducdaudan/issue/CON-137) | Bảng video: Muse chèn hook theo clip mẫu bằng tin thứ hai, bỏ ghép trên máy (v2.15.0) | 🟩 Xong | [#59](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/59) | 10/11/2026 |
-| 47 | [CON-138](https://linear.app/conducdaudan/issue/CON-138) | Bảng video: Muse luôn tạo ảnh và gửi vào khung chat trước, rồi mới tạo video từ ảnh đó | 🟦 Chờ duyệt | PR_CON138 | — |
+| 47 | [CON-138](https://linear.app/conducdaudan/issue/CON-138) | Bảng video: Muse luôn tạo ảnh và gửi vào khung chat trước, rồi mới tạo video từ ảnh đó | 🟦 Chờ duyệt | [#61](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/61) | — |
 
 ## Nhật ký cập nhật
 
