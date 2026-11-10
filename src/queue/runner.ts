@@ -3,7 +3,8 @@ import { addFiles as addAnhFiles, getRow as getAnhRow } from "../anh/rows.js";
 import type { AnhSnapshot } from "../anh/run.js";
 import { addDraftFiles, chosenFile, draftFiles, draftImageArrived, getDraft, insertNvRuns, NV_KIND_TEXT, type NvSnapshot } from "../anh/taoNhanVat.js";
 import { formatBytes, type BangFiles } from "../bang/files.js";
-import { getRow, queueHook, setRowVideo } from "../bang/rows.js";
+import { getRow, queueHook, setHookError, setHookVideo, setRowVideo } from "../bang/rows.js";
+import { HOOK_PHASE } from "../bang/run.js";
 import { BotError, type WatchResult } from "../bot/museBot.js";
 import { chat as chatSel } from "../bot/museSelectors.js";
 import type { DB } from "../db/index.js";
@@ -42,8 +43,11 @@ export interface MuseDriver {
   bringToFront(): Promise<void>;
   /** Đóng cả cửa sổ bot (Huỷ lô, CON-90). Việc đang làm dở trên Muse báo lỗi ngay. */
   close?(): Promise<void>;
-  /** Bảng ảnh (CON-77): gửi thêm một tin trong cuộc trò chuyện đang mở ở tab (tin xin ảnh quay lưng, D33). */
-  reply?(text: string, tab: string): Promise<void>;
+  /**
+   * Gửi thêm một tin trong cuộc trò chuyện đang mở ở tab: Bảng ảnh xin ảnh quay lưng (D33); Bảng video nhờ chèn hook,
+   * `clips` = clip hook mẫu đính kèm (CON-137).
+   */
+  reply?(text: string, tab: string, clips?: string[]): Promise<void>;
   /** Bảng ảnh: tải các ảnh lớn trong cuộc trò chuyện từ vị trí `from` trở đi. */
   downloadImages?(tab: string, from: number): Promise<Uint8Array[]>;
 }
@@ -103,9 +107,10 @@ export interface RunnerOptions {
   secondMs?: number;
   random?: () => number;
   /** Ảnh của Bảng mới trên máy (CON-52); character sheet và ảnh Muse tạo của Bảng ảnh (CON-77). */
-  bangFiles?: Pick<BangFiles, "imagePath" | "saveVideo" | "removeAny" | "nhanVatPath" | "saveAnhTao" | "saveNvTao" | "nvTaoPath" | "saveNhanVat">;
-  /** Video của dòng vừa về và lô có thêm hook (CON-74, D30): xếp dòng vào hàng chờ ghép. */
-  onHookJob?: (rowId: number) => void;
+  bangFiles?: Pick<
+    BangFiles,
+    "imagePath" | "saveVideo" | "removeAny" | "nhanVatPath" | "saveAnhTao" | "saveNvTao" | "nvTaoPath" | "saveNhanVat" | "clipPath" | "videoPath" | "saveHookVideo"
+  >;
 }
 
 interface RunRow {
@@ -119,9 +124,12 @@ interface RunRow {
   sentAt: string | null;
   tabSnapshot: string | null;
   museChatUrl: string | null;
-  /** Câu hook lúc bấm Tạo video (CON-74, D30); null = không thêm hook. */
+  /** Tin nhờ Muse chèn hook (CON-137); null = lô không thêm hook. */
   hookText?: string | null;
-  /** Bảng ảnh (CON-77): 'front' | 'back' (đang làm ảnh quay lưng); số ảnh trong cuộc trò chuyện ngay sau lần gửi gần nhất. */
+  /**
+   * Bảng ảnh (CON-77): 'front' | 'back' (đang làm ảnh quay lưng); số ảnh trong cuộc trò chuyện ngay sau lần gửi gần nhất.
+   * Bảng video (CON-137): 'hook' = đang nhờ Muse chèn hook; anhBaseline = số video trong cuộc trò chuyện ngay trước tin chèn hook.
+   */
   anhPhase?: string | null;
   anhBaseline?: number | null;
   /** Bảng video (CON-91): lần chạy hiện tại và số lần đã gửi Muse ở các lần thất bại trước. */
@@ -147,6 +155,8 @@ interface BatchRow {
 export interface BangSnapshot {
   attachments: string[];
   prompt: string;
+  /** Clip hook mẫu gửi kèm tin chèn hook (CON-137); không có = không thêm hook. */
+  hookClip?: string;
 }
 
 /** Cách chạy một lượt của lô theo sheet (F5). */
@@ -625,6 +635,13 @@ export class BatchRunner {
         });
         continue;
       }
+      if (r.state === "sending" && r.anhPhase === HOOK_PHASE) {
+        // Bảng video (CON-137): tool tắt đúng lúc gửi tin chèn hook → không biết đã gửi chưa; video gốc vẫn giữ (D9).
+        const why = "Tool tắt lúc đang gửi tin chèn hook nên không biết đã gửi chưa; không gửi lại (D9). Video gốc vẫn giữ";
+        moveRun(this.db, r.id, r.state, "needs_review", why, { error: "chưa rõ đã nhờ chèn hook", doneAt: now() });
+        setHookError(this.db, r.rowNumber, "tool tắt lúc đang gửi tin chèn hook; bấm Ghép lại hook");
+        continue;
+      }
       if (!chatSel.isThreadUrl(r.museChatUrl)) {
         moveRun(this.db, r.id, r.state, "needs_review", "Tool tắt lúc đang gửi nên không biết cuộc trò chuyện Muse; không gửi lại (D9)", {
           error: "không rõ đã gửi chưa",
@@ -721,7 +738,9 @@ export class BatchRunner {
   /** Spec 17.5 bước 1–4 (Bảng): đọc lại dòng, mở cuộc trò chuyện mới trong tab riêng, đính kèm ảnh, gửi. */
   private async sendBang(run: RunRow): Promise<SendOutcome> {
     const snap = JSON.parse(run.inputSnapshot) as BangSnapshot;
-    if (getDailyQuota(this.db).remaining <= 0) {
+    if (run.anhPhase === HOOK_PHASE) return this.sendHookOnly(run, snap);
+    // Có hook thì một dòng dùng 2 lượt Muse (CON-137): video người mẫu + video chèn hook.
+    if (getDailyQuota(this.db).remaining < (run.hookText != null ? 2 : 1)) {
       moveRun(this.db, run.id, "queued", "paused_limit", "Đủ giới hạn video hôm nay (D25)");
       return { pause: "limit" };
     }
@@ -740,8 +759,140 @@ export class BatchRunner {
     }
     const files = snap.attachments.map((n) => this.o.bangFiles?.imagePath(n));
     if (files.some((f) => !f)) return review("Không còn file ảnh của dòng này trên máy", "thiếu file ảnh");
+    if (run.hookText != null && (!snap.hookClip || !this.o.bangFiles?.clipPath(snap.hookClip) || row.hookClip !== snap.hookClip)) {
+      return review("Clip hook của dòng đã đổi hoặc không còn trên máy", "thiếu clip hook");
+    }
 
     return this.sendNew(run, files as string[]);
+  }
+
+  /**
+   * Ghép lại hook (CON-137): mở lại cuộc trò chuyện Muse cũ của dòng trong tab riêng rồi gửi tin chèn hook. Không gửi lại
+   * yêu cầu tạo video. Một lượt Muse.
+   */
+  private async sendHookOnly(run: RunRow, snap: BangSnapshot): Promise<SendOutcome> {
+    if (getDailyQuota(this.db).remaining <= 0) {
+      moveRun(this.db, run.id, "queued", "paused_limit", "Đủ giới hạn video hôm nay (D25)");
+      return { pause: "limit" };
+    }
+    moveRun(this.db, run.id, "queued", "checking_row", "Đọc lại dòng trên Bảng mới");
+    const review = (why: string, error: string) => {
+      moveRun(this.db, run.id, "checking_row", "needs_review", `${why}; không gửi Muse`, { error, doneAt: now() });
+      setHookError(this.db, run.rowNumber, why);
+      return {};
+    };
+    const row = getRow(this.db, run.rowNumber);
+    if (!row?.videoFile) return review("Dòng đã bị xoá hoặc không còn video", "không còn video");
+    if (!snap.hookClip || !this.o.bangFiles?.clipPath(snap.hookClip) || row.hookClip !== snap.hookClip) {
+      return review("Clip hook của dòng đã đổi hoặc không còn trên máy", "thiếu clip hook");
+    }
+    const url = run.museChatUrl;
+    if (!chatSel.isThreadUrl(url) || this.canceling()) return review("Không còn cuộc trò chuyện Muse của video", "không có cuộc trò chuyện");
+    const tab = tabOf(run.id);
+    if (!(await this.reopenChat(url, tab))) {
+      await this.bot.closeTab?.(tab).catch(() => {});
+      return review("Không mở lại được cuộc trò chuyện Muse của video", "không mở được cuộc trò chuyện");
+    }
+    const f: Inflight = { run: { ...run, state: "checking_row" }, tab, deadline: Date.now() + this.timeoutMs(), approval: false, loginNoted: false };
+    // Chờ trang nạp xong video cũ rồi mới gửi, để đếm đúng mốc.
+    for (let i = 0; i < 15; i++) {
+      const w = await this.bot.watch(tab).catch(() => ({ closed: true, login: false, approval: false }) as WatchResult);
+      if ((w.videos ?? 0) > 0) break;
+      await this.sleep(2 * (this.o.secondMs ?? 1000), false);
+    }
+    const out = await this.startHook(f, "checking_row");
+    if (out.finished) await this.bot.closeTab?.(tab).catch(() => {});
+    return { sent: true, inflight: out.finished ? undefined : f, pause: out.pause, failed: out.failed };
+  }
+
+  /**
+   * CON-137: video người mẫu đã về (hoặc Ghép lại hook): gửi tin chèn hook kèm clip mẫu trong cùng cuộc trò chuyện rồi
+   * chờ video mới. anhBackAt ghi trước khi bấm Gửi (tính thêm một lượt video). Dòng vẫn bị khoá đến khi có bản có hook.
+   */
+  private async startHook(f: Inflight, from: string): Promise<PollOutcome> {
+    const run = f.run;
+    const snap = JSON.parse(run.inputSnapshot) as BangSnapshot;
+    const clip = snap.hookClip ? this.o.bangFiles?.clipPath(snap.hookClip) : undefined;
+    const giveUp = (to: string, why: string, error: string, screenshot?: string): PollOutcome => {
+      moveRun(this.db, run.id, from, to, `${why}. Video gốc vẫn giữ; bấm Ghép lại hook để thử lại`, { error, doneAt: now() }, screenshot);
+      setHookError(this.db, run.rowNumber, why);
+      return { finished: true };
+    };
+    if (!clip) return giveUp("needs_review", "Không còn clip hook trên máy", "thiếu clip hook");
+    if (this.canceling()) return giveUp("needs_review", "Huỷ lô trước khi nhờ Muse chèn hook", "chưa chèn hook");
+    queueHook(this.db, run.rowNumber, "muse"); // ô Video: "Muse đang chèn hook…"
+    // Mốc đếm trước khi gửi: clip đính kèm hiện thành ảnh nhỏ, không phải <video>, nên video sau mốc là video Muse mới làm.
+    const baseline = (await this.bot.watch(f.tab).catch(() => ({ closed: true, login: false, approval: false }) as WatchResult)).videos ?? 0;
+    run.anhBaseline = baseline;
+    for (let tries = 1; ; tries++) {
+      moveRun(this.db, run.id, from, "sending", `Gửi tin nhờ Muse chèn hook (kèm clip hook mẫu) trong cùng cuộc trò chuyện${tries > 1 ? `, lần ${tries}` : ""}`, {
+        anhPhase: HOOK_PHASE,
+        anhBaseline: baseline,
+        anhBackAt: now(),
+      });
+      from = "sending";
+      run.anhPhase = HOOK_PHASE;
+      try {
+        if (!this.bot.reply) throw new BotError("ui_changed", "Bot chưa gửi được tin tiếp theo", false);
+        await this.bot.reply(run.hookText ?? "", f.tab, [clip]);
+        break;
+      } catch (e) {
+        const err = e instanceof BotError ? e : new BotError("send_unconfirmed", `Lỗi khi gửi: ${errText(e)}`, true);
+        if (!err.sent) {
+          const login = err.code === "login" || err.code === "challenge";
+          this.db.prepare("UPDATE runs SET anhBackAt = NULL WHERE id = ?").run(run.id);
+          if (login) setMuseReady(this.db, null);
+          return { ...giveUp("needs_review", `Chưa gửi được tin chèn hook: ${err.message}`, "chưa chèn hook", err.screenshot), pause: login ? "login" : undefined };
+        }
+        if (err.code === "missing_images" && tries < MAX_ATTEMPTS) {
+          // CON-99: tin đến Muse mà thiếu clip là hỏng chắc chắn: gửi lại ngay trong cuộc trò chuyện đó.
+          logRunEvent(this.db, run.id, "sending", `${err.message}; gửi lại tin chèn hook`, err.screenshot);
+          continue;
+        }
+        if (err.code === "quota" || err.code === "rejected" || err.code === "muse_error" || err.code === "missing_images") {
+          const msg = err.code === "quota" ? "Muse hết lượt" : err.message;
+          return { ...giveUp("failed", `${msg} khi nhờ chèn hook`, msg, err.screenshot), pause: err.code === "quota" ? "quota" : undefined };
+        }
+        logRunEvent(this.db, run.id, "sending", `${err.message}. Không gửi lại; vẫn chờ video có hook trong cuộc trò chuyện`, err.screenshot);
+        break;
+      }
+    }
+    moveRun(this.db, run.id, "sending", "waiting", "Đã nhờ Muse chèn hook, chờ video có hook trong cuộc trò chuyện");
+    run.state = "waiting";
+    f.deadline = Date.now() + this.timeoutMs();
+    f.askingSince = undefined;
+    return { finished: false };
+  }
+
+  /** CON-137: video mới (có hook) đã về: tải về làm bản có hook của dòng. Thử 3 lần; không được thì Cần xem, video gốc giữ. */
+  private async downloadHook(run: RunRow, tab: string): Promise<PollOutcome> {
+    moveRun(this.db, run.id, "waiting", "downloading", "Muse đã gửi video có hook; đang tải về máy");
+    const files = this.o.bangFiles;
+    let why = "";
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        if (!files) throw new Error("thiếu thư mục dữ liệu");
+        const { data } = await this.bot.downloadVideo(tab);
+        const row = getRow(this.db, run.rowNumber);
+        const orig = row?.videoFile ? files.videoPath(row.videoFile) : undefined;
+        if (orig && Buffer.from(data).equals(fs.readFileSync(orig))) throw new Error("video mới nhất vẫn là video chưa có hook");
+        const name = files.saveHookVideo(run.rowNumber, data);
+        files.removeAny(setHookVideo(this.db, run.rowNumber, name, data.length));
+        moveRun(this.db, run.id, "downloading", "done", `Đã tải video có hook về máy (${formatBytes(data.length)})`, { doneAt: now() });
+        return { finished: true, ok: true };
+      } catch (e) {
+        why = errText(e);
+        logger.warn({ err: e, runId: run.id, attempt }, "Chưa tải được video có hook từ Muse");
+        if (this.canceling()) break;
+        if (attempt < 3) await this.sleep(5 * (this.o.secondMs ?? 1000), false);
+      }
+    }
+    moveRun(this.db, run.id, "downloading", "needs_review", `Không tải được video có hook (${why}). Bấm "Mở trong Muse" để tải tay; video gốc vẫn giữ`, {
+      error: "không tải được video có hook",
+      doneAt: now(),
+    });
+    setHookError(this.db, run.rowNumber, "không tải được video có hook từ Muse");
+    return { finished: true };
   }
 
   /**
@@ -938,7 +1089,8 @@ export class BatchRunner {
    * Spec 17.5 bước 6–8 (D23): tải video về máy, kiểm tra là MP4, gắn vào dòng. Thử 3 lần (video có thể đang nạp);
    * không được thì Cần xem, giữ link cuộc trò chuyện để người dùng tải tay, không gửi lại (D9).
    */
-  private async downloadBang(run: RunRow, tab: string): Promise<void> {
+  private async downloadBang(f: Inflight): Promise<PollOutcome> {
+    const { run, tab } = f;
     moveRun(this.db, run.id, "waiting", "downloading", "Muse đã gửi video trong cuộc trò chuyện; đang tải về máy");
     let why = "";
     for (let attempt = 1; attempt <= 3; attempt++) {
@@ -949,18 +1101,19 @@ export class BatchRunner {
         const name = files.saveVideo(run.rowNumber, data);
         for (const old of setRowVideo(this.db, run.rowNumber, name, data.length)) files.removeAny(old);
         const note = count > 1 ? `; cuộc trò chuyện có ${count} video, lấy video mới nhất` : "";
-        // runs.hookText: NULL = lô không thêm hook, "" = ghép không vẽ chữ (clip có chữ sẵn, CON-136).
-        const hook = run.hookText == null ? null : run.hookText.trim();
-        moveRun(this.db, run.id, "downloading", "done", `Đã tải video về máy (${formatBytes(data.length)})${note}${hook != null ? "; đang ghép hook" : ""}`, { doneAt: now() });
-        if (hook != null) {
-          queueHook(this.db, run.rowNumber, hook);
-          this.o.onHookJob?.(run.rowNumber);
+        const got = `Đã tải video về máy (${formatBytes(data.length)})${note}`;
+        if (run.hookText == null) {
+          moveRun(this.db, run.id, "downloading", "done", got, { doneAt: now() });
+          return { finished: true, ok: true };
         }
-        return;
+        // CON-137: chưa xong, nhờ Muse chèn hook ngay trong cuộc trò chuyện này.
+        logRunEvent(this.db, run.id, "downloading", got);
+        const out = await this.startHook(f, "downloading");
+        return { ...out, ok: out.finished ? out.ok : true };
       } catch (e) {
         why = errText(e);
         logger.warn({ err: e, runId: run.id, attempt }, "Chưa tải được video từ Muse");
-        if (this.canceling()) return;
+        if (this.canceling()) return { finished: true };
         if (attempt < 3) await this.sleep(5 * (this.o.secondMs ?? 1000), false);
       }
     }
@@ -968,6 +1121,7 @@ export class BatchRunner {
       error: "không tải được video",
       doneAt: now(),
     });
+    return { finished: true };
   }
 
   /** Spec 17.5 bước 5 (Bảng): xem tab của một dòng đang chờ một lần; có video thì tải về (bước 6–8). */
@@ -988,15 +1142,19 @@ export class BatchRunner {
         if (f.seen === key) return run.nvDraftId ? this.downloadNv(f) : this.downloadAnh(f);
         f.seen = key;
       } else f.seen = undefined;
+    } else if (run.anhPhase === HOOK_PHASE) {
+      // CON-137: video có hook = video sau mốc đếm lúc gửi tin chèn hook.
+      if ((w.videos ?? 0) > (run.anhBaseline ?? 0)) return this.downloadHook(run, f.tab);
     } else if ((w.videos ?? 0) > 0) {
-      await this.downloadBang(run, f.tab);
-      return { finished: true, ok: true };
+      return this.downloadBang(f);
     }
     if (Date.now() >= f.deadline) {
-      moveRun(this.db, run.id, "waiting", "needs_review", `Quá thời gian chờ mà Muse chưa gửi ${anh ? "ảnh" : "video"}; không gửi lại (D9)`, {
+      const hook = run.anhPhase === HOOK_PHASE;
+      moveRun(this.db, run.id, "waiting", "needs_review", `Quá thời gian chờ mà Muse chưa gửi ${anh ? "ảnh" : hook ? "video có hook (video gốc vẫn giữ)" : "video"}; không gửi lại (D9)`, {
         error: "quá thời gian",
         doneAt: now(),
       });
+      if (hook) setHookError(this.db, run.rowNumber, "quá thời gian chờ Muse chèn hook");
       return { finished: true };
     }
     if (w.closed) {
@@ -1012,11 +1170,19 @@ export class BatchRunner {
         await this.bot.bringToFront();
       }
     }
+    // CON-137: lỗi ở pha chèn hook không tạo lại video người mẫu (đã có): dòng dừng ở video gốc, báo lỗi chèn hook.
+    const hookFail = (why: string, to = "failed"): PollOutcome => {
+      moveRun(this.db, run.id, "waiting", to, `${why} khi chèn hook. Video gốc vẫn giữ; bấm Ghép lại hook để thử lại`, { error: why, doneAt: now() });
+      setHookError(this.db, run.rowNumber, why);
+      return { finished: true };
+    };
+    const hookPhase = !anh && run.anhPhase === HOOK_PHASE;
     if (!anh) {
       // Muse hỏi lại hoặc chờ duyệt (CON-91): chờ thêm một lúc phòng nhận nhầm, vẫn vậy thì coi là thất bại.
       if (w.notice === "asking" || w.approval) {
         f.askingSince ??= Date.now();
         if (Date.now() - f.askingSince >= 2 * (this.o.minuteMs ?? 60_000)) {
+          if (hookPhase) return hookFail("Muse hỏi lại thay vì làm");
           this.failAttempt(run, "waiting", "Muse hỏi lại thay vì tạo video", true);
           return { finished: true, failed: true };
         }
@@ -1027,9 +1193,11 @@ export class BatchRunner {
       logRunEvent(this.db, run.id, "waiting", "Trang Muse đang hiện đăng nhập / kiểm tra bảo mật; vẫn chờ video");
     }
     if (w.notice === "quota") {
+      if (hookPhase) return { ...hookFail("Muse hết lượt", "paused_quota"), pause: "quota" };
       moveRun(this.db, run.id, "waiting", "paused_quota", "Muse báo hết lượt", { error: "Muse hết lượt" });
       return { finished: true, pause: "quota" };
     }
+    if (hookPhase && (w.notice === "error" || w.notice === "rejected")) return hookFail(w.notice === "error" ? "Muse báo lỗi" : "Muse từ chối");
     if (w.notice === "error" && !anh) {
       this.failAttempt(run, "waiting", "Muse báo lỗi", true);
       return { finished: true, failed: true };
@@ -1241,6 +1409,8 @@ export class BatchRunner {
   private markOrphans(batchId: number, message: string): void {
     for (const r of this.runs(batchId, SENT_STATES)) {
       moveRun(this.db, r.id, r.state, "needs_review", message, { error: "lô đã huỷ khi dòng đang chờ Muse", doneAt: now() });
+      // CON-137: đang chờ Muse chèn hook thì bỏ dấu "đang chèn", video gốc vẫn giữ.
+      if (r.anhPhase === HOOK_PHASE && !r.nvDraftId) setHookError(this.db, r.rowNumber, "lô bị huỷ khi Muse đang chèn hook");
     }
   }
 

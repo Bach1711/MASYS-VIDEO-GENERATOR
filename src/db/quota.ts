@@ -26,10 +26,15 @@ export function getDailyQuota(db: DB, now = new Date()): DailyQuota {
   const { extra } = db
     .prepare("SELECT COALESCE(SUM(extraSends), 0) AS extra FROM runs WHERE extraSentAt IS NOT NULL AND extraSentAt >= ? AND extraSentAt < ? AND anhRowId IS NULL AND nvDraftId IS NULL")
     .get(start, end) as { extra: number };
+  // CON-137: mỗi tin nhờ Muse chèn hook (Bảng video, ghi ở anhBackAt) là một video nữa. Lượt "Ghép lại hook" chỉ gửi
+  // tin này nên không có sentAt, chỉ tính ở đây.
+  const { hooks } = db
+    .prepare("SELECT COUNT(*) AS hooks FROM runs WHERE anhBackAt IS NOT NULL AND anhBackAt >= ? AND anhBackAt < ? AND anhRowId IS NULL AND nvDraftId IS NULL")
+    .get(start, end) as { hooks: number };
   const { dailyVideoLimit: limit } = db.prepare("SELECT dailyVideoLimit FROM settings WHERE id = 1").get() as {
     dailyVideoLimit: number;
   };
-  const total = used + extra;
+  const total = used + extra + hooks;
   return { used: total, limit, remaining: Math.max(0, limit - total) };
 }
 

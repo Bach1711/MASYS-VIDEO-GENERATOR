@@ -83,17 +83,6 @@ const nodeDir = await nodeExe();
 fs.copyFileSync(path.join(nodeDir, "node.exe"), path.join(verRoot, "node", "node.exe"));
 fs.copyFileSync(path.join(nodeDir, "LICENSE"), path.join(verRoot, "node", "LICENSE"));
 
-// Hook đầu video (CON-74, D30): ffmpeg ghép video trên máy. Lấy từ ffmpeg-static (devDependency, bản Windows
-// của gyan.dev), đặt ở phien-ban\X.Y.Z\ffmpeg\ffmpeg.exe; tool tìm ở đó (src/bang/hook.ts, ffmpegCandidates).
-step("Thêm ffmpeg (ghép hook)");
-const ffmpegSrc = path.join(root, "node_modules", "ffmpeg-static");
-if (!fs.existsSync(path.join(ffmpegSrc, "ffmpeg.exe"))) throw new Error("Thiếu node_modules/ffmpeg-static/ffmpeg.exe: chạy npm install trước khi đóng gói.");
-fs.mkdirSync(path.join(verRoot, "ffmpeg"), { recursive: true });
-fs.copyFileSync(path.join(ffmpegSrc, "ffmpeg.exe"), path.join(verRoot, "ffmpeg", "ffmpeg.exe"));
-fs.copyFileSync(path.join(ffmpegSrc, "ffmpeg.exe.LICENSE"), path.join(verRoot, "ffmpeg", "LICENSE.txt"));
-fs.copyFileSync(path.join(ffmpegSrc, "ffmpeg.exe.README"), path.join(verRoot, "ffmpeg", "README.txt"));
-execFileSync(path.join(verRoot, "ffmpeg", "ffmpeg.exe"), ["-hide_banner", "-version"], { stdio: "ignore" });
-
 step("Thêm Mo-MASYS.bat, HUONG-DAN.txt, phien-ban\\hien-tai.txt");
 // Không xuống dòng: Mo-MASYS.bat đọc bằng "set /p".
 fs.writeFileSync(path.join(appRoot, "phien-ban", "hien-tai.txt"), version);

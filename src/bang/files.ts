@@ -161,6 +161,13 @@ export class BangFiles {
     return { name, path: path.join(this.dir(VIDEO_DIR), name) };
   }
 
+  /** Lưu video có hook Muse làm (CON-137); trả tên file. */
+  saveHookVideo(rowId: number, data: Uint8Array, now = new Date()): string {
+    const { name, path: p } = this.newHookVideo(rowId, now);
+    fs.writeFileSync(p, data);
+    return name;
+  }
+
   /** Thư mục tạm khi ghép hook (ảnh câu hook). */
   tmpDir(): string {
     return this.dir(path.join("tep", "tam"));

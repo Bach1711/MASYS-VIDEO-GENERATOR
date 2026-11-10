@@ -196,9 +196,7 @@ export function Layout(props: {
           .hookpart { margin-top:6px; text-align:center; }
           .hookpart .vid { flex-direction:row; justify-content:center; gap:4px; }
           .hookbar { flex-basis:100%; border-top:1px solid var(--border); padding-top:8px; }
-          .hookbar .hint { margin-top:2px; }
           .hook-toggle { margin-left:6px; white-space:nowrap; }
-          td.hook label.hook-notext { display:flex; gap:4px; align-items:center; font-weight:400; margin:4px 0 0; white-space:nowrap; }
           .ok-text { color:var(--ok-fg); }
           .dropzone { border-style:dashed; }
           .filters { gap:6px; }

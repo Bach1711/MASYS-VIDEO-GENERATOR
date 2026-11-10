@@ -66,9 +66,6 @@ export function setHookOn(db: DB, on: boolean): void {
   db.prepare("UPDATE settings SET hookOn = ? WHERE id = 1").run(on ? 1 : 0);
 }
 
-export function setHookDayText(db: DB, text: string, now = new Date()): void {
-  db.prepare("UPDATE settings SET hookDayText = ?, hookDay = ? WHERE id = 1").run(text.trim() || null, localDay(now));
-}
 
 /** Ghi nhớ Muse đã đăng nhập (lúc `at`), hoặc quên đi (null) khi Muse đòi đăng nhập lại. */
 export function setMuseReady(db: DB, at: string | null): void {

@@ -69,6 +69,12 @@ export const chat = {
    */
   sentImages: (p: Page, names: string[]): Promise<number> =>
     p.locator("[role=log] img").evaluateAll((els, list) => els.filter((el) => list.includes((el as unknown as { alt: string }).alt)).length, names),
+  /**
+   * Số video đính kèm trong các tin đã gửi (CON-137, ghi nhận 10/11/2026): Muse hiện clip MP4 bot đính kèm thành ảnh nhỏ
+   * trong khung chat, `alt` là tên Muse tự đặt (mã băm + ".mp4"), không phải tên file gốc; không phải thẻ <video>.
+   */
+  sentVideoClips: (p: Page): Promise<number> =>
+    p.locator("[role=log] img").evaluateAll((els) => els.filter((el) => /\.(mp4|mov|webm|mkv)$/i.test((el as unknown as { alt: string }).alt)).length),
   resultVideoCount: (p: Page): Promise<number> =>
     p.locator("video").evaluateAll(
       (els) =>

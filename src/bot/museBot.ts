@@ -73,6 +73,8 @@ export const MAX_VIDEO_BYTES = 300 * 1024 * 1024;
 /** Bảng ảnh: mỗi tin Muse trả tối đa chừng này ảnh được lấy; mỗi ảnh tối đa 30 MB. */
 export const MAX_IMAGES = 8;
 export const MAX_IMAGE_DOWNLOAD_BYTES = 30 * 1024 * 1024;
+/** Thời gian chờ Muse nhận clip đính kèm (CON-137). */
+export const CLIP_ATTACH_MS = 120_000;
 
 /**
  * Điều khiển Chrome bằng hồ sơ bot riêng (ngoài repo). Không gõ mật khẩu, không vượt captcha (D6),
@@ -183,9 +185,10 @@ export class MuseBot {
 
   /**
    * Gửi thêm một tin trong cuộc trò chuyện đang mở ở tab `tab` (Bảng ảnh: tin xin ảnh quay lưng, D33). Không mở cuộc
-   * trò chuyện mới, không đính kèm gì. Lỗi sau khi bấm Gửi luôn có `sent: true` (D9).
+   * trò chuyện mới. `clips`: video đính kèm (Bảng video: clip hook mẫu, CON-137); Muse nhận đủ clip mới bấm Gửi, gửi xong
+   * mà tin không có clip thì lỗi `missing_images` (sent). Lỗi sau khi bấm Gửi luôn có `sent: true` (D9).
    */
-  async reply(text: string, tab: string): Promise<void> {
+  async reply(text: string, tab: string, clips: string[] = []): Promise<void> {
     if (this.busy) throw new BotError("busy", "Bot đang gửi một yêu cầu khác", false);
     if (!this.ctx) throw new BotError("closed", STATE_TEXT.closed, false);
     const own = this.tabs.get(tab);
@@ -200,6 +203,27 @@ export class MuseBot {
         throw new BotError(state, STATE_TEXT[state], false);
       }
       const noticesBefore = noticeKinds(await bodyText(page));
+      const clipsBefore = clips.length ? await sel.chat.sentVideoClips(page).catch(() => 0) : 0;
+      if (clips.length) {
+        if ((await sel.chat.removeAttachment(page).count()) > 0) {
+          return await this.fail(page, "ui_changed", "Ô chat Muse đã có sẵn tệp đính kèm lạ; chưa gửi", false);
+        }
+        try {
+          await sel.chat.fileInput(page).setInputFiles(clips, { timeout: 5000 });
+        } catch {
+          return await this.fail(page, "ui_changed", "Không thấy chỗ đính kèm tệp của Muse", false);
+        }
+        // Clip tải lên lâu hơn ảnh: chờ tới 2 phút.
+        const deadline = Date.now() + Math.max(this.o.attachTimeoutMs ?? 60_000, CLIP_ATTACH_MS);
+        for (;;) {
+          const got = await sel.chat.removeAttachment(page).count();
+          if (got === clips.length) break;
+          if (got > clips.length || Date.now() > deadline) {
+            return await this.fail(page, "ui_changed", `Muse chỉ hiện ${got}/${clips.length} clip đính kèm; chưa gửi`, false);
+          }
+          await page.waitForTimeout(500);
+        }
+      }
       const composer = sel.chat.composer(page);
       await composer.click();
       await composer.fill(text);
@@ -209,11 +233,14 @@ export class MuseBot {
       const [min, max] = this.o.pauseBeforeSendMs ?? [1500, 3000];
       await page.waitForTimeout(min + Math.random() * (max - min));
       const send = sel.chat.send(page);
-      if (!((await visible(send)) && (await send.isEnabled().catch(() => false)))) {
-        return await this.fail(page, "ui_changed", "Không thấy nút Gửi của Muse", false);
+      // Clip còn đang tải lên thì nút Gửi có thể chưa bấm được: chờ thêm.
+      const sendDeadline = Date.now() + (clips.length ? CLIP_ATTACH_MS : 0);
+      while (!((await visible(send)) && (await send.isEnabled().catch(() => false)))) {
+        if (Date.now() >= sendDeadline) return await this.fail(page, "ui_changed", "Không thấy nút Gửi của Muse", false);
+        await page.waitForTimeout(500);
       }
       await send.click();
-      logger.info({ url: stripQuery(page.url()) }, "Đã bấm Gửi tin tiếp theo trên Muse");
+      logger.info({ url: stripQuery(page.url()), clips: clips.length }, "Đã bấm Gửi tin tiếp theo trên Muse");
       this.sent.set(tab, { text, noticesBefore });
       const deadline = Date.now() + (this.o.confirmTimeoutMs ?? 30_000);
       for (;;) {
@@ -222,7 +249,17 @@ export class MuseBot {
         if (fresh.includes("quota")) return await this.fail(page, "quota", "Muse báo hết lượt", true);
         if (fresh.includes("rejected")) return await this.fail(page, "rejected", "Muse từ chối yêu cầu", true);
         if (fresh.includes("error")) return await this.fail(page, "muse_error", "Muse báo lỗi sau khi gửi", true);
-        if (normalize(await composerText(composer)) === "" && normalize(body).includes(normalize(text).slice(0, 60))) return;
+        if (normalize(await composerText(composer)) === "" && normalize(body).includes(normalize(text).slice(0, 60))) {
+          if (!clips.length) return;
+          // Muse đã nhận tin: tin phải có clip (CON-137, như ảnh ở CON-99).
+          const until = Date.now() + (this.o.sentImagesTimeoutMs ?? 10_000);
+          for (;;) {
+            const got = (await sel.chat.sentVideoClips(page).catch(() => 0)) - clipsBefore;
+            if (got >= clips.length) return;
+            if (Date.now() > until) return await this.fail(page, "missing_images", `Tin đến Muse thiếu clip (${Math.max(0, got)}/${clips.length} clip)`, true);
+            await page.waitForTimeout(500);
+          }
+        }
         if (Date.now() > deadline) return await this.fail(page, "send_unconfirmed", "Đã bấm Gửi nhưng không chắc Muse đã nhận yêu cầu", true);
         await page.waitForTimeout(500);
       }

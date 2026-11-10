@@ -282,50 +282,32 @@ export function setHookClip(db: DB, id: number, name: string | null): string | n
   return old;
 }
 
-/** Câu hook riêng của dòng; trống = dùng câu chung hôm nay. */
-export function setHookText(db: DB, id: number, text: string): void {
-  db.prepare("UPDATE bang_rows SET hookText = ? WHERE id = ? AND deletedAt IS NULL").run(text.trim() || null, id);
-}
-
-/** Câu hook dùng cho dòng: câu riêng, không có thì câu chung hôm nay; "" = chưa có câu nào. */
-export function hookTextFor(r: Pick<BangRow, "hookText">, dayText: string): string {
-  return r.hookText?.trim() || dayText.trim();
-}
-
-/** "Clip có chữ sẵn" (CON-136): bật thì tool không vẽ câu hook cho dòng này. */
-export function setHookNoText(db: DB, id: number, on: boolean): void {
-  db.prepare("UPDATE bang_rows SET hookNoText = ? WHERE id = ? AND deletedAt IS NULL").run(on ? 1 : 0, id);
-}
-
-/**
- * Câu đem ghép cho dòng (CON-136): "" khi clip có chữ sẵn (ghép không vẽ chữ), câu riêng / câu chung hôm nay,
- * hoặc null khi cần câu mà chưa có câu nào.
- */
-export function hookJobFor(r: Pick<BangRow, "hookText" | "hookNoText">, dayText: string): string | null {
-  if (r.hookNoText) return "";
-  return hookTextFor(r, dayText) || null;
-}
-
-/** Xếp dòng vào hàng chờ ghép hook với câu `text` ("" = không vẽ chữ). */
+/** Đánh dấu dòng đang chờ Muse chèn hook (CON-137): ô Video hiện "Muse đang chèn hook…". */
 export function queueHook(db: DB, id: number, text: string): void {
   db.prepare("UPDATE bang_rows SET hookJob = ?, hookError = NULL WHERE id = ? AND deletedAt IS NULL").run(text, id);
 }
 
-/** Ghép xong: gắn bản có hook, bỏ khỏi hàng chờ; trả bản có hook cũ (để xoá file). */
+/** Video có hook đã về: gắn bản có hook, bỏ dấu đang chèn; trả bản có hook cũ (để xoá file). */
 export function setHookVideo(db: DB, id: number, name: string, bytes: number): string | null {
   const old = (db.prepare("SELECT hookVideoFile AS f FROM bang_rows WHERE id = ?").get(id) as { f: string | null } | undefined)?.f ?? null;
   db.prepare("UPDATE bang_rows SET hookVideoFile = ?, hookVideoBytes = ?, hookJob = NULL, hookError = NULL WHERE id = ?").run(name, bytes, id);
   return old && old !== name ? old : null;
 }
 
-/** Ghép hỏng: ghi lý do, bỏ khỏi hàng chờ. Video gốc giữ nguyên. */
+/** Chèn hook hỏng: ghi lý do, bỏ dấu đang chèn. Video gốc giữ nguyên. */
 export function setHookError(db: DB, id: number, why: string): void {
   db.prepare("UPDATE bang_rows SET hookJob = NULL, hookError = ? WHERE id = ?").run(why, id);
 }
 
-/** Các dòng đang chờ ghép hook (để ghép tiếp khi tool mở lại). */
-export function pendingHookRows(db: DB): number[] {
-  return (db.prepare("SELECT id FROM bang_rows WHERE hookJob IS NOT NULL AND deletedAt IS NULL ORDER BY id").all() as { id: number }[]).map((r) => r.id);
+/**
+ * Bỏ dấu "đang chèn hook" của dòng không còn lượt nào đang chạy (CON-137). Gồm cả dòng còn chờ ghép trên máy từ bản
+ * trước 2.15 (bộ ghép đã bỏ): báo lỗi để người dùng bấm Ghép lại hook. Trả số dòng đã bỏ.
+ */
+export function clearStaleHookJobs(db: DB): number {
+  const locked = lockedBangRows(db);
+  const ids = (db.prepare("SELECT id FROM bang_rows WHERE hookJob IS NOT NULL AND deletedAt IS NULL").all() as { id: number }[]).map((r) => r.id).filter((id) => !locked.has(id));
+  for (const id of ids) setHookError(db, id, "chưa chèn được hook; bấm Ghép lại hook");
+  return ids.length;
 }
 
 /**
