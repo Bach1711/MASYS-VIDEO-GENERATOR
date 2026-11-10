@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **10/11/2026**, CON-138 (Muse luôn tạo ảnh và gửi vào khung chat trước rồi mới tạo video) đang chờ duyệt. Trước đó CON-137 (Muse chèn hook theo clip mẫu bằng tin thứ hai trong cùng cuộc trò chuyện, bỏ ghép trên máy) đã phát hành trong v2.15.0. Trước đó CON-135 (bật Thêm hook thì cột Video không còn bị khuất; ô Video chỉ hiện bản có hook) và CON-136 (đã bật Thêm hook thì Tạo video luôn ghép hook, ô "Clip có chữ sẵn") đã phát hành trong v2.14.0. Trước đó phát hành v2.13.0 (CON-112: nút Bỏ chọn, giữ dòng đã chọn khi đổi trang, tải các dòng đã chọn thành một file zip; CON-113: cột Người mẫu tự điền từ Bảng ảnh, video tự đặt tên "Tên người mẫu + STT"). Trước đó phát hành v2.12.0 (CON-107: Bảng video chọn tất cả, chọn dòng xong, tải các dòng đã chọn). Trước đó phát hành v2.11.0 (CON-98, CON-99, CON-100). Trước đó CON-89, CON-90 và CON-91 (v2.10.0 đã phát hành: câu không hỏi lại, hủy lô dừng ngay, Bảng video tự chạy lại dòng lỗi). Trước đó CON-88 và CON-87 (v2.9.0 đã phát hành: tải ảnh ngay trên ô ảnh, ảnh face khung dọc 9:16). Trước đó CON-85 (v2.8.0 đã phát hành: nút Xem prompt, thẻ nhân vật có ảnh gốc, khung ảnh trong prompt). Trước đó CON-82 (v2.7.0 đã phát hành: tạo nhân vật chạy tự động đến hết). Trước đó CON-81 (v2.6.0 đã phát hành: tạo nhân vật ngay trong app bằng Muse). Trước đó CON-80 (v2.5.0 đã phát hành: nhân vật có ảnh 4 góc + ảnh mặt). Trước đó CON-78 (v2.4.0 đã phát hành: xuất ảnh từ Bảng ảnh sang Bảng video). Từ nay nhiều ticket gom vào một bản phát hành khi người phụ trách nói "phát hành". Trước đó CON-79 (v2.3.1 đã phát hành: sửa lỗi huỷ lô chặn cập nhật), CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **10/11/2026**, CON-138 (Muse luôn tạo ảnh và gửi vào khung chat trước rồi mới tạo video) đã phát hành trong v2.16.0. Trước đó CON-137 (Muse chèn hook theo clip mẫu bằng tin thứ hai trong cùng cuộc trò chuyện, bỏ ghép trên máy) đã phát hành trong v2.15.0. Trước đó CON-135 (bật Thêm hook thì cột Video không còn bị khuất; ô Video chỉ hiện bản có hook) và CON-136 (đã bật Thêm hook thì Tạo video luôn ghép hook, ô "Clip có chữ sẵn") đã phát hành trong v2.14.0. Trước đó phát hành v2.13.0 (CON-112: nút Bỏ chọn, giữ dòng đã chọn khi đổi trang, tải các dòng đã chọn thành một file zip; CON-113: cột Người mẫu tự điền từ Bảng ảnh, video tự đặt tên "Tên người mẫu + STT"). Trước đó phát hành v2.12.0 (CON-107: Bảng video chọn tất cả, chọn dòng xong, tải các dòng đã chọn). Trước đó phát hành v2.11.0 (CON-98, CON-99, CON-100). Trước đó CON-89, CON-90 và CON-91 (v2.10.0 đã phát hành: câu không hỏi lại, hủy lô dừng ngay, Bảng video tự chạy lại dòng lỗi). Trước đó CON-88 và CON-87 (v2.9.0 đã phát hành: tải ảnh ngay trên ô ảnh, ảnh face khung dọc 9:16). Trước đó CON-85 (v2.8.0 đã phát hành: nút Xem prompt, thẻ nhân vật có ảnh gốc, khung ảnh trong prompt). Trước đó CON-82 (v2.7.0 đã phát hành: tạo nhân vật chạy tự động đến hết). Trước đó CON-81 (v2.6.0 đã phát hành: tạo nhân vật ngay trong app bằng Muse). Trước đó CON-80 (v2.5.0 đã phát hành: nhân vật có ảnh 4 góc + ảnh mặt). Trước đó CON-78 (v2.4.0 đã phát hành: xuất ảnh từ Bảng ảnh sang Bảng video). Từ nay nhiều ticket gom vào một bản phát hành khi người phụ trách nói "phát hành". Trước đó CON-79 (v2.3.1 đã phát hành: sửa lỗi huỷ lô chặn cập nhật), CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v6.3 · Linear: project **MASYS Video Generator**
 
 **Tổng quan:** 45/45 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 5/5 🎉 · GĐ6 23/23 🎉
 
 ```
-[■■■■■■■■■□]  46/47 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-85, CON-87…CON-91, CON-98…CON-100, CON-107, CON-112, CON-113, CON-135, CON-136, CON-137 · chờ duyệt CON-138
+[■■■■■■■■■■]  47/47 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-85, CON-87…CON-91, CON-98…CON-100, CON-107, CON-112, CON-113, CON-135, CON-136, CON-137, CON-138
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -185,7 +185,7 @@ flowchart LR
     class hookcot done
     class hookchay done
     class musehook done
-    class anhtruoc review
+    class anhtruoc done
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -266,11 +266,12 @@ flowchart LR
 | 44 | [CON-135](https://linear.app/conducdaudan/issue/CON-135) | Bảng video: bật Thêm hook thì cột Video bị khuất; ô Video chỉ hiện bản có hook (v2.14.0) | 🟩 Xong | [#55](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/55) | 10/11/2026 |
 | 45 | [CON-136](https://linear.app/conducdaudan/issue/CON-136) | Bảng video: đã bật Thêm hook thì Tạo video luôn ghép hook; ô "Clip có chữ sẵn" (v2.14.0) | 🟩 Xong | [#57](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/57) | 10/11/2026 |
 | 46 | [CON-137](https://linear.app/conducdaudan/issue/CON-137) | Bảng video: Muse chèn hook theo clip mẫu bằng tin thứ hai, bỏ ghép trên máy (v2.15.0) | 🟩 Xong | [#59](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/59) | 10/11/2026 |
-| 47 | [CON-138](https://linear.app/conducdaudan/issue/CON-138) | Bảng video: Muse luôn tạo ảnh và gửi vào khung chat trước, rồi mới tạo video từ ảnh đó | 🟦 Chờ duyệt | [#61](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/61) | — |
+| 47 | [CON-138](https://linear.app/conducdaudan/issue/CON-138) | Bảng video: Muse luôn tạo ảnh và gửi vào khung chat trước, rồi mới tạo video từ ảnh đó (v2.16.0) | 🟩 Xong | [#61](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/61) | 10/11/2026 |
 
 ## Nhật ký cập nhật
 
-- **10/11/2026 · CON-138** (chờ duyệt): người phụ trách muốn Muse luôn tạo ảnh và gửi vào khung chat trước rồi mới tạo video từ ảnh đó. Tool tự thêm câu 2 bước (nguyên văn đã duyệt) vào mọi yêu cầu tạo video, kể cả mẫu đã lưu riêng; đoạn ghép áo gốc đổi thành gửi ảnh vừa ghép trước.
+- **10/11/2026 · Phát hành v2.16.0** (CON-138).
+- **10/11/2026 · CON-138** (xong, đã gộp vào main, đã phát hành v2.16.0): người phụ trách muốn Muse luôn tạo ảnh và gửi vào khung chat trước rồi mới tạo video từ ảnh đó. Tool tự thêm câu 2 bước (nguyên văn đã duyệt) vào mọi yêu cầu tạo video, kể cả mẫu đã lưu riêng; đoạn ghép áo gốc đổi thành gửi ảnh vừa ghép trước.
 - **10/11/2026 · Phát hành v2.15.0** (CON-137).
 - **10/11/2026 · CON-137** (xong, đã gộp vào main, đã phát hành v2.15.0): người phụ trách thấy video về vẫn là clip hook nối vào đầu, còn thử tay trên Muse thì Muse chèn hook đúng ý. Đổi cách làm: video người mẫu về thì bot gửi tin thứ hai trong cùng cuộc trò chuyện kèm clip hook mẫu và câu của người phụ trách, tải video có hook về; dòng chỉ Xong khi có bản có hook; mỗi dòng có hook tính 2 lượt; Ghép lại hook mở lại cuộc trò chuyện cũ. Bỏ bộ ghép ffmpeg, câu hook, ô Clip có chữ sẵn. Thử tay bằng script trên Muse thật (dòng 124): Muse trả video có hook khoảng 80 giây sau khi gửi.
 - **10/11/2026 · Phát hành v2.14.0** (CON-135 + CON-136).

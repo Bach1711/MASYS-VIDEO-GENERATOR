@@ -2,9 +2,12 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
-## Chưa phát hành
+## v2.16.0
 
-- **Tạo video luôn làm theo thứ tự ảnh trước, video sau:** yêu cầu gửi Muse dặn Muse tạo ảnh người mẫu mặc đúng chiếc áo, gửi ảnh đó vào khung chat trước, rồi mới tạo video từ chính ảnh vừa gửi. Áp dụng cho mọi loại dòng, kể cả máy đã sửa prompt riêng ở Cài đặt. Mỗi video có thể lâu hơn khoảng 1 phút; tool vẫn chỉ tải video về.
+**Tạo video luôn làm theo thứ tự ảnh trước, video sau.**
+
+- Yêu cầu gửi Muse dặn Muse tạo ảnh người mẫu mặc đúng chiếc áo, gửi ảnh đó vào khung chat trước, rồi mới tạo video từ chính ảnh vừa gửi. Áp dụng cho mọi loại dòng, kể cả máy đã sửa prompt riêng ở Cài đặt.
+- Mỗi video có thể lâu hơn khoảng 1 phút vì Muse tạo ảnh trước; tool vẫn chỉ tải video về.
 
 ## v2.15.0
 
