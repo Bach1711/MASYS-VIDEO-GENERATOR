@@ -526,4 +526,91 @@ describe("trang Bot Muse", () => {
     expect(ok.status).toBe(200);
     expect(ok.headers.get("content-type")).toBe("image/png");
   });
+
+  it("quản lý nhiều tài khoản Muse (Multi-Profile, CON-217): mặc định giữ Tài khoản 1 (bot-profile), thêm/đổi/sửa tên/xoá tài khoản và khoá khi lô đang chạy", async () => {
+    const { createApp } = await import("../src/web/app.js");
+    const { loadConfig } = await import("../src/config.js");
+    const { activeProfileDir, getActiveMuseAccount, listMuseAccounts, setAccountQuotaExhausted } = await import("../src/db/accounts.js");
+    const { setMuseReady } = await import("../src/db/settings.js");
+    const db = dbWithRun();
+    setMuseReady(db, "2026-11-24T01:00:00.000Z");
+    const config = loadConfig({ ...FAKE_KEY_ENV, MASYS_DATA_DIR: tmp });
+    let closedCount = 0;
+    let openCount = 0;
+    const fake = {
+      isOpen: true,
+      send: async () => ({ chatUrl: "x" }),
+      check: async () => ({ state: "ready" as const }),
+      open: async () => {
+        openCount++;
+      },
+      close: async () => {
+        closedCount++;
+      },
+    } as unknown as MuseBot;
+    const runner = { runningBatchId: undefined as number | undefined } as unknown as import("../src/queue/runner.js").BatchRunner;
+    const app = createApp(config, db, { bot: fake, runner });
+
+    // Mặc định có Tài khoản 1 trỏ vào bot-profile để không mất đăng nhập hiện có.
+    expect(listMuseAccounts(db)).toMatchObject([{ id: 1, name: "Tài khoản 1", profileDir: "bot-profile", readyAt: "2026-11-24T01:00:00.000Z" }]);
+    expect(activeProfileDir(db, config.dataDir)).toBe(path.join(config.dataDir, "bot-profile"));
+
+    // Thêm tài khoản 2 và tài khoản 3.
+    const add2 = await app.request("/bot/accounts/add", { method: "POST", body: new URLSearchParams({ name: "Acc phụ 2" }) });
+    expect(add2.status).toBe(303);
+    const add3 = await app.request("/bot/accounts/add", { method: "POST", body: new URLSearchParams({ name: "Acc phụ 3" }) });
+    expect(add3.status).toBe(303);
+    // Trùng tên bị từ chối.
+    const dup = await app.request("/bot/accounts/add", { method: "POST", body: new URLSearchParams({ name: "acc phụ 2" }) });
+    expect(dup.status).toBe(400);
+
+    expect(listMuseAccounts(db).map((a) => ({ id: a.id, name: a.name, profileDir: a.profileDir }))).toEqual([
+      { id: 1, name: "Tài khoản 1", profileDir: "bot-profile" },
+      { id: 2, name: "Acc phụ 2", profileDir: path.join("bot-profiles", "acc-2") },
+      { id: 3, name: "Acc phụ 3", profileDir: path.join("bot-profiles", "acc-3") },
+    ]);
+
+    // Chuyển sang dùng tài khoản 2: đóng trình duyệt tài khoản 1 và đổi activeAccountId + museReadyAt.
+    const sel2 = await app.request("/bot/accounts/select", { method: "POST", body: new URLSearchParams({ id: "2" }) });
+    expect(sel2.status).toBe(303);
+    expect(closedCount).toBe(1);
+    expect(getActiveMuseAccount(db).id).toBe(2);
+    expect(activeProfileDir(db, config.dataDir)).toBe(path.join(config.dataDir, "bot-profiles", "acc-2"));
+
+    // Bấm Mở trình duyệt trên tài khoản 3: tự chuyển sang tài khoản 3, đóng Chrome cũ và mở Chrome mới.
+    const open3 = await app.request("/bot/accounts/open", { method: "POST", body: new URLSearchParams({ id: "3" }) });
+    expect(open3.status).toBe(303);
+    expect(closedCount).toBe(2);
+    expect(openCount).toBe(1);
+    expect(getActiveMuseAccount(db).id).toBe(3);
+
+    // Đổi tên tài khoản 3 và đặt/reset hết token.
+    setAccountQuotaExhausted(db, "2026-11-24T02:00:00.000Z", 3);
+    expect(await (await app.request("/bot")).text()).toContain("Hết token");
+    await app.request("/bot/accounts/reset-quota", { method: "POST", body: new URLSearchParams({ id: "3" }) });
+    expect(getActiveMuseAccount(db).quotaExhaustedAt).toBeNull();
+    await app.request("/bot/accounts/rename", { method: "POST", body: new URLSearchParams({ id: "3", name: "Tài khoản VIP 3" }) });
+    expect(getActiveMuseAccount(db).name).toBe("Tài khoản VIP 3");
+
+    // Khi đang có lô chạy: chặn đổi hoặc xoá tài khoản bằng tay.
+    (runner as { runningBatchId?: number }).runningBatchId = 1;
+    const blockedSel = await app.request("/bot/accounts/select", { method: "POST", body: new URLSearchParams({ id: "1" }) });
+    expect(blockedSel.status).toBe(409);
+    expect(getActiveMuseAccount(db).id).toBe(3);
+    const blockedDel = await app.request("/bot/accounts/delete", { method: "POST", body: new URLSearchParams({ id: "2" }) });
+    expect(blockedDel.status).toBe(409);
+
+    // Lô dừng: xoá tài khoản đang chọn (3) thì tự chuyển về tài khoản 1 còn sống.
+    (runner as { runningBatchId?: number }).runningBatchId = undefined;
+    const del3 = await app.request("/bot/accounts/delete", { method: "POST", body: new URLSearchParams({ id: "3" }) });
+    expect(del3.status).toBe(303);
+    expect(getActiveMuseAccount(db).id).toBe(1);
+    expect(getActiveMuseAccount(db).readyAt).toBe("2026-11-24T01:00:00.000Z");
+
+    // Xoá tiếp tài khoản 2 được, nhưng không cho xoá tài khoản cuối cùng.
+    await app.request("/bot/accounts/delete", { method: "POST", body: new URLSearchParams({ id: "2" }) });
+    const delLast = await app.request("/bot/accounts/delete", { method: "POST", body: new URLSearchParams({ id: "1" }) });
+    expect(delLast.status).toBe(400);
+    expect(listMuseAccounts(db)).toHaveLength(1);
+  });
 });

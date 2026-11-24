@@ -30,12 +30,14 @@ export interface Settings {
   imageBackTemplate: string | null;
   dailyImageLimit: number;
   lastNhanVatId: number | null;
+  /** Tài khoản Muse đang dùng (CON-217, bảng muse_accounts). */
+  activeAccountId: number;
 }
 
 export function getSettings(db: DB): Settings {
   return db
     .prepare(
-      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt, bangTemplate, bangShirtTemplate, twoSidedTemplate, parallelVideos, hookOn, hookDayText, hookDay, imageTemplate, imageBackTemplate, dailyImageLimit, lastNhanVatId FROM settings WHERE id = 1",
+      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt, bangTemplate, bangShirtTemplate, twoSidedTemplate, parallelVideos, hookOn, hookDayText, hookDay, imageTemplate, imageBackTemplate, dailyImageLimit, lastNhanVatId, activeAccountId FROM settings WHERE id = 1",
     )
     .get() as Settings;
 }
@@ -67,9 +69,10 @@ export function setHookOn(db: DB, on: boolean): void {
 }
 
 
-/** Ghi nhớ Muse đã đăng nhập (lúc `at`), hoặc quên đi (null) khi Muse đòi đăng nhập lại. */
+/** Ghi nhớ Muse đã đăng nhập (lúc `at`), hoặc quên đi (null) khi Muse đòi đăng nhập lại. Đồng bộ cả tài khoản đang dùng (CON-217). */
 export function setMuseReady(db: DB, at: string | null): void {
   db.prepare("UPDATE settings SET museReadyAt = ? WHERE id = 1").run(at);
+  db.prepare("UPDATE muse_accounts SET readyAt = ? WHERE id = (SELECT activeAccountId FROM settings WHERE id = 1)").run(at);
 }
 
 /** Sau một lần xem trang Muse: sẵn sàng thì nhớ, cần đăng nhập / kiểm tra bảo mật thì quên; trạng thái khác giữ nguyên. */

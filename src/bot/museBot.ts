@@ -38,7 +38,7 @@ export interface CheckResult {
 }
 
 export interface MuseBotOptions {
-  profileDir: string;
+  profileDir: string | (() => string);
   screenshotDir: string;
   museUrl: () => string;
   /** Chỉ test mới dùng headless; bot thật luôn có cửa sổ (D8). */
@@ -88,6 +88,8 @@ export class MuseBot {
   private sent = new Map<string, { text: string; noticesBefore: NoticeKind[] }>();
   /** Tab riêng của từng lượt đang chờ video (chạy song song, D28). Không có tên tab = trang làm việc chung. */
   private tabs = new Map<string, Page>();
+  /** Thư mục hồ sơ Chrome đang mở thực tế (CON-217). */
+  private openedProfileDir?: string;
 
   constructor(private readonly o: MuseBotOptions) {}
 
@@ -99,17 +101,32 @@ export class MuseBot {
     return this.busy;
   }
 
+  /** Thư mục hồ sơ Chrome được cấu hình hiện tại (hoặc đang mở). */
+  get currentProfileDir(): string {
+    return this.openedProfileDir ?? this.resolveProfileDir();
+  }
+
+  private resolveProfileDir(): string {
+    return typeof this.o.profileDir === "function" ? this.o.profileDir() : this.o.profileDir;
+  }
+
   private async context(): Promise<BrowserContext> {
+    const targetDir = this.resolveProfileDir();
+    if (this.ctx && this.openedProfileDir && this.openedProfileDir !== targetDir) {
+      await this.close();
+    }
     if (this.ctx) return this.ctx;
     this.opening ??= (async () => {
-      fs.mkdirSync(this.o.profileDir, { recursive: true });
-      const ctx = await chromium.launchPersistentContext(this.o.profileDir, {
+      const dir = this.resolveProfileDir();
+      fs.mkdirSync(dir, { recursive: true });
+      const ctx = await chromium.launchPersistentContext(dir, {
         channel: "chrome",
         headless: this.o.headless ?? false,
         viewport: null,
       });
       ctx.on("close", () => {
         this.ctx = undefined;
+        this.openedProfileDir = undefined;
         this.tabs.clear();
         logger.info("Trình duyệt bot đã đóng");
       });
@@ -119,7 +136,8 @@ export class MuseBot {
       await ctx.newPage();
       for (const p of initial) if (p.url() === "about:blank") await p.close().catch(() => {});
       this.ctx = ctx;
-      logger.info({ profileDir: this.o.profileDir }, "Đã mở trình duyệt bot");
+      this.openedProfileDir = dir;
+      logger.info({ profileDir: dir }, "Đã mở trình duyệt bot");
       return ctx;
     })().finally(() => (this.opening = undefined));
     return this.opening;
@@ -355,6 +373,7 @@ export class MuseBot {
     await this.opening?.catch(() => {}); // Đang mở dở thì chờ mở xong rồi đóng, không để sót cửa sổ.
     await this.ctx?.close();
     this.ctx = undefined;
+    this.openedProfileDir = undefined;
     this.tabs.clear();
     this.sent.clear();
   }
