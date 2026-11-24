@@ -144,6 +144,8 @@ export interface BatchView {
     doneAt: string | null;
     videoLink: string | null;
     museChatUrl: string | null;
+    accountId?: number | null;
+    accountName?: string | null;
   }[];
 }
 
@@ -152,7 +154,7 @@ export function getBatch(db: DB, id: number): BatchView | undefined {
   if (!b) return undefined;
   const runs = db
     .prepare(
-      `SELECT id, rowNumber, state, overwrite, promptSent, requestText, error, sentAt, doneAt, videoLink, museChatUrl
+      `SELECT id, rowNumber, state, overwrite, promptSent, requestText, error, sentAt, doneAt, videoLink, museChatUrl, accountId, accountName
        FROM runs WHERE batchId = ? ORDER BY rowNumber`,
     )
     .all(id) as BatchView["runs"];

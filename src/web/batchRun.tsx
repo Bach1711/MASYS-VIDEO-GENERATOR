@@ -163,6 +163,8 @@ export function registerBatchRunRoutes(app: Hono, deps: { db: DB; runner?: Batch
                       <td>
                         <span class={`badge ${RUN_BADGE[r.state] ?? ""}`}>{RUN_STATE_TEXT[r.state] ?? r.state}</span>
                         <div class="muted small">
+                          {r.accountName && <>{r.accountName}</>}
+                          {r.accountName && (r.sentAt || r.doneAt) && <> · </>}
                           {r.sentAt && <>gửi {time(r.sentAt)}</>}
                           {r.doneAt && <> · xong {time(r.doneAt)}</>}
                         </div>

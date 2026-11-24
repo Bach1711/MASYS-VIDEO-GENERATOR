@@ -8,7 +8,7 @@ export const DETAIL_GUIDE_URL = "https://github.com/Bach1711/MASYS-VIDEO-GENERAT
 const PAUSES: [string, string][] = [
   ["Cần đăng nhập lại Muse", "Bấm Mở cửa sổ Muse, tự đăng nhập (hoặc làm bước kiểm tra bảo mật), rồi bấm Tiếp tục."],
   ["Giao diện Muse thay đổi", "Cửa sổ bot bị tắt thì mở lại rồi Tiếp tục. Vẫn lỗi thì báo người phụ trách (ảnh chụp ở Nhật ký)."],
-  ["Muse hết lượt", "Chờ Muse có lượt lại rồi bấm Tiếp tục. Dòng đang gửi dở chuyển Lỗi, không gửi lại."],
+  ["Muse hết lượt", "Nếu đã thêm nhiều tài khoản ở Bot Muse, tool tự chuyển sang tài khoản tiếp theo. Khi mọi tài khoản đều hết lượt, chờ có lượt lại (hoặc thêm tài khoản mới) rồi bấm Tiếp tục."],
   ["Đã đủ video trong ngày", "Hôm sau bấm Tiếp tục."],
   ["Tool vừa mở lại", "Bấm Tiếp tục. Dòng đã gửi Muse được theo dõi và tải video tiếp, không gửi lại."],
   ["Muse sửa nhầm ô (Bảng theo sheet)", "Mở sheet, xem ô ghi trong lý do (ví dụ E9), sửa lại cho đúng rồi Tiếp tục."],

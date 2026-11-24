@@ -639,4 +639,29 @@ describe("Lịch sử lô, Nhật ký, dải báo (F6)", () => {
     expect(await (await app.request("/")).text()).not.toContain("đang tạm dừng");
     expect(await (await app.request(`/batch/${id2}`)).text()).toContain("Lô đã huỷ.");
   });
+
+  it("lô theo sheet: Tài khoản 1 hết lượt giữa lô → tự động chuyển sang Tài khoản 2 và chạy tiếp dòng đó đến hết (CON-218)", async () => {
+    const { addMuseAccount, getActiveMuseAccount, listMuseAccounts } = await import("../src/db/accounts.js");
+    const t = setup();
+    addMuseAccount(t.db, "Tài khoản 2");
+    const id = createBatch(t.db, t.grid, [2, 3]);
+    t.sendErrors.push(undefined, new BotError("quota", "Muse báo hết lượt", true));
+    t.runner.start(id);
+    await t.runner.idle();
+    expect(batchOf(t.db, id)).toEqual({ status: "done", pauseReason: null });
+    expect(statesOf(t.db, id)).toEqual([
+      [2, "done"],
+      [3, "done"],
+    ]);
+    expect(getActiveMuseAccount(t.db).name).toBe("Tài khoản 2");
+    expect(listMuseAccounts(t.db)[0]!.quotaExhaustedAt).toBeTruthy();
+    const byAcc = t.db.prepare("SELECT rowNumber, accountName FROM runs WHERE batchId = ? ORDER BY rowNumber").all(id) as {
+      rowNumber: number;
+      accountName: string;
+    }[];
+    expect(byAcc).toEqual([
+      { rowNumber: 2, accountName: "Tài khoản 1" },
+      { rowNumber: 3, accountName: "Tài khoản 2" },
+    ]);
+  });
 });

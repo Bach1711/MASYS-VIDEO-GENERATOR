@@ -291,4 +291,10 @@ export const MIGRATIONS: string[] = [
     SELECT 1, 'Tài khoản 1', 'bot-profile', museReadyAt FROM settings WHERE id = 1;
   ALTER TABLE settings ADD COLUMN activeAccountId INTEGER NOT NULL DEFAULT 1;
   `,
+  // 20. Tự động đổi sang tài khoản Muse tiếp theo khi tài khoản đang chạy hết token (CON-218).
+  // runs.accountId + accountName ghi lại tài khoản đã chạy lượt đó (giữ tên cả khi tài khoản bị xoá / đổi tên).
+  `
+  ALTER TABLE runs ADD COLUMN accountId INTEGER;
+  ALTER TABLE runs ADD COLUMN accountName TEXT;
+  `,
 ];

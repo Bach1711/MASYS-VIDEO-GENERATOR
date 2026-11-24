@@ -7,6 +7,7 @@ import { getRow, queueHook, setHookError, setHookVideo, setRowVideo } from "../b
 import { HOOK_PHASE } from "../bang/run.js";
 import { BotError, type WatchResult } from "../bot/museBot.js";
 import { chat as chatSel } from "../bot/museSelectors.js";
+import { findNextAvailableAccount, getActiveMuseAccount, setAccountQuotaExhausted, setActiveMuseAccount, type MuseAccount } from "../db/accounts.js";
 import type { DB } from "../db/index.js";
 import { getDailyQuota, getImageQuota } from "../db/quota.js";
 import { logRunEvent, moveRun } from "../db/runs.js";
@@ -485,15 +486,19 @@ export class BatchRunner {
 
     // Bước 4: sentAt ghi trước khi bấm Gửi.
     const sentAt = now();
-    moveRun(this.db, run.id, "checking_row", "sending", "Gửi yêu cầu cho Muse (cuộc trò chuyện mới)", {
+    const acc = getActiveMuseAccount(this.db);
+    moveRun(this.db, run.id, "checking_row", "sending", `Gửi yêu cầu cho Muse (${acc.name}, cuộc trò chuyện mới)`, {
       sentAt,
       tabSnapshot: JSON.stringify(before),
+      accountId: acc.id,
+      accountName: acc.name,
     });
     const sentRun = { ...run, sentAt, tabSnapshot: JSON.stringify(before) };
     try {
       const { chatUrl } = await this.bot.send(run.requestText);
       moveRun(this.db, run.id, "sending", "waiting", "Đã gửi Muse, theo dõi ô Video", { museChatUrl: chatUrl });
       setMuseReady(this.db, now());
+      setAccountQuotaExhausted(this.db, null, acc.id);
     } catch (e) {
       const err = e instanceof BotError ? e : new BotError("send_unconfirmed", `Lỗi khi gửi: ${errText(e)}`, true);
       if (!err.sent) {
@@ -506,6 +511,13 @@ export class BatchRunner {
         return { pause: to === "paused_login" ? "login" : "ui" };
       }
       if (err.code === "quota") {
+        setAccountQuotaExhausted(this.db, now(), acc.id);
+        const switched = await this.switchOnQuota(acc);
+        if (switched) {
+          await this.writeStatusSafe(cfg, run, snap.status);
+          this.requeueQuotaRun(run, "sending", err.message, acc.name, switched.name, err.screenshot);
+          return { sent: true };
+        }
         moveRun(this.db, run.id, "sending", "paused_quota", err.message, { error: "Muse hết lượt" }, err.screenshot);
         await this.writeStatusSafe(cfg, run, STATUS.failed("Muse hết lượt"));
         return { pause: "quota", sent: true };
@@ -561,6 +573,14 @@ export class BatchRunner {
           logRunEvent(this.db, run.id, "waiting", "Trang Muse đang hiện đăng nhập / kiểm tra bảo mật; vẫn theo dõi ô Video");
         }
         if (w.notice === "quota") {
+          const acc = getActiveMuseAccount(this.db);
+          setAccountQuotaExhausted(this.db, now(), acc.id);
+          const switched = await this.switchOnQuota(acc);
+          if (switched) {
+            await this.writeStatusSafe(cfg, run, snap.status);
+            this.requeueQuotaRun(run, "waiting", "Muse báo hết lượt", acc.name, switched.name);
+            return {};
+          }
           moveRun(this.db, run.id, "waiting", "paused_quota", "Muse báo hết lượt", { error: "Muse hết lượt" });
           await this.writeStatusSafe(cfg, run, STATUS.failed("Muse hết lượt"));
           return { pause: "quota" };
@@ -702,6 +722,25 @@ export class BatchRunner {
         }
 
         if (inflight.size === 0) {
+          if (blocked === "quota") {
+            const fromAcc = getActiveMuseAccount(this.db);
+            const switched = await this.switchOnQuota(fromAcc);
+            if (switched) {
+              // Xếp lại các dòng bị báo hết lượt ở bước gửi tin đầu tiên để chạy tiếp trên tài khoản mới (CON-218).
+              for (const r of this.runs(batch.id, ["paused_quota"])) {
+                if (r.anhPhase === "back" || r.anhPhase === HOOK_PHASE) {
+                  moveRun(this.db, r.id, r.state, "failed", `Muse hết lượt (${fromAcc.name}); đã chuyển sang ${switched.name} cho các dòng tiếp theo`, {
+                    doneAt: now(),
+                  });
+                } else {
+                  this.requeueQuotaRun(r, r.state, "Muse báo hết lượt", fromAcc.name, switched.name);
+                }
+              }
+              blocked = undefined;
+              failedRows.clear();
+              if (this.runs(batch.id, ["queued"]).length > 0) continue;
+            }
+          }
           if (blocked) return this.setBatch(batch.id, "paused", blocked);
           if (this.stopRequested()) return this.setBatch(batch.id, "paused", "user");
           if (this.active?.mode !== "full") return; // Tool vừa mở lại: lô vẫn Tạm dừng, chờ người dùng bấm Tiếp tục.
@@ -850,6 +889,7 @@ export class BatchRunner {
           continue;
         }
         if (err.code === "quota" || err.code === "rejected" || err.code === "muse_error" || err.code === "missing_images") {
+          if (err.code === "quota") setAccountQuotaExhausted(this.db, now());
           const msg = err.code === "quota" ? "Muse hết lượt" : err.message;
           return { ...giveUp("failed", `${msg} khi nhờ chèn hook`, msg, err.screenshot), pause: err.code === "quota" ? "quota" : undefined };
         }
@@ -967,8 +1007,16 @@ export class BatchRunner {
     if (this.canceling()) return {}; // Dòng còn ở bước kiểm tra: Huỷ lô chuyển nó thành Đã huỷ.
     if (!this.bot.isOpen) await this.bot.open();
     const tab = tabOf(run.id);
+    const acc = getActiveMuseAccount(this.db);
     const waiting = (): Inflight => ({ run: { ...run, state: "waiting" }, tab, deadline: Date.now() + this.timeoutMs(), approval: false, loginNoted: false });
-    moveRun(this.db, run.id, "checking_row", "sending", `Gửi yêu cầu cho Muse ${files.length ? `kèm ${files.length} ảnh` : "không kèm ảnh"} (cuộc trò chuyện mới)`, { sentAt: now() });
+    moveRun(
+      this.db,
+      run.id,
+      "checking_row",
+      "sending",
+      `Gửi yêu cầu cho Muse (${acc.name}) ${files.length ? `kèm ${files.length} ảnh` : "không kèm ảnh"} (cuộc trò chuyện mới)`,
+      { sentAt: now(), accountId: acc.id, accountName: acc.name },
+    );
     const cancelUnsent = () => moveRun(this.db, run.id, "sending", "canceled", "Huỷ lô: dòng này chưa gửi Muse", { sentAt: null, doneAt: now() });
     for (let tabNo = 1; ; tabNo++) {
       try {
@@ -983,6 +1031,7 @@ export class BatchRunner {
           { museChatUrl: known ? chatUrl : null, error: null },
         );
         setMuseReady(this.db, now());
+        setAccountQuotaExhausted(this.db, null, acc.id);
         break;
       } catch (e) {
         const err = e instanceof BotError ? e : new BotError("send_unconfirmed", `Lỗi khi gửi: ${errText(e)}`, true);
@@ -1028,6 +1077,7 @@ export class BatchRunner {
         }
         await this.bot.closeTab?.(tab).catch(() => {});
         if (err.code === "quota") {
+          setAccountQuotaExhausted(this.db, now(), acc.id);
           moveRun(this.db, run.id, "sending", "paused_quota", err.message, { error: "Muse hết lượt" }, err.screenshot);
           return { pause: "quota", sent: true };
         }
@@ -1193,6 +1243,7 @@ export class BatchRunner {
       logRunEvent(this.db, run.id, "waiting", "Trang Muse đang hiện đăng nhập / kiểm tra bảo mật; vẫn chờ video");
     }
     if (w.notice === "quota") {
+      setAccountQuotaExhausted(this.db, now());
       if (hookPhase) return { ...hookFail("Muse hết lượt", "paused_quota"), pause: "quota" };
       moveRun(this.db, run.id, "waiting", "paused_quota", "Muse báo hết lượt", { error: "Muse hết lượt" });
       return { finished: true, pause: "quota" };
@@ -1285,6 +1336,7 @@ export class BatchRunner {
         return { finished: true, pause: login ? "login" : "ui" };
       }
       if (err.code === "quota" || err.code === "rejected" || err.code === "muse_error") {
+        if (err.code === "quota") setAccountQuotaExhausted(this.db, now());
         const msg = err.code === "quota" ? "Muse hết lượt" : err.message;
         moveRun(this.db, run.id, "sending", "failed", `${msg} khi xin ảnh quay lưng. ${keep}`, { error: msg, doneAt: now() }, err.screenshot);
         return { finished: true, pause: err.code === "quota" ? "quota" : undefined };
@@ -1430,6 +1482,39 @@ export class BatchRunner {
   private setBatch(id: number, status: string, pauseReason: PauseReason | null): void {
     this.db.prepare("UPDATE batches SET status = ?, pauseReason = ? WHERE id = ?").run(status, pauseReason, id);
     logger.info({ batchId: id, status, pauseReason }, "Trạng thái lô");
+  }
+
+  /**
+   * CON-218: khi tài khoản đang dùng báo hết token (`quota`), tự động tìm tài khoản Muse tiếp theo chưa hết token,
+   * đóng trình duyệt của tài khoản cũ và chuyển sang tài khoản mới. Không còn tài khoản nào khả dụng thì trả `undefined`.
+   */
+  private async switchOnQuota(fromAcc: MuseAccount): Promise<MuseAccount | undefined> {
+    const next = findNextAvailableAccount(this.db, fromAcc.id);
+    if (!next) return undefined;
+    await this.closeBot();
+    setActiveMuseAccount(this.db, next.id);
+    logger.info({ fromAccount: fromAcc.name, toAccount: next.name }, "Tự động đổi sang tài khoản Muse tiếp theo khi hết token");
+    return next;
+  }
+
+  /** Xếp lại dòng vừa bị Muse báo hết lượt về `queued` để tài khoản Muse mới chạy tiếp, vẫn giữ đếm lượt đã gửi. */
+  private requeueQuotaRun(run: RunRow, from: string, why: string, fromAcc: string, toAcc: string, screenshot?: string): void {
+    const hadSent = !!run.sentAt;
+    moveRun(
+      this.db,
+      run.id,
+      from,
+      "queued",
+      `${why} (${fromAcc}) → tự động chuyển sang ${toAcc}, xếp lại hàng đợi`,
+      {
+        error: null,
+        sentAt: null,
+        museChatUrl: null,
+        extraSends: (run.extraSends ?? 0) + (hadSent ? 1 : 0),
+        extraSentAt: hadSent ? now() : (run.extraSentAt ?? null),
+      },
+      screenshot,
+    );
   }
 }
 
