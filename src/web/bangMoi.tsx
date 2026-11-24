@@ -11,6 +11,7 @@ import { zipName, zipStream, type ZipEntry } from "../bang/zip.js";
 import { attachmentText, BANG_KIND_TEXT } from "../bang/request.js";
 import { estimateText, insertBangBatch, insertHookOnlyBatch, planBangBatch, runsCost, type HookChoice } from "../bang/run.js";
 import { activeBatch } from "../db/history.js";
+import { getActiveMuseAccount } from "../db/accounts.js";
 import { getSettings } from "../db/settings.js";
 import type { BatchRunner } from "../queue/runner.js";
 import type { AppConfig } from "../config.js";
@@ -367,6 +368,9 @@ export function registerBangMoiRoutes(app: Hono, deps: BangMoiDeps) {
           <div class="bang-head">
             <h1 style="margin:0">Bảng</h1>
             <div class="row">
+              <a class="pill" href="/bot" style="text-decoration:none;color:inherit" title="Bấm để quản lý hoặc đổi tài khoản Muse">
+                Muse ({getActiveMuseAccount(db).name}): {getActiveMuseAccount(db).readyAt ? "✅ đã đăng nhập" : "⚠ cần đăng nhập"}
+              </a>
               <span class="pill">
                 Hôm nay {quota.used}/{quota.limit}
               </span>

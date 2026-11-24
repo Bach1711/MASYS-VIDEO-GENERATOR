@@ -274,4 +274,21 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE bang_rows ADD COLUMN hookNoText INTEGER NOT NULL DEFAULT 0;
   `,
+  // 19. Quản lý nhiều tài khoản Muse theo cơ chế Multi-Profile (CON-217).
+  // Mỗi tài khoản có một thư mục hồ sơ Chrome riêng (profileDir). Tài khoản đầu tiên giữ nguyên 'bot-profile' để máy nâng cấp
+  // không mất đăng nhập hiện có. settings.activeAccountId trỏ tới tài khoản đang dùng.
+  `
+  CREATE TABLE muse_accounts (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    name             TEXT NOT NULL,
+    profileDir       TEXT NOT NULL,
+    readyAt          TEXT,
+    quotaExhaustedAt TEXT,
+    createdAt        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    deletedAt        TEXT
+  );
+  INSERT INTO muse_accounts (id, name, profileDir, readyAt)
+    SELECT 1, 'Tài khoản 1', 'bot-profile', museReadyAt FROM settings WHERE id = 1;
+  ALTER TABLE settings ADD COLUMN activeAccountId INTEGER NOT NULL DEFAULT 1;
+  `,
 ];

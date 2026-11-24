@@ -36,6 +36,7 @@ import { applyExport, planExport } from "../anh/export.js";
 import { estimateAnhText, insertAnhBatch, planAnhBatch } from "../anh/run.js";
 import { ANH_TAO_DIR, BangFiles, formatBytes, imageProblem, NHAN_VAT_DIR, typeOf } from "../bang/files.js";
 import type { AppConfig } from "../config.js";
+import { getActiveMuseAccount } from "../db/accounts.js";
 import { activeBatch } from "../db/history.js";
 import type { DB } from "../db/index.js";
 import { getImageQuota } from "../db/quota.js";
@@ -326,6 +327,9 @@ export function registerBangAnhRoutes(app: Hono, deps: BangAnhDeps) {
           <div class="bang-head">
             <h1 style="margin:0">Bảng ảnh</h1>
             <div class="row">
+              <a class="pill" href="/bot" style="text-decoration:none;color:inherit" title="Bấm để quản lý hoặc đổi tài khoản Muse">
+                Muse ({getActiveMuseAccount(db).name}): {getActiveMuseAccount(db).readyAt ? "✅ đã đăng nhập" : "⚠ cần đăng nhập"}
+              </a>
               <span class="pill" title="Số lượt xin ảnh đã gửi Muse hôm nay / giới hạn ảnh mỗi ngày (Cài đặt)">
                 Hôm nay {quota.used}/{quota.limit} ảnh
               </span>

@@ -2,6 +2,14 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+**Quản lý nhiều tài khoản Muse (Multi-Profile).**
+
+- Trang **⚙ Nâng cao → Bot Muse** có bảng **Tài khoản Muse (Multi-Profile)**: mỗi tài khoản dùng một hồ sơ Chrome riêng, tự giữ đăng nhập và cookie riêng. Tài khoản bạn đang đăng nhập từ trước giữ nguyên làm **Tài khoản 1**.
+- Bấm **+ Thêm tài khoản Muse**, rồi bấm **Mở trình duyệt** trên dòng tài khoản đó để tự đăng nhập Muse một lần.
+- Bấm **Dùng tài khoản này** để chuyển đổi qua lại giữa các tài khoản; có nút **Đặt lại hết lượt**, **Sửa → Lưu tên** và **Xoá**. Đầu trang Bảng video và Bảng ảnh hiện rõ tên tài khoản Muse đang dùng.
+
 ## v2.16.0
 
 **Tạo video luôn làm theo thứ tự ảnh trước, video sau.**

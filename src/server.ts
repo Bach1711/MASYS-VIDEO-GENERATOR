@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { MuseBot } from "./bot/museBot.js";
 import { DEFAULT_MUSE_URL } from "./bot/museSelectors.js";
+import { activeProfileDir } from "./db/accounts.js";
 import { getSettings } from "./db/settings.js";
 import { BangFiles } from "./bang/files.js";
 import { clearStaleHookJobs } from "./bang/rows.js";
@@ -46,7 +47,7 @@ const drive = google && new DriveClient(google);
 const thumbs = drive && new ThumbnailCache(drive);
 
 const bot = new MuseBot({
-  profileDir: config.botProfileDir,
+  profileDir: () => activeProfileDir(db, config.dataDir),
   screenshotDir: config.screenshotDir,
   museUrl: () => getSettings(db).museUrl ?? DEFAULT_MUSE_URL,
 });
