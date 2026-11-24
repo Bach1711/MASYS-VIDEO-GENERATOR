@@ -460,3 +460,55 @@ describe("ước lượng thời gian khi chạy song song", () => {
     expect(estimateText(db, 20, { pauseMinSec: 600, pauseMaxSec: 600, parallelVideos: 6 })).toBe("khoảng 3,5 giờ");
   });
 });
+
+describe("tự động đổi tài khoản Muse khi hết token (CON-218)", () => {
+  it("đang chạy song song 3 tab mà tab 3 báo hết lượt: chờ tải nốt tab 1–2 của Tài khoản 1, đóng trình duyệt, chuyển sang Tài khoản 2 chạy tiếp dòng 3–4", async () => {
+    const { addMuseAccount, getActiveMuseAccount, listMuseAccounts } = await import("../src/db/accounts.js");
+    // Dòng 3 ở lần gửi đầu tiên (trên Tài khoản 1) báo hết lượt; lần gửi thứ 2 (trên Tài khoản 2) chạy bình thường.
+    const t = setup({
+      rows: 4,
+      parallel: 3,
+      slow: { 1: 4, 2: 4, 3: 2, 4: 2 },
+      sendFail: (row, nth) => (row === 3 && nth === 1 ? new BotError("quota", "Muse báo hết lượt", true) : undefined),
+    });
+    addMuseAccount(t.db, "Tài khoản 2");
+    expect(getActiveMuseAccount(t.db).name).toBe("Tài khoản 1");
+
+    const batchId = await t.run([1, 2, 3, 4]);
+    expect(getBatch(t.db, batchId)!.status).toBe("done");
+    expect(states(t.db)).toEqual(["1:done", "2:done", "3:done", "4:done"]);
+    // Dòng 1, 2, 3 gửi trên Tài khoản 1; sau khi 1 và 2 tải xong mới đóng Chrome và gửi lại 3 cùng 4 trên Tài khoản 2.
+    expect(t.sends.map((s) => s.row)).toEqual([1, 2, 3, 3, 4]);
+    expect(t.closes()).toBe(1);
+    expect(getActiveMuseAccount(t.db).name).toBe("Tài khoản 2");
+    const accs = listMuseAccounts(t.db);
+    expect(accs[0]!.quotaExhaustedAt).toBeTruthy();
+    expect(accs[1]!.quotaExhaustedAt).toBeNull();
+
+    const byAcc = t.db.prepare("SELECT bangRowId AS row, accountName FROM runs ORDER BY bangRowId").all() as { row: number; accountName: string }[];
+    expect(byAcc).toEqual([
+      { row: 1, accountName: "Tài khoản 1" },
+      { row: 2, accountName: "Tài khoản 1" },
+      { row: 3, accountName: "Tài khoản 2" },
+      { row: 4, accountName: "Tài khoản 2" },
+    ]);
+  });
+
+  it("watch báo hết lượt trong lúc chờ video: tự đổi sang Tài khoản 2 chạy lại dòng đó; hết sạch mọi tài khoản thì lô mới tạm dừng", async () => {
+    const { addMuseAccount, getActiveMuseAccount, listMuseAccounts } = await import("../src/db/accounts.js");
+    // Cả Tài khoản 1 (nth=1) và Tài khoản 2 (nth=2) đều báo hết lượt ở dòng 2.
+    const t = setup({
+      rows: 3,
+      parallel: 1,
+      slow: { 1: 2, 2: 2, 3: 2 },
+      notice: (row) => (row === 2 ? "quota" : undefined),
+    });
+    addMuseAccount(t.db, "Tài khoản 2");
+    const batchId = await t.run([1, 2, 3]);
+    expect(getBatch(t.db, batchId)).toMatchObject({ status: "paused", pauseReason: "quota" });
+    expect(t.sends.map((s) => s.row)).toEqual([1, 2, 2]);
+    expect(states(t.db)).toEqual(["1:done", "2:paused_quota", "3:queued"]);
+    expect(getActiveMuseAccount(t.db).name).toBe("Tài khoản 2");
+    expect(listMuseAccounts(t.db).every((a) => !!a.quotaExhaustedAt)).toBe(true);
+  });
+});

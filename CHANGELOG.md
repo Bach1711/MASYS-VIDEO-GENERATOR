@@ -4,11 +4,12 @@ Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được �
 
 ## Chưa phát hành
 
-**Quản lý nhiều tài khoản Muse (Multi-Profile).**
+**Quản lý nhiều tài khoản Muse (Multi-Profile) và tự động đổi tài khoản khi hết token.**
 
 - Trang **⚙ Nâng cao → Bot Muse** có bảng **Tài khoản Muse (Multi-Profile)**: mỗi tài khoản dùng một hồ sơ Chrome riêng, tự giữ đăng nhập và cookie riêng. Tài khoản bạn đang đăng nhập từ trước giữ nguyên làm **Tài khoản 1**.
 - Bấm **+ Thêm tài khoản Muse**, rồi bấm **Mở trình duyệt** trên dòng tài khoản đó để tự đăng nhập Muse một lần.
 - Bấm **Dùng tài khoản này** để chuyển đổi qua lại giữa các tài khoản; có nút **Đặt lại hết lượt**, **Sửa → Lưu tên** và **Xoá**. Đầu trang Bảng video và Bảng ảnh hiện rõ tên tài khoản Muse đang dùng.
+- **Tự động đổi tài khoản khi hết token:** khi đang chạy lô (Bảng video, Bảng ảnh, Tạo nhân vật, Bảng theo sheet) mà tài khoản đang dùng báo hết lượt, tool chờ tải nốt các video/ảnh đã gửi đang làm dở trên tài khoản đó, rồi tự động đóng trình duyệt, chuyển sang tài khoản Muse tiếp theo chưa hết token và chạy tiếp các dòng còn lại. Chỉ khi mọi tài khoản đều hết lượt thì lô mới tạm dừng.
 
 ## v2.16.0
 

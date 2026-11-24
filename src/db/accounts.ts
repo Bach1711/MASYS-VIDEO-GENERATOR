@@ -155,3 +155,16 @@ export function setAccountQuotaExhausted(db: DB, at: string | null, accountId?: 
   const id = accountId ?? getActiveMuseAccount(db).id;
   db.prepare("UPDATE muse_accounts SET quotaExhaustedAt = ? WHERE id = ?").run(at, id);
 }
+
+/**
+ * Tìm tài khoản Muse tiếp theo chưa bị báo hết token (CON-218).
+ * Tìm theo vòng tròn bắt đầu từ tài khoản có `id > fromId`, rồi quay lại từ đầu danh sách.
+ * Nếu chỉ có 1 tài khoản hoặc mọi tài khoản khác đều đã hết token thì trả `undefined`.
+ */
+export function findNextAvailableAccount(db: DB, fromId?: number): MuseAccount | undefined {
+  const curId = fromId ?? getActiveMuseAccount(db).id;
+  const list = listMuseAccounts(db).filter((a) => a.id !== curId && !a.quotaExhaustedAt);
+  if (!list.length) return undefined;
+  return list.find((a) => a.id > curId) ?? list[0];
+}
+
