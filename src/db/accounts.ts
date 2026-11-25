@@ -1,3 +1,4 @@
+import net from "node:net";
 import path from "node:path";
 import type { DB } from "./index.js";
 import { setMuseReady } from "./settings.js";
@@ -33,8 +34,9 @@ export function accountNameProblem(raw: string): string | undefined {
 
 /**
  * Kiểm tra và phân tích chuỗi Proxy cho Playwright (`http://host:port`, `https://host:port`, `socks5://host:port`,
- * hỗ trợ `user:pass@host:port`, hoặc `host:port` không tiền tố tự hiểu là `http://host:port`).
- * Trả chuỗi chuẩn hoá hoặc lỗi tiếng Việt rõ ràng (CON-221).
+ * hỗ trợ `user:pass@host:port`, `host:port` không tiền tố, và định dạng 4 phần phổ biến ở Việt Nam `host:port:user:pass`
+ * hoặc `socks5://host:port:user:pass`).
+ * Trả chuỗi chuẩn hoá hoặc lỗi tiếng Việt rõ ràng (CON-221, CON-222).
  */
 export function parseProxyConfig(
   raw: string | null | undefined,
@@ -42,28 +44,162 @@ export function parseProxyConfig(
   const s = (raw ?? "").trim();
   if (!s) return { ok: true, normalized: null };
   if (s.length > MAX_PROXY_LEN) return { ok: false, message: `Địa chỉ Proxy tối đa ${MAX_PROXY_LEN} ký tự.` };
-  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : `http://${s}`;
+
+  let withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : `http://${s}`;
+  // Hỗ trợ định dạng 4 phần của các nhà cung cấp Proxy tại Việt Nam: [scheme://]host:port:user:pass
+  const colon4 = /^([a-z][a-z0-9+.-]*:\/\/)([^:@/\s]+):(\d{1,5}):([^:@/\s]+):(.+)$/i.exec(withScheme);
+  if (colon4) {
+    const [, scheme, host, port, user, pass] = colon4;
+    withScheme = `${scheme}${encodeURIComponent(user!)}:${encodeURIComponent(pass!)}@${host}:${port}`;
+  }
+
   let u: URL;
   try {
     u = new URL(withScheme);
   } catch {
-    return { ok: false, message: "Địa chỉ Proxy không hợp lệ (ví dụ đúng: http://127.0.0.1:8080 hoặc socks5://user:pass@host:1080)." };
+    return {
+      ok: false,
+      message: "Địa chỉ Proxy không hợp lệ (ví dụ đúng: 103.145.22.10:8080:user:pass hoặc http://user:pass@host:8080).",
+    };
   }
   const proto = u.protocol.toLowerCase();
   if (proto !== "http:" && proto !== "https:" && proto !== "socks5:" && proto !== "socks4:") {
     return { ok: false, message: "Proxy chỉ hỗ trợ giao thức http://, https://, socks5:// hoặc socks4://." };
   }
   if (!u.hostname || !u.port) {
-    return { ok: false, message: "Proxy cần có đủ địa chỉ máy chủ và cổng (ví dụ: http://127.0.0.1:8080)." };
+    return { ok: false, message: "Proxy cần có đủ địa chỉ máy chủ và cổng (ví dụ: 103.145.22.10:8080:user:pass hoặc http://127.0.0.1:8080)." };
   }
   const server = `${proto}//${u.hostname}:${u.port}`;
   const username = u.username ? decodeURIComponent(u.username) : undefined;
   const password = u.password ? decodeURIComponent(u.password) : undefined;
+  const authPart = username ? `${encodeURIComponent(username)}${password !== undefined ? `:${encodeURIComponent(password)}` : ""}@` : "";
+  const normalized = `${proto}//${authPart}${u.hostname}:${u.port}`;
   return {
     ok: true,
-    normalized: withScheme,
+    normalized,
     playwright: { server, ...(username ? { username } : {}), ...(password ? { password } : {}) },
   };
+}
+
+/**
+ * Kiểm tra kết nối thực tế tới máy chủ Proxy (hỗ trợ cả HTTP/HTTPS Proxy lẫn SOCKS5/SOCKS4 Proxy, kèm xác thực user/pass)
+ * để biết Proxy còn sống, đúng tài khoản/mật khẩu hay đã chết trước khi mở Chrome (CON-222).
+ */
+export async function testProxyConnection(
+  rawProxy: string | null | undefined,
+  timeoutMs = 5000,
+): Promise<{ ok: true; host: string; port: number; latencyMs: number; message: string } | { ok: false; message: string }> {
+  const parsed = parseProxyConfig(rawProxy);
+  if (!parsed.ok) return parsed;
+  if (!parsed.normalized || !parsed.playwright) {
+    return { ok: false, message: "Tài khoản này đang để Không proxy (chưa nhập địa chỉ Proxy để thử)." };
+  }
+  const u = new URL(parsed.playwright.server);
+  const host = u.hostname;
+  const port = Number(u.port);
+  const proto = u.protocol.toLowerCase();
+  const username = parsed.playwright.username;
+  const password = parsed.playwright.password ?? "";
+  const started = Date.now();
+
+  return await new Promise((resolve) => {
+    let settled = false;
+    const socket = new net.Socket();
+    const finish = (res: { ok: true; host: string; port: number; latencyMs: number; message: string } | { ok: false; message: string }) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(res);
+    };
+
+    socket.setTimeout(timeoutMs);
+    socket.once("timeout", () => finish({ ok: false, message: `Proxy ${host}:${port} quá thời gian chờ (${timeoutMs}ms) — kiểm tra lại IP/Port hoặc Proxy đã hết hạn.` }));
+    socket.once("error", (err) => finish({ ok: false, message: `Không kết nối được tới Proxy ${host}:${port} (${err.message}).` }));
+
+    socket.connect(port, host, () => {
+      const latencyMs = Math.max(1, Date.now() - started);
+      if (proto === "socks5:") {
+        // Gửi gói chào SOCKS5 (hỗ trợ No-Auth 0x00 và User/Pass 0x02)
+        const methods = username ? Buffer.from([0x05, 0x02, 0x00, 0x02]) : Buffer.from([0x05, 0x01, 0x00]);
+        socket.once("data", (chunk) => {
+          if (chunk.length < 2 || chunk[0] !== 0x05) {
+            return finish({ ok: false, message: `Proxy ${host}:${port} không phản hồi đúng giao thức SOCKS5.` });
+          }
+          if (chunk[1] === 0xff) {
+            return finish({ ok: false, message: `Proxy SOCKS5 ${host}:${port} từ chối phương thức đăng nhập (kiểm tra lại User/Pass).` });
+          }
+          if (chunk[1] === 0x02) {
+            const uBuf = Buffer.from(username ?? "", "utf8");
+            const pBuf = Buffer.from(password, "utf8");
+            const authReq = Buffer.concat([Buffer.from([0x01, uBuf.length]), uBuf, Buffer.from([pBuf.length]), pBuf]);
+            socket.once("data", (authRes) => {
+              if (authRes.length >= 2 && authRes[1] === 0x00) {
+                return finish({
+                  ok: true,
+                  host,
+                  port,
+                  latencyMs: Math.max(1, Date.now() - started),
+                  message: `Proxy SOCKS5 ${host}:${port} hoạt động tốt (xác thực thành công · ${Math.max(1, Date.now() - started)}ms).`,
+                });
+              }
+              return finish({ ok: false, message: `Proxy SOCKS5 ${host}:${port} báo sai tài khoản hoặc mật khẩu Proxy.` });
+            });
+            socket.write(authReq);
+            return;
+          }
+          return finish({
+            ok: true,
+            host,
+            port,
+            latencyMs,
+            message: `Proxy SOCKS5 ${host}:${port} hoạt động tốt (${latencyMs}ms).`,
+          });
+        });
+        socket.write(methods);
+        return;
+      }
+
+      if (proto === "http:" || proto === "https:") {
+        // Gửi thử HTTP request nhẹ qua Proxy để kiểm tra xác thực Proxy-Authorization (407 vs 200/301/302/400/405)
+        const authHeader = username
+          ? `Proxy-Authorization: Basic ${Buffer.from(`${username}:${password}`).toString("base64")}\r\n`
+          : "";
+        const req = `HEAD http://muse.ai/ HTTP/1.1\r\nHost: muse.ai\r\n${authHeader}Connection: close\r\n\r\n`;
+        socket.once("data", (chunk) => {
+          const firstLine = chunk.toString("latin1").split("\r\n")[0] ?? "";
+          if (/\b407\b/.test(firstLine)) {
+            return finish({ ok: false, message: `Proxy ${host}:${port} báo lỗi 407: cần hoặc sai tài khoản / mật khẩu Proxy.` });
+          }
+          if (/^HTTP\/1\.[01]\s+\d{3}/i.test(firstLine)) {
+            return finish({
+              ok: true,
+              host,
+              port,
+              latencyMs: Math.max(1, Date.now() - started),
+              message: `Proxy HTTP ${host}:${port} hoạt động tốt (${Math.max(1, Date.now() - started)}ms).`,
+            });
+          }
+          return finish({
+            ok: true,
+            host,
+            port,
+            latencyMs,
+            message: `Đã kết nối được tới Proxy ${host}:${port} (${latencyMs}ms).`,
+          });
+        });
+        socket.write(req);
+        return;
+      }
+
+      finish({
+        ok: true,
+        host,
+        port,
+        latencyMs,
+        message: `Đã kết nối được tới Proxy ${host}:${port} (${latencyMs}ms).`,
+      });
+    });
+  });
 }
 
 const ACCOUNT_COLS =
@@ -118,16 +254,24 @@ export function activeProfileDir(db: DB, dataDir: string): string {
   return resolveAccountProfileDir(dataDir, getActiveMuseAccount(db).profileDir);
 }
 
-export function addMuseAccount(db: DB, rawName: string): { ok: true; account: MuseAccount } | { ok: false; message: string } {
+export function addMuseAccount(
+  db: DB,
+  rawName: string,
+  rawProxy?: string,
+): { ok: true; account: MuseAccount } | { ok: false; message: string } {
   const problem = accountNameProblem(rawName);
   if (problem) return { ok: false, message: problem };
+  const proxyParsed = parseProxyConfig(rawProxy);
+  if (!proxyParsed.ok) return proxyParsed;
   const name = rawName.trim();
   const dup = db
     .prepare("SELECT id FROM muse_accounts WHERE deletedAt IS NULL AND lower(name) = lower(?)")
     .get(name) as { id: number } | undefined;
   if (dup) return { ok: false, message: `Đã có tài khoản tên "${name}".` };
   const account = db.transaction(() => {
-    const info = db.prepare("INSERT INTO muse_accounts (name, profileDir) VALUES (?, '')").run(name);
+    const info = db
+      .prepare("INSERT INTO muse_accounts (name, profileDir, proxy) VALUES (?, '', ?)")
+      .run(name, proxyParsed.normalized);
     const id = Number(info.lastInsertRowid);
     const rel = path.join("bot-profiles", `acc-${id}`);
     db.prepare("UPDATE muse_accounts SET profileDir = ? WHERE id = ?").run(rel, id);

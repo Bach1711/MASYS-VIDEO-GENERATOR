@@ -19,6 +19,7 @@ import {
   setAccountStreams,
   setAccountUsage,
   setActiveMuseAccount,
+  testProxyConnection,
   type MuseAccount,
 } from "../db/accounts.js";
 import { activeBatch } from "../db/history.js";
@@ -211,11 +212,31 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
                         )}
                       </td>
                       <td data-account-proxy={acc.id}>
-                        {acc.proxy ? (
-                          <code class="small">{acc.proxy.replace(/\/\/([^:@]+):([^@]+)@/, "//$1:***@")}</code>
-                        ) : (
-                          <span class="muted small">Không proxy</span>
-                        )}
+                        <div class="row" style="align-items:center;flex-wrap:nowrap;gap:4px">
+                          <form method="post" action="/bot/accounts/proxy" class="row" style="align-items:center;flex-wrap:nowrap;gap:4px">
+                            <input type="hidden" name="id" value={String(acc.id)} />
+                            <input
+                              type="text"
+                              name="proxy"
+                              value={(acc.proxy ?? "").replace(/\/\/([^:@]+):([^@]+)@/, "//$1:***@")}
+                              maxlength={200}
+                              placeholder="Không proxy (ip:port:user:pass)"
+                              aria-label={`Proxy cho ${acc.name}`}
+                              style="width:185px;padding:3px 6px;flex:none;font-size:12px"
+                            />
+                            <button type="submit" class="secondary small" disabled={!!locked} title="Lưu địa chỉ Proxy cho tài khoản này">
+                              Lưu
+                            </button>
+                          </form>
+                          {acc.proxy && (
+                            <form method="post" action="/bot/accounts/test-proxy">
+                              <input type="hidden" name="id" value={String(acc.id)} />
+                              <button type="submit" class="secondary small" title="Kiểm tra kết nối mạng qua Proxy của tài khoản này">
+                                Thử
+                              </button>
+                            </form>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <form method="post" action="/bot/accounts/streams" class="row" style="align-items:center;flex-wrap:nowrap">
@@ -281,21 +302,6 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
                                   Lưu tên
                                 </button>
                               </form>
-                              <form method="post" action="/bot/accounts/proxy" class="row" style="align-items:center">
-                                <input type="hidden" name="id" value={String(acc.id)} />
-                                <input
-                                  type="text"
-                                  name="proxy"
-                                  value={(acc.proxy ?? "").replace(/\/\/([^:@]+):([^@]+)@/, "//$1:***@")}
-                                  maxlength={200}
-                                  placeholder="Không proxy (http://host:port)"
-                                  aria-label={`Proxy cho ${acc.name}`}
-                                  style="width:190px;flex:none"
-                                />
-                                <button type="submit" class="secondary small" disabled={!!locked}>
-                                  Lưu Proxy
-                                </button>
-                              </form>
                               {accounts.length > 1 && (
                                 <form
                                   method="post"
@@ -326,6 +332,13 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
               maxlength={60}
               placeholder={`Tên tài khoản mới (ví dụ: Tài khoản ${accounts.length + 1})`}
               aria-label="Tên tài khoản Muse mới"
+            />
+            <input
+              type="text"
+              name="proxy"
+              maxlength={200}
+              placeholder="Proxy tuỳ chọn (ví dụ: 103.145.22.10:8080:user:pass hoặc để trống)"
+              aria-label="Proxy cho tài khoản mới"
             />
             <button type="submit">+ Thêm tài khoản Muse</button>
           </form>
@@ -440,10 +453,10 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
 
   app.post("/bot/accounts/add", async (c) => {
     const body = await c.req.parseBody();
-    const r = addMuseAccount(db, String(body.name ?? ""));
+    const r = addMuseAccount(db, String(body.name ?? ""), String(body.proxy ?? ""));
     if (!r.ok) return c.html(render(<Alert kind="warn">{r.message}</Alert>), 400);
-    logger.info({ accountId: r.account.id, name: r.account.name }, "Đã thêm tài khoản Muse");
-    return c.redirect(`/bot?ok=${encodeURIComponent(`Đã thêm tài khoản "${r.account.name}". Bấm Mở trình duyệt để đăng nhập Muse.`)}`, 303);
+    logger.info({ accountId: r.account.id, name: r.account.name, hasProxy: !!r.account.proxy }, "Đã thêm tài khoản Muse");
+    return c.redirect(`/bot?ok=${encodeURIComponent(`Đã thêm tài khoản "${r.account.name}"${r.account.proxy ? " (đã gắn Proxy)" : ""}. Bấm Mở trình duyệt để đăng nhập Muse.`)}`, 303);
   });
 
   app.post("/bot/accounts/select", async (c) => {
@@ -537,6 +550,16 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
       `/bot?ok=${encodeURIComponent(r.account.proxy ? `Đã lưu Proxy cho "${r.account.name}".` : `Đã đặt "${r.account.name}" về Không proxy.`)}`,
       303,
     );
+  });
+
+  app.post("/bot/accounts/test-proxy", async (c) => {
+    const body = await c.req.parseBody();
+    const id = Number(body.id);
+    const acc = getMuseAccount(db, id);
+    if (!acc) return c.html(render(<Alert kind="warn">Không tìm thấy tài khoản này.</Alert>), 400);
+    const res = await testProxyConnection(acc.proxy);
+    if (!res.ok) return c.html(render(<Alert kind="warn">{`${acc.name}: ${res.message}`}</Alert>), 400);
+    return c.redirect(`/bot?ok=${encodeURIComponent(`${acc.name}: ${res.message}`)}`, 303);
   });
 
   app.post("/bot/accounts/check-all", async (c) => {
