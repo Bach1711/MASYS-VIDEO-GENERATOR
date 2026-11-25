@@ -2,7 +2,7 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
-## Chưa phát hành
+## v2.18.1
 
 **Tối ưu gắn và kiểm tra Proxy đa luồng: tự nhận định dạng `IP:Port:User:Pass`, nhập trực tiếp trên bảng và có nút Thử Proxy.**
 
