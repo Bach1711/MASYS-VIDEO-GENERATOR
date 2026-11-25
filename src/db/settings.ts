@@ -32,14 +32,20 @@ export interface Settings {
   lastNhanVatId: number | null;
   /** Tài khoản Muse đang dùng (CON-217, bảng muse_accounts). */
   activeAccountId: number;
+  /** Tự thu nhỏ cửa sổ Chrome của bot xuống thanh Taskbar khi chạy lô tự động (CON-219): 1 = bật. */
+  hideBotWindow: number;
 }
 
 export function getSettings(db: DB): Settings {
   return db
     .prepare(
-      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt, bangTemplate, bangShirtTemplate, twoSidedTemplate, parallelVideos, hookOn, hookDayText, hookDay, imageTemplate, imageBackTemplate, dailyImageLimit, lastNhanVatId, activeAccountId FROM settings WHERE id = 1",
+      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt, bangTemplate, bangShirtTemplate, twoSidedTemplate, parallelVideos, hookOn, hookDayText, hookDay, imageTemplate, imageBackTemplate, dailyImageLimit, lastNhanVatId, activeAccountId, hideBotWindow FROM settings WHERE id = 1",
     )
     .get() as Settings;
+}
+
+export function setHideBotWindow(db: DB, hide: boolean): void {
+  db.prepare("UPDATE settings SET hideBotWindow = ? WHERE id = 1").run(hide ? 1 : 0);
 }
 
 export type ImageTemplateKind = "imageTemplate" | "imageBackTemplate";

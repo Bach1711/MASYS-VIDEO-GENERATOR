@@ -57,6 +57,8 @@ export interface MuseBotOptions {
   settleTimeoutMs?: number;
   /** Sau khi gửi, chờ ảnh đính kèm hiện trong khung chat tối đa chừng này (ms, CON-99). */
   sentImagesTimeoutMs?: number;
+  /** Tự thu nhỏ cửa sổ Chrome của bot xuống thanh Taskbar khi mở tự động (CON-219). */
+  hideWindow?: () => boolean;
 }
 
 /** Muse xoá nội dung ô chat trước khi gửi: điền lại tối đa chừng này lần trong cùng tab (CON-98). */
@@ -169,15 +171,56 @@ export class MuseBot {
     if (p && !p.isClosed()) await p.close().catch(() => {});
   }
 
-  /** Mở cửa sổ bot (để người dùng đăng nhập hoặc xem), đưa lên trước. */
-  async open(): Promise<void> {
+  private shouldHideWindow(): boolean {
+    return !this.o.headless && (this.o.hideWindow?.() ?? false);
+  }
+
+  /**
+   * Đặt trạng thái cửa sổ Chrome ("minimized" = thu nhỏ xuống Taskbar, "normal" = hiện lại trên màn hình) qua CDP (CON-219).
+   */
+  private async setWindowState(page: Page, windowState: "minimized" | "normal"): Promise<void> {
+    if (this.o.headless) return;
+    try {
+      const cdp = await page.context().newCDPSession(page);
+      try {
+        const { windowId } = (await cdp.send("Browser.getWindowForTarget")) as { windowId: number };
+        await cdp.send("Browser.setWindowBounds", { windowId, bounds: { windowState } });
+      } finally {
+        await cdp.detach().catch(() => {});
+      }
+    } catch {
+      /* không hỗ trợ hoặc cửa sổ đã đóng: bỏ qua */
+    }
+  }
+
+  /** Thu nhỏ cửa sổ Chrome của bot xuống thanh Taskbar nếu bật chế độ ẩn cửa sổ (CON-219). */
+  async minimizeWindow(): Promise<void> {
+    if (!this.ctx || !this.shouldHideWindow()) return;
+    const p = this.ctx.pages().find((x) => !x.isClosed());
+    if (p) await this.setWindowState(p, "minimized");
+  }
+
+  /**
+   * Mở cửa sổ bot. `interactive = true` (mặc định khi người dùng bấm nút Mở trình duyệt): khôi phục và đưa cửa sổ lên trước.
+   * `interactive = false` (hàng đợi tự mở để chạy lô, CON-219): nếu bật ẩn cửa sổ thì thu nhỏ xuống Taskbar.
+   */
+  async open(opts: { interactive?: boolean } = {}): Promise<void> {
+    const interactive = opts.interactive ?? true;
     const page = await this.page();
     if (page.url() === "about:blank") await page.goto(this.o.museUrl(), { waitUntil: "domcontentloaded" });
-    await page.bringToFront();
+    if (!interactive && this.shouldHideWindow()) {
+      await this.setWindowState(page, "minimized");
+    } else {
+      await this.setWindowState(page, "normal");
+      await page.bringToFront();
+    }
   }
 
   async bringToFront(): Promise<void> {
-    if (this.ctx) await (await this.page()).bringToFront().catch(() => {});
+    if (!this.ctx) return;
+    const page = await this.page();
+    await this.setWindowState(page, "normal");
+    await page.bringToFront().catch(() => {});
   }
 
   /**
@@ -389,7 +432,8 @@ export class MuseBot {
     const state = await this.classify(page);
     const result: CheckResult = { state, url: stripQuery(page.url()) };
     if (state === "ui_changed") result.screenshot = await this.screenshot(page, "ui_changed");
-    if (state !== "ready") await page.bringToFront().catch(() => {});
+    if (state !== "ready") await this.bringToFront().catch(() => {});
+    else if (this.shouldHideWindow()) await this.setWindowState(page, "minimized");
     return result;
   }
 
@@ -453,7 +497,10 @@ export class MuseBot {
 
   private async fail(page: Page, code: BotErrorCode, message: string, sent: boolean): Promise<never> {
     const shot = await this.screenshot(page, code);
-    await page.bringToFront().catch(() => {});
+    if (code === "login" || code === "challenge" || !this.shouldHideWindow()) {
+      await this.setWindowState(page, "normal");
+      await page.bringToFront().catch(() => {});
+    }
     throw new BotError(code, message, sent, shot);
   }
 

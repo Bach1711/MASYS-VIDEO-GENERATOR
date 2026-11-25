@@ -18,7 +18,7 @@ import {
 import { activeBatch } from "../db/history.js";
 import type { DB } from "../db/index.js";
 import { getDailyQuota } from "../db/quota.js";
-import { rememberMuseCheck, setMuseReady } from "../db/settings.js";
+import { getSettings, rememberMuseCheck, setHideBotWindow, setMuseReady } from "../db/settings.js";
 import { listSheetConfigs, sheetName } from "../db/sheetConfigs.js";
 import { logger } from "../logger.js";
 import type { BatchRunner } from "../queue/runner.js";
@@ -237,6 +237,17 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
               </form>
             )}
           </div>
+          <form method="post" action="/bot/hide-window" class="row" style="margin-top:12px;align-items:center">
+            <input type="hidden" name="hide" value={getSettings(db).hideBotWindow ? "0" : "1"} />
+            <label class="inline">
+              <input
+                type="checkbox"
+                checked={getSettings(db).hideBotWindow === 1}
+                onchange="this.form.submit()"
+              />{" "}
+              Tự thu nhỏ (ẩn) cửa sổ Chrome xuống thanh Taskbar khi chạy lô tự động (chỉ hiện lên khi cần đăng nhập hoặc bấm Mở trình duyệt)
+            </label>
+          </form>
         </section>
 
         <section class="card">
@@ -397,6 +408,14 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
     await bot?.close();
     lastCheck = undefined;
     return c.redirect("/bot", 303);
+  });
+
+  app.post("/bot/hide-window", async (c) => {
+    const hide = (await c.req.parseBody()).hide === "1";
+    setHideBotWindow(db, hide);
+    if (hide) await bot?.minimizeWindow();
+    else await bot?.bringToFront();
+    return c.redirect(`/bot?ok=${encodeURIComponent(hide ? "Đã bật tự thu nhỏ cửa sổ Chrome khi chạy lô." : "Đã tắt tự thu nhỏ cửa sổ Chrome.")}`, 303);
   });
 
   app.post("/bot/send", async (c) => {

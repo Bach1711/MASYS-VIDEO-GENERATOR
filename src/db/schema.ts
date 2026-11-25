@@ -297,4 +297,8 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE runs ADD COLUMN accountId INTEGER;
   ALTER TABLE runs ADD COLUMN accountName TEXT;
   `,
+  // 21. Tự thu nhỏ cửa sổ Chrome của bot khi chạy lô tự động (CON-219): mặc định bật (1).
+  `
+  ALTER TABLE settings ADD COLUMN hideBotWindow INTEGER NOT NULL DEFAULT 1;
+  `,
 ];

@@ -50,6 +50,7 @@ const bot = new MuseBot({
   profileDir: () => activeProfileDir(db, config.dataDir),
   screenshotDir: config.screenshotDir,
   museUrl: () => getSettings(db).museUrl ?? DEFAULT_MUSE_URL,
+  hideWindow: () => getSettings(db).hideBotWindow === 1,
 });
 
 // Hàng đợi chạy lô (CON-40). Lô đang chạy dở khi tool tắt: theo dõi nốt dòng đã gửi, không gửi lại.

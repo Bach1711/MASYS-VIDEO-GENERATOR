@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **24/11/2026**, CON-217 (Quản lý nhiều tài khoản Muse theo cơ chế Multi-Profile) và CON-218 (Tự động đổi sang tài khoản Muse tiếp theo khi hết token) đã phát hành trong v2.17.0. Trước đó CON-138 (Muse luôn tạo ảnh và gửi vào khung chat trước rồi mới tạo video) đã phát hành trong v2.16.0. Trước đó CON-137 (Muse chèn hook theo clip mẫu bằng tin thứ hai trong cùng cuộc trò chuyện, bỏ ghép trên máy) đã phát hành trong v2.15.0. Trước đó CON-135 (bật Thêm hook thì cột Video không còn bị khuất; ô Video chỉ hiện bản có hook) và CON-136 (đã bật Thêm hook thì Tạo video luôn ghép hook, ô "Clip có chữ sẵn") đã phát hành trong v2.14.0. Trước đó phát hành v2.13.0 (CON-112: nút Bỏ chọn, giữ dòng đã chọn khi đổi trang, tải các dòng đã chọn thành một file zip; CON-113: cột Người mẫu tự điền từ Bảng ảnh, video tự đặt tên "Tên người mẫu + STT"). Trước đó phát hành v2.12.0 (CON-107: Bảng video chọn tất cả, chọn dòng xong, tải các dòng đã chọn). Trước đó phát hành v2.11.0 (CON-98, CON-99, CON-100). Trước đó CON-89, CON-90 và CON-91 (v2.10.0 đã phát hành: câu không hỏi lại, hủy lô dừng ngay, Bảng video tự chạy lại dòng lỗi). Trước đó CON-88 và CON-87 (v2.9.0 đã phát hành: tải ảnh ngay trên ô ảnh, ảnh face khung dọc 9:16). Trước đó CON-85 (v2.8.0 đã phát hành: nút Xem prompt, thẻ nhân vật có ảnh gốc, khung ảnh trong prompt). Trước đó CON-82 (v2.7.0 đã phát hành: tạo nhân vật chạy tự động đến hết). Trước đó CON-81 (v2.6.0 đã phát hành: tạo nhân vật ngay trong app bằng Muse). Trước đó CON-80 (v2.5.0 đã phát hành: nhân vật có ảnh 4 góc + ảnh mặt). Trước đó CON-78 (v2.4.0 đã phát hành: xuất ảnh từ Bảng ảnh sang Bảng video). Từ nay nhiều ticket gom vào một bản phát hành khi người phụ trách nói "phát hành". Trước đó CON-79 (v2.3.1 đã phát hành: sửa lỗi huỷ lô chặn cập nhật), CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **25/11/2026**, CON-219 (Tự thu nhỏ cửa sổ Chrome khi chạy lô và tự trả lời thúc giục khi Muse hỏi lại) đang chờ duyệt; trước đó CON-217 và CON-218 đã phát hành trong v2.17.0. Trước đó CON-138 (Muse luôn tạo ảnh và gửi vào khung chat trước rồi mới tạo video) đã phát hành trong v2.16.0. Trước đó CON-137 (Muse chèn hook theo clip mẫu bằng tin thứ hai trong cùng cuộc trò chuyện, bỏ ghép trên máy) đã phát hành trong v2.15.0. Trước đó CON-135 (bật Thêm hook thì cột Video không còn bị khuất; ô Video chỉ hiện bản có hook) và CON-136 (đã bật Thêm hook thì Tạo video luôn ghép hook, ô "Clip có chữ sẵn") đã phát hành trong v2.14.0. Trước đó phát hành v2.13.0 (CON-112: nút Bỏ chọn, giữ dòng đã chọn khi đổi trang, tải các dòng đã chọn thành một file zip; CON-113: cột Người mẫu tự điền từ Bảng ảnh, video tự đặt tên "Tên người mẫu + STT"). Trước đó phát hành v2.12.0 (CON-107: Bảng video chọn tất cả, chọn dòng xong, tải các dòng đã chọn). Trước đó phát hành v2.11.0 (CON-98, CON-99, CON-100). Trước đó CON-89, CON-90 và CON-91 (v2.10.0 đã phát hành: câu không hỏi lại, hủy lô dừng ngay, Bảng video tự chạy lại dòng lỗi). Trước đó CON-88 và CON-87 (v2.9.0 đã phát hành: tải ảnh ngay trên ô ảnh, ảnh face khung dọc 9:16). Trước đó CON-85 (v2.8.0 đã phát hành: nút Xem prompt, thẻ nhân vật có ảnh gốc, khung ảnh trong prompt). Trước đó CON-82 (v2.7.0 đã phát hành: tạo nhân vật chạy tự động đến hết). Trước đó CON-81 (v2.6.0 đã phát hành: tạo nhân vật ngay trong app bằng Muse). Trước đó CON-80 (v2.5.0 đã phát hành: nhân vật có ảnh 4 góc + ảnh mặt). Trước đó CON-78 (v2.4.0 đã phát hành: xuất ảnh từ Bảng ảnh sang Bảng video). Từ nay nhiều ticket gom vào một bản phát hành khi người phụ trách nói "phát hành". Trước đó CON-79 (v2.3.1 đã phát hành: sửa lỗi huỷ lô chặn cập nhật), CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v6.3 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 49/49 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 5/5 🎉 · GĐ6 25/25 🎉 · GĐ7 2/2 🎉
+**Tổng quan:** 49/52 ticket xong (1 chờ duyệt, 2 chưa làm) · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 5/5 🎉 · GĐ6 25/25 🎉 · GĐ7 2/5
 
 ```
-[■■■■■■■■■■]  49/49 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-85, CON-87…CON-91, CON-98…CON-100, CON-107, CON-112, CON-113, CON-135, CON-136, CON-137, CON-138, CON-217, CON-218
+[■■■■■■■■■□]  49/52 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-85, CON-87…CON-91, CON-98…CON-100, CON-107, CON-112, CON-113, CON-135, CON-136, CON-137, CON-138, CON-217, CON-218; chờ duyệt CON-219; chưa làm CON-220, CON-221
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -70,6 +70,9 @@ flowchart LR
         anhtruoc["Muse luôn tạo ảnh trước,<br/>rồi tạo video từ ảnh đó<br/>CON-138"]
         multiacc["Quản lý nhiều tài khoản Muse<br/>(Multi-Profile)<br/>CON-217"]
         autoswitch["Tự động đổi tài khoản Muse<br/>khi hết token<br/>CON-218"]
+        hidewin["Tự thu nhỏ cửa sổ Chrome &<br/>tự trả lời khi Muse hỏi lại<br/>CON-219"]
+        roundrobin["Chạy song song nhiều tài khoản<br/>(Luân phiên, 20–30 luồng)<br/>CON-220"]
+        usageproxy["Đọc % token còn lại &<br/>Proxy riêng từng tài khoản<br/>CON-221"]
         logo["Logo MASYS: tab Chrome,<br/>thanh trên cùng, Trang chủ<br/>CON-48"]
         shirt["Ghép ảnh áo: cột Ảnh áo,<br/>ảnh thu nhỏ, đoạn ghép áo<br/>trong yêu cầu gửi Muse<br/>CON-46"]
     end
@@ -138,6 +141,9 @@ flowchart LR
     musehook --> anhtruoc
     bot --> multiacc
     multiacc --> autoswitch
+    autoswitch --> hidewin
+    autoswitch --> roundrobin
+    roundrobin --> usageproxy
     scan --> shirt
     editor --> shirt
 
@@ -192,6 +198,9 @@ flowchart LR
     class anhtruoc done
     class multiacc done
     class autoswitch done
+    class hidewin review
+    class roundrobin todo
+    class usageproxy todo
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -275,8 +284,13 @@ flowchart LR
 | 47 | [CON-138](https://linear.app/conducdaudan/issue/CON-138) | Bảng video: Muse luôn tạo ảnh và gửi vào khung chat trước, rồi mới tạo video từ ảnh đó (v2.16.0) | 🟩 Xong | [#61](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/61) | 10/11/2026 |
 | 48 | [CON-217](https://linear.app/conducdaudan/issue/CON-217) | Quản lý nhiều tài khoản Muse (Multi-Profile): thêm, đăng nhập và chuyển đổi hồ sơ Chrome riêng (v2.17.0) | 🟩 Xong | [#63](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/63) | 24/11/2026 |
 | 49 | [CON-218](https://linear.app/conducdaudan/issue/CON-218) | Tự động đổi sang tài khoản Muse tiếp theo khi tài khoản đang chạy hết token (v2.17.0) | 🟩 Xong | [#64](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/64) | 24/11/2026 |
+| 50 | [CON-219](https://linear.app/conducdaudan/issue/CON-219) | Bot Muse: tự thu nhỏ cửa sổ Chrome khi chạy lô và tự trả lời thúc giục khi Muse hỏi lại | 🟦 Chờ duyệt | | |
+| 51 | [CON-220](https://linear.app/conducdaudan/issue/CON-220) | Chạy song song nhiều tài khoản Muse cùng lúc (chế độ Luân phiên / Lần lượt, tổng luồng tới 20–30 video) | ⬜ Chưa làm | | |
+| 52 | [CON-221](https://linear.app/conducdaudan/issue/CON-221) | Trang Tài khoản Muse: đọc % token / hạn mức còn lại, kiểm tra tất cả phiên và gắn Proxy riêng | ⬜ Chưa làm | | |
 
 ## Nhật ký cập nhật
+
+- **25/11/2026 · CON-219** (chờ duyệt): tự thu nhỏ (minimize) cửa sổ Chrome của bot xuống thanh Taskbar khi chạy lô tự động hoặc sau khi kiểm tra thấy đã đăng nhập xong (bật/tắt ở trang Bot Muse, mặc định bật); khi người dùng bấm Mở trình duyệt hoặc Muse đòi đăng nhập/captcha thì cửa sổ tự hiện lại. Trong lúc chờ video, nếu Muse hỏi lại (`asking`) thay vì làm, bot tự gửi tin trả lời thúc giục *"Được, hãy làm ngay theo đúng yêu cầu trên, không cần hỏi lại."* ngay trong cuộc trò chuyện đó (tối đa 2 lần) trước khi coi là thất bại.
 
 - **24/11/2026 · Phát hành v2.17.0** (CON-217 + CON-218).
 - **24/11/2026 · CON-218** (xong, đã gộp vào main, đã phát hành v2.17.0): khi đang chạy lô (Bảng video, Bảng ảnh, Tạo nhân vật, Bảng theo sheet) mà tài khoản đang dùng báo hết lượt (`quota`), tool ngừng gửi mới trên tài khoản đó, chờ tải nốt các tab đã gửi đang chạy dở, đánh dấu tài khoản hết token, rồi tự động đóng trình duyệt, chuyển sang tài khoản Muse tiếp theo chưa hết token và chạy tiếp các dòng còn lại (kể cả dòng vừa bị báo hết lượt). Ghi lại tên tài khoản vào từng lượt (`runs.accountId`, `runs.accountName`). Khi mọi tài khoản đều hết lượt thì lô mới tạm dừng.
