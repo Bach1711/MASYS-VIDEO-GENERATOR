@@ -36,8 +36,8 @@ interface Opts {
   onSend?: (count: number) => void;
   /** Lần gửi thứ mấy của dòng nào thì lỗi. */
   sendFail?: (row: number, nth: number) => BotError | undefined;
-  /** Muse hiện thông báo gì ở dòng này, lần gửi thứ mấy. */
-  notice?: (row: number, nth: number) => WatchResult["notice"];
+  /** Muse hiện thông báo gì ở dòng này, lần gửi thứ mấy, và sau bao nhiêu lần đã trả lời thúc giục. */
+  notice?: (row: number, nth: number, nudges: number) => WatchResult["notice"];
   /** Bot treo khi đang gửi; đóng cửa sổ thì báo lỗi này. */
   hangSend?: BotError;
 }
@@ -50,18 +50,25 @@ function setup(o: Opts = {}) {
   for (let id = 1; id <= (o.rows ?? 5); id++) addRow(db, { prompt: `dòng ${id} nhìn máy quay`, modelFront: files.saveImage(`${id}-mau-truoc`, PNG) });
   db.prepare("UPDATE settings SET parallelVideos = ? WHERE id = 1").run(o.parallel ?? 3);
 
-  const tabs = new Map<string, { row: number; polls: number }>();
+  const tabs = new Map<string, { row: number; polls: number; nudges: number }>();
   const sends: { row: number; tab: string }[] = [];
-  const opened: { url: string; tab?: string }[] = [];
+  const replies: { row: number; tab: string; text: string }[] = [];
+  const opened: { url: string; tab?: string; interactive?: boolean }[] = [];
   const closed: string[] = [];
   let maxOpen = 0;
   let tries = 0;
   let closes = 0;
+  let minimizes = 0;
   let closeBot = () => {};
   const perRow = new Map<number, number>();
   const bot: MuseDriver = {
     isOpen: true,
-    async open() {},
+    async open(opts?: { interactive?: boolean }) {
+      if (opts?.interactive === false) minimizes++;
+    },
+    async minimizeWindow() {
+      minimizes++;
+    },
     async bringToFront() {},
     async close() {
       closes++;
@@ -80,21 +87,27 @@ function setup(o: Opts = {}) {
       sends.push({ row, tab: tab! });
       const bad = o.sendFail?.(row, nth);
       if (bad) throw bad;
-      tabs.set(tab!, { row, polls: 0 });
+      tabs.set(tab!, { row, polls: 0, nudges: 0 });
       maxOpen = Math.max(maxOpen, tabs.size);
       o.onSend?.(sends.length);
       return { chatUrl: chatOf(row) };
+    },
+    async reply(text: string, tab: string) {
+      const t = tabs.get(tab);
+      if (!t) throw new BotError("closed", "Tab đã đóng", false);
+      t.nudges++;
+      replies.push({ row: t.row, tab, text });
     },
     async watch(tab?: string): Promise<WatchResult> {
       const t = tabs.get(tab!);
       if (!t) return { closed: true, login: false, approval: false };
       t.polls++;
-      const notice = o.notice?.(t.row, perRow.get(t.row) ?? 0);
+      const notice = o.notice?.(t.row, perRow.get(t.row) ?? 0, t.nudges);
       return { closed: false, login: false, approval: false, notice, videos: !notice && t.polls >= (o.slow?.[t.row] ?? 30) ? 1 : 0, url: chatOf(t.row) };
     },
     async openChat(url: string, tab?: string) {
       opened.push({ url, tab });
-      tabs.set(tab!, { row: Number(/row(\d+)/.exec(url)![1]), polls: 0 });
+      tabs.set(tab!, { row: Number(/row(\d+)/.exec(url)![1]), polls: 0, nudges: 0 });
       maxOpen = Math.max(maxOpen, tabs.size);
     },
     async downloadVideo(tab?: string) {
@@ -118,7 +131,7 @@ function setup(o: Opts = {}) {
     const name = getRow(db, row)!.videoFile;
     return name ? fs.readFileSync(path.join(dataDir, "tep", "video", name)).at(-1) : undefined;
   };
-  return { db, runner, run, batchOf, sends, opened, closed, videoRow, maxOpen: () => maxOpen, tabs, closes: () => closes };
+  return { db, runner, run, batchOf, sends, replies, opened, closed, videoRow, maxOpen: () => maxOpen, tabs, closes: () => closes, minimizes: () => minimizes };
 }
 
 const states = (db: DB) => (db.prepare("SELECT bangRowId AS row, state FROM runs ORDER BY bangRowId").all() as { row: number; state: string }[]).map((r) => `${r.row}:${r.state}`);
@@ -267,13 +280,25 @@ describe("Bảng video tự chạy lại dòng lỗi (CON-91)", () => {
     expect(states(t.db)).toEqual(["1:done"]);
   });
 
-  it("Muse hỏi lại: chờ thêm rồi mới coi là thất bại, đóng tab, chạy lại trong cuộc trò chuyện mới", async () => {
+  it("Muse hỏi lại: tự trả lời thúc giục ngay trong cuộc trò chuyện (CON-219); nhắc 2 lần vẫn hỏi lại thì đóng tab, chạy lại trong cuộc trò chuyện mới (CON-91)", async () => {
+    // Lần 1 (nth === 1): dù nhắc 2 lần Muse vẫn hỏi lại → thất bại lần 1, mở cuộc trò chuyện mới (nth === 2) thì xong.
     const t = setup({ rows: 1, slow: { 1: 2 }, notice: (_r, nth) => (nth === 1 ? "asking" : undefined) });
     await t.run([1]);
+    expect(t.replies).toHaveLength(2);
     expect(t.sends).toHaveLength(2);
     expect(t.closed).toHaveLength(2);
     expect(states(t.db)).toEqual(["1:done"]);
     expect(getDailyQuota(t.db).used).toBe(2);
+  });
+
+  it("Muse hỏi lại nhưng sau khi tự trả lời thúc giục lần 1 thì làm luôn video: xong ngay trong cùng cuộc trò chuyện, không tốn thêm lượt mới (CON-219)", async () => {
+    const t = setup({ rows: 1, slow: { 1: 2 }, notice: (_r, _nth, nudges) => (nudges < 1 ? "asking" : undefined) });
+    await t.run([1]);
+    expect(t.replies).toHaveLength(1);
+    expect(t.sends).toHaveLength(1);
+    expect(states(t.db)).toEqual(["1:done"]);
+    expect(getDailyQuota(t.db).used).toBe(1);
+    expect(t.minimizes()).toBeGreaterThan(0);
   });
 
   it("Muse báo lỗi: chạy lại; Muse từ chối: không chạy lại", async () => {

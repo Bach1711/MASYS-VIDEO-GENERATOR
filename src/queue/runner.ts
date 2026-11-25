@@ -28,7 +28,8 @@ import { isRunningStatus, STATUS_RUNNING } from "../scan/labels.js";
 /** Phần của bot mà hàng đợi dùng (MuseBot thật hoặc bản giả trong test). */
 export interface MuseDriver {
   readonly isOpen: boolean;
-  open(): Promise<void>;
+  open(opts?: { interactive?: boolean }): Promise<void>;
+  minimizeWindow?(): Promise<void>;
   /**
    * `files`: ảnh đính kèm theo đúng thứ tự (Bảng mới); bot chỉ bấm Gửi khi Muse hiện đủ ảnh.
    * `tab`: tab riêng của lượt (Bảng, D28); không có = trang làm việc chung (lô theo sheet).
@@ -57,6 +58,9 @@ export interface MuseDriver {
 export const MAX_ATTEMPTS = 3;
 /** Chưa bấm Gửi mà tab hỏng (Muse trắng trang): đóng tab, mở tab mới, tối đa chừng này tab cho một lần gửi (CON-98). */
 export const MAX_SEND_TABS = 3;
+/** Muse hỏi lại thay vì tạo video: tự trả lời thúc giục ngay trong cuộc trò chuyện tối đa chừng này lần trước khi coi là thất bại (CON-219). */
+export const MAX_NUDGES = 2;
+export const NUDGE_PROMPT = "Được, hãy làm ngay theo đúng yêu cầu trên, không cần hỏi lại.";
 const MAX_FAILED_ROWS = 3;
 
 export type PauseReason = "muse_down" | "user" | "login" | "ui" | "quota" | "limit" | "image_limit" | "row_shift" | "other_cells" | "google" | "restart";
@@ -174,8 +178,9 @@ interface Inflight {
   deadline: number;
   approval: boolean;
   loginNoted: boolean;
-  /** Bảng video: lúc bắt đầu thấy Muse hỏi lại (CON-91). */
+  /** Bảng video: lúc bắt đầu thấy Muse hỏi lại (CON-91) và số lần đã tự trả lời thúc giục (CON-219). */
   askingSince?: number;
+  nudges?: number;
   /** Bảng ảnh: danh sách ảnh mới thấy ở lần xem trước; giống hệt lần này thì coi như Muse đã tạo xong (không còn đổi). */
   seen?: string;
 }
@@ -418,7 +423,8 @@ export class BatchRunner {
     }
     if (mode === "watch") return;
 
-    if (!this.bot.isOpen) await this.bot.open();
+    if (!this.bot.isOpen) await this.bot.open({ interactive: false });
+    else await this.bot.minimizeWindow?.();
     let previousSent = false;
     for (;;) {
       if (this.stopRequested()) return this.setBatch(batchId, "paused", "user");
@@ -1005,7 +1011,8 @@ export class BatchRunner {
   /** Spec 17.5 bước 2–4: sentAt ghi trước khi bấm Gửi; bot mở cuộc trò chuyện mới trong tab riêng, đính kèm ảnh, chỉ gửi khi Muse hiện đủ ảnh. */
   private async sendNew(run: RunRow, files: string[], what = "video"): Promise<SendOutcome> {
     if (this.canceling()) return {}; // Dòng còn ở bước kiểm tra: Huỷ lô chuyển nó thành Đã huỷ.
-    if (!this.bot.isOpen) await this.bot.open();
+    if (!this.bot.isOpen) await this.bot.open({ interactive: false });
+    else await this.bot.minimizeWindow?.();
     const tab = tabOf(run.id);
     const acc = getActiveMuseAccount(this.db);
     const waiting = (): Inflight => ({ run: { ...run, state: "waiting" }, tab, deadline: Date.now() + this.timeoutMs(), approval: false, loginNoted: false });
@@ -1126,7 +1133,7 @@ export class BatchRunner {
 
   private async reopenChat(url: string, tab?: string): Promise<boolean> {
     try {
-      if (!this.bot.isOpen) await this.bot.open();
+      if (!this.bot.isOpen) await this.bot.open({ interactive: false });
       await this.bot.openChat(url, tab);
       return true;
     } catch (e) {
@@ -1228,7 +1235,29 @@ export class BatchRunner {
     };
     const hookPhase = !anh && run.anhPhase === HOOK_PHASE;
     if (!anh) {
-      // Muse hỏi lại hoặc chờ duyệt (CON-91): chờ thêm một lúc phòng nhận nhầm, vẫn vậy thì coi là thất bại.
+      // Muse hỏi lại hoặc chờ duyệt (CON-91, CON-219):
+      // - Nếu Muse hỏi lại (notice === "asking") và có bot.reply: tự gửi tin trả lời thúc giục tối đa MAX_NUDGES lần
+      //   ngay trong cuộc trò chuyện đó để không mất oan lượt đã gửi.
+      // - Đã thúc giục đủ MAX_NUDGES lần (hoặc đang chờ duyệt / không gửi được) thì chờ đủ 2 phút rồi tính là thất bại.
+      if (w.notice === "asking" && !w.approval && this.bot.reply && (f.nudges ?? 0) < MAX_NUDGES) {
+        const nth = (f.nudges ?? 0) + 1;
+        f.nudges = nth;
+        try {
+          await this.bot.reply(NUDGE_PROMPT, f.tab);
+          f.askingSince = undefined;
+          logRunEvent(this.db, run.id, "waiting", `Muse hỏi lại → đã tự trả lời thúc giục "${NUDGE_PROMPT}" (lần ${nth}/${MAX_NUDGES})`);
+          return { finished: false };
+        } catch (e) {
+          const err = e instanceof BotError ? e : undefined;
+          if (err?.code === "quota") {
+            setAccountQuotaExhausted(this.db, now());
+            if (hookPhase) return { ...hookFail("Muse hết lượt", "paused_quota"), pause: "quota" };
+            moveRun(this.db, run.id, "waiting", "paused_quota", "Muse báo hết lượt", { error: "Muse hết lượt" });
+            return { finished: true, pause: "quota" };
+          }
+          logger.warn({ err: e, runId: run.id, nth }, "Không gửi được tin thúc giục khi Muse hỏi lại");
+        }
+      }
       if (w.notice === "asking" || w.approval) {
         f.askingSince ??= Date.now();
         if (Date.now() - f.askingSince >= 2 * (this.o.minuteMs ?? 60_000)) {

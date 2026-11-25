@@ -2,6 +2,13 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+**Tự thu nhỏ cửa sổ Chrome khi chạy lô và tự trả lời thúc giục khi Muse hỏi lại.**
+
+- **Tự thu nhỏ cửa sổ Chrome của bot xuống thanh Taskbar:** khi chạy lô tự động (hoặc sau khi bấm *Kiểm tra trạng thái* thấy đã đăng nhập xong), cửa sổ Chrome tự động thu nhỏ xuống thanh Taskbar để không nhảy đè lên màn hình làm việc. Khi bạn bấm **Mở trình duyệt** hoặc khi Muse cần đăng nhập / giải mã bảo mật, cửa sổ sẽ tự hiện lên lại. Có thể bật/tắt ở **⚙ Nâng cao → Bot Muse**.
+- **Tự trả lời thúc giục khi Muse hỏi lại:** trong lúc chờ video, nếu Muse không làm ngay mà hỏi vặn lại, bot tự động gửi tin trả lời *"Được, hãy làm ngay theo đúng yêu cầu trên, không cần hỏi lại."* ngay trong cuộc trò chuyện đó (tối đa 2 lần) để Muse làm tiếp mà không mất lượt đã gửi.
+
 ## v2.17.0
 
 **Quản lý nhiều tài khoản Muse (Multi-Profile) và tự động đổi tài khoản khi hết token.**
