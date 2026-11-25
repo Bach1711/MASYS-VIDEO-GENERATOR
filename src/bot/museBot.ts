@@ -81,7 +81,16 @@ export const CLIP_ATTACH_MS = 120_000;
 /**
  * Điều khiển Chrome bằng hồ sơ bot riêng (ngoài repo). Không gõ mật khẩu, không vượt captcha (D6),
  * không đọc cookie: phiên đăng nhập chỉ nằm trong hồ sơ bot.
+ * Từ CON-220: hỗ trợ mở đồng thời nhiều hồ sơ Chrome (mỗi tài khoản một `BrowserContext` riêng trong `contexts`)
+ * khi chạy chế độ Luân phiên nhiều tài khoản; các tab kiểu `acc-<accountId>-run-<runId>` tự động định tuyến về đúng
+ * hồ sơ Chrome của tài khoản đó.
  */
+interface ProfileEntry {
+  ctx?: BrowserContext;
+  opening?: Promise<BrowserContext>;
+  busy: boolean;
+}
+
 export class MuseBot {
   private ctx?: BrowserContext;
   private opening?: Promise<BrowserContext>;
@@ -92,11 +101,14 @@ export class MuseBot {
   private tabs = new Map<string, Page>();
   /** Thư mục hồ sơ Chrome đang mở thực tế (CON-217). */
   private openedProfileDir?: string;
+  /** Các hồ sơ Chrome phụ mở đồng thời theo thư mục hồ sơ khi chạy Luân phiên nhiều tài khoản (CON-220). */
+  private extraProfiles = new Map<string, ProfileEntry>();
+  private profileByTab = new Map<string, string>();
 
-  constructor(private readonly o: MuseBotOptions) {}
+  constructor(private readonly o: MuseBotOptions & { profileDirForTab?: (tab?: string) => string }) {}
 
   get isOpen() {
-    return !!this.ctx;
+    return !!this.ctx || [...this.extraProfiles.values()].some((e) => !!e.ctx);
   }
 
   get isBusy() {
@@ -108,40 +120,70 @@ export class MuseBot {
     return this.openedProfileDir ?? this.resolveProfileDir();
   }
 
-  private resolveProfileDir(): string {
+  private resolveProfileDir(tab?: string): string {
+    if (tab && this.profileByTab.has(tab)) return this.profileByTab.get(tab)!;
+    if (tab && this.o.profileDirForTab) {
+      const dir = this.o.profileDirForTab(tab);
+      if (dir) return dir;
+    }
     return typeof this.o.profileDir === "function" ? this.o.profileDir() : this.o.profileDir;
   }
 
-  private async context(): Promise<BrowserContext> {
-    const targetDir = this.resolveProfileDir();
-    if (this.ctx && this.openedProfileDir && this.openedProfileDir !== targetDir) {
-      await this.close();
+  private async launchDir(dir: string, onClose: () => void): Promise<BrowserContext> {
+    fs.mkdirSync(dir, { recursive: true });
+    const ctx = await chromium.launchPersistentContext(dir, {
+      channel: "chrome",
+      headless: this.o.headless ?? false,
+      viewport: null,
+    });
+    ctx.on("close", onClose);
+    const initial = ctx.pages();
+    const first = await ctx.newPage();
+    for (const p of initial) if (p.url() === "about:blank") await p.close().catch(() => {});
+    if (this.shouldHideWindow()) await this.setWindowState(first, "minimized");
+    logger.info({ profileDir: dir }, "Đã mở trình duyệt bot");
+    return ctx;
+  }
+
+  private async context(tab?: string): Promise<BrowserContext> {
+    const primaryDir = this.resolveProfileDir();
+    const targetDir = tab ? this.resolveProfileDir(tab) : primaryDir;
+    if (tab && targetDir !== primaryDir) {
+      let entry = this.extraProfiles.get(targetDir);
+      if (!entry) {
+        entry = { busy: false };
+        this.extraProfiles.set(targetDir, entry);
+      }
+      if (entry.ctx) return entry.ctx;
+      entry.opening ??= this.launchDir(targetDir, () => {
+        entry!.ctx = undefined;
+        logger.info({ profileDir: targetDir }, "Trình duyệt bot (hồ sơ phụ) đã đóng");
+      })
+        .then((ctx) => {
+          entry!.ctx = ctx;
+          return ctx;
+        })
+        .finally(() => {
+          entry!.opening = undefined;
+        });
+      return entry.opening;
+    }
+    if (this.ctx && this.openedProfileDir && this.openedProfileDir !== primaryDir && this.tabs.size === 0) {
+      await this.closePrimary();
     }
     if (this.ctx) return this.ctx;
-    this.opening ??= (async () => {
-      const dir = this.resolveProfileDir();
-      fs.mkdirSync(dir, { recursive: true });
-      const ctx = await chromium.launchPersistentContext(dir, {
-        channel: "chrome",
-        headless: this.o.headless ?? false,
-        viewport: null,
-      });
-      ctx.on("close", () => {
-        this.ctx = undefined;
-        this.openedProfileDir = undefined;
-        this.tabs.clear();
-        logger.info("Trình duyệt bot đã đóng");
-      });
-      // Tab trống Chrome mở sẵn cùng hồ sơ có lúc tải Muse mãi không xong (ghi nhận 29/10/2026), tab mở thêm thì
-      // tải bình thường: làm việc trên một tab mới, đóng các tab trống ban đầu.
-      const initial = ctx.pages();
-      await ctx.newPage();
-      for (const p of initial) if (p.url() === "about:blank") await p.close().catch(() => {});
-      this.ctx = ctx;
-      this.openedProfileDir = dir;
-      logger.info({ profileDir: dir }, "Đã mở trình duyệt bot");
-      return ctx;
-    })().finally(() => (this.opening = undefined));
+    this.opening ??= this.launchDir(primaryDir, () => {
+      this.ctx = undefined;
+      this.openedProfileDir = undefined;
+      this.tabs.clear();
+      logger.info("Trình duyệt bot đã đóng");
+    })
+      .then((ctx) => {
+        this.ctx = ctx;
+        this.openedProfileDir = primaryDir;
+        return ctx;
+      })
+      .finally(() => (this.opening = undefined));
     return this.opening;
   }
 
@@ -150,14 +192,17 @@ export class MuseBot {
    * Không có: tab cuối cùng còn mở mà không phải tab riêng của lượt nào, hoặc tab mới.
    */
   private async page(tab?: string): Promise<Page> {
-    const ctx = await this.context();
     if (tab !== undefined) {
       const own = this.tabs.get(tab);
       if (own && !own.isClosed()) return own;
+      const dir = this.resolveProfileDir(tab);
+      this.profileByTab.set(tab, dir);
+      const ctx = await this.context(tab);
       const fresh = await ctx.newPage();
       this.tabs.set(tab, fresh);
       return fresh;
     }
+    const ctx = await this.context();
     const owned = new Set(this.tabs.values());
     const pages = ctx.pages().filter((p) => !p.isClosed() && !owned.has(p));
     return pages[pages.length - 1] ?? (await ctx.newPage());
@@ -168,6 +213,7 @@ export class MuseBot {
     const p = this.tabs.get(tab);
     this.tabs.delete(tab);
     this.sent.delete(tab);
+    this.profileByTab.delete(tab);
     if (p && !p.isClosed()) await p.close().catch(() => {});
   }
 
@@ -412,11 +458,21 @@ export class MuseBot {
     return { data: new Uint8Array(Buffer.from(r.base64, "base64")), count: r.count };
   }
 
-  async close(): Promise<void> {
-    await this.opening?.catch(() => {}); // Đang mở dở thì chờ mở xong rồi đóng, không để sót cửa sổ.
+  private async closePrimary(): Promise<void> {
+    await this.opening?.catch(() => {});
     await this.ctx?.close();
     this.ctx = undefined;
     this.openedProfileDir = undefined;
+  }
+
+  async close(): Promise<void> {
+    await this.closePrimary();
+    for (const e of this.extraProfiles.values()) {
+      await e.opening?.catch(() => {});
+      await e.ctx?.close().catch(() => {});
+    }
+    this.extraProfiles.clear();
+    this.profileByTab.clear();
     this.tabs.clear();
     this.sent.clear();
   }

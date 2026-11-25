@@ -34,18 +34,29 @@ export interface Settings {
   activeAccountId: number;
   /** Tự thu nhỏ cửa sổ Chrome của bot xuống thanh Taskbar khi chạy lô tự động (CON-219): 1 = bật. */
   hideBotWindow: number;
+  /** Chế độ chạy nhiều tài khoản (CON-220): 'sequential' (Lần lượt) hoặc 'round_robin' (Luân phiên). */
+  accountMode: "sequential" | "round_robin";
+  /** Tổng số luồng (tab) tối đa trên toàn bộ các tài khoản khi chạy Luân phiên (CON-220, 1–30, mặc định 20). */
+  totalParallelLimit: number;
 }
 
 export function getSettings(db: DB): Settings {
   return db
     .prepare(
-      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt, bangTemplate, bangShirtTemplate, twoSidedTemplate, parallelVideos, hookOn, hookDayText, hookDay, imageTemplate, imageBackTemplate, dailyImageLimit, lastNhanVatId, activeAccountId, hideBotWindow FROM settings WHERE id = 1",
+      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt, bangTemplate, bangShirtTemplate, twoSidedTemplate, parallelVideos, hookOn, hookDayText, hookDay, imageTemplate, imageBackTemplate, dailyImageLimit, lastNhanVatId, activeAccountId, hideBotWindow, accountMode, totalParallelLimit FROM settings WHERE id = 1",
     )
     .get() as Settings;
 }
 
 export function setHideBotWindow(db: DB, hide: boolean): void {
   db.prepare("UPDATE settings SET hideBotWindow = ? WHERE id = 1").run(hide ? 1 : 0);
+}
+
+export const MAX_TOTAL_PARALLEL = 30;
+
+export function setAccountPoolSettings(db: DB, mode: "sequential" | "round_robin", totalParallelLimit: number): void {
+  const limit = Math.min(MAX_TOTAL_PARALLEL, Math.max(1, Math.floor(totalParallelLimit) || 20));
+  db.prepare("UPDATE settings SET accountMode = ?, totalParallelLimit = ? WHERE id = 1").run(mode, limit);
 }
 
 export type ImageTemplateKind = "imageTemplate" | "imageBackTemplate";
@@ -108,9 +119,9 @@ export function setBangTemplate(db: DB, kind: BangTemplateKind, template: string
 /** Các cài đặt chạy lô của trang Cài đặt (F7). */
 export type RunSettings = Pick<Settings, "timeoutMinutes" | "pauseMinSec" | "pauseMaxSec" | "dailyVideoLimit" | "museUrl" | "parallelVideos" | "dailyImageLimit">;
 
-/** Giới hạn ngày mặc định (D25, v6.0; trước là 5 theo D13) và mức cao nhất cho đặt. */
+/** Giới hạn ngày mặc định (D25, v6.0; trước là 5 theo D13) và mức cao nhất cho đặt (CON-220 nâng lên 500 cho nhiều tài khoản). */
 export const DEFAULT_DAILY_LIMIT = 100;
-export const MAX_DAILY_LIMIT = 150;
+export const MAX_DAILY_LIMIT = 500;
 /** Đặt cao hơn mức này thì trang Cài đặt nhắc rủi ro hạn mức / tài khoản Muse (17.9). */
 export const RECOMMENDED_DAILY_LIMIT = 50;
 /** Số video chạy cùng lúc (D28): mặc định và mức cao nhất. */

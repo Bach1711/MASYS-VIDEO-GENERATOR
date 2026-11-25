@@ -7,7 +7,7 @@ import { getRow, queueHook, setHookError, setHookVideo, setRowVideo } from "../b
 import { HOOK_PHASE } from "../bang/run.js";
 import { BotError, type WatchResult } from "../bot/museBot.js";
 import { chat as chatSel } from "../bot/museSelectors.js";
-import { findNextAvailableAccount, getActiveMuseAccount, setAccountQuotaExhausted, setActiveMuseAccount, type MuseAccount } from "../db/accounts.js";
+import { findNextAvailableAccount, getActiveMuseAccount, listMuseAccounts, setAccountQuotaExhausted, setActiveMuseAccount, type MuseAccount } from "../db/accounts.js";
 import type { DB } from "../db/index.js";
 import { getDailyQuota, getImageQuota } from "../db/quota.js";
 import { logRunEvent, moveRun } from "../db/runs.js";
@@ -143,6 +143,8 @@ interface RunRow {
   extraSentAt?: string | null;
   /** Tạo nhân vật (CON-81): số bản nháp; null = không phải lượt tạo nhân vật. */
   nvDraftId?: number | null;
+  accountId?: number | null;
+  accountName?: string | null;
 }
 
 interface BatchRow {
@@ -175,6 +177,7 @@ interface Flow {
 interface Inflight {
   run: RunRow;
   tab: string;
+  accountId: number;
   deadline: number;
   approval: boolean;
   loginNoted: boolean;
@@ -649,6 +652,8 @@ export class BatchRunner {
   private async loopBang(batch: BatchRow): Promise<void> {
     const inflight = new Map<number, Inflight>();
     const pollMs = this.o.pollMs ?? 20_000;
+    const isImageBatch = batch.source === "anh" || batch.source === "nv";
+    const rrMode = () => getSettings(this.db).accountMode === "round_robin";
 
     // Dòng đã gửi trước khi tool tắt: mở lại đúng cuộc trò chuyện trong tab riêng, chờ tiếp, không gửi lại.
     for (const r of this.runs(batch.id, ["sending", "waiting", "verifying", "downloading"])) {
@@ -677,13 +682,17 @@ export class BatchRunner {
       }
       if (r.state !== "waiting") moveRun(this.db, r.id, r.state, "waiting", msg);
       else logRunEvent(this.db, r.id, "waiting", msg);
-      const f: Inflight = { run: { ...r, state: "waiting" }, tab: tabOf(r.id), deadline: Date.now() + this.timeoutMs(), approval: false, loginNoted: false };
+      const accId = r.accountId ?? getActiveMuseAccount(this.db).id;
+      const tab = rrMode() ? tabForAccount(accId, r.id) : tabOf(r.id);
+      const f: Inflight = { run: { ...r, state: "waiting" }, tab, accountId: accId, deadline: Date.now() + this.timeoutMs(), approval: false, loginNoted: false };
       inflight.set(r.id, f);
       await this.reopenChat(r.museChatUrl!, f.tab);
     }
 
     let blocked: PauseReason | undefined;
     let nextSendAt = 0;
+    const nextSendByAcc = new Map<number, number>();
+    let lastPickedAccId = 0;
     let retryAt = 0;
     const failedRows = new Set<number>();
     // CON-91: ghi nhận một lần thất bại; lỗi liên tiếp ở nhiều dòng thì tạm dừng lô; hết dòng để chạy thì mở lại trình duyệt.
@@ -699,8 +708,20 @@ export class BatchRunner {
       for (;;) {
         for (const f of [...inflight.values()]) {
           if (this.canceling()) return;
-          const out = await this.pollBang(f, batch.source === "anh" || batch.source === "nv");
-          if (out.pause) blocked ??= out.pause;
+          const out = await this.pollBang(f, isImageBatch);
+          if (out.pause === "quota" && rrMode()) {
+            // Chế độ Luân phiên (CON-220): 1 tài khoản hết lượt thì đánh dấu tài khoản đó, nếu còn tài khoản khác thì xếp lại dòng ngay.
+            const avail = listMuseAccounts(this.db).filter((a) => !a.quotaExhaustedAt);
+            if (avail.length > 0) {
+              if (f.run.anhPhase !== "back" && f.run.anhPhase !== HOOK_PHASE) {
+                this.requeueQuotaRun(f.run, "paused_quota", "Muse báo hết lượt", f.run.accountName ?? `Tài khoản #${f.accountId}`, avail[0]!.name);
+              }
+            } else {
+              blocked ??= "quota";
+            }
+          } else if (out.pause) {
+            blocked ??= out.pause;
+          }
           if (out.finished) {
             inflight.delete(f.run.id);
             await this.bot.closeTab?.(f.tab).catch(() => {});
@@ -710,20 +731,72 @@ export class BatchRunner {
         }
 
         if (this.canceling()) return;
+        const isRoundRobin = rrMode();
         const sending = this.active?.mode === "full" && !this.stopRequested() && !blocked;
-        const room = inflight.size < this.parallel();
+        // Chọn tài khoản tiếp theo còn chỗ và đã hết thời gian nghỉ (CON-220):
+        const pickAccount = (): MuseAccount | undefined => {
+          if (!isRoundRobin) {
+            if (inflight.size >= this.parallel()) return undefined;
+            if (Date.now() < nextSendAt) return undefined;
+            return getActiveMuseAccount(this.db);
+          }
+          if (inflight.size >= this.totalParallel()) return undefined;
+          const avail = listMuseAccounts(this.db).filter((a) => !a.quotaExhaustedAt);
+          if (!avail.length) return undefined;
+          const ordered = [...avail.filter((a) => a.id > lastPickedAccId), ...avail.filter((a) => a.id <= lastPickedAccId)];
+          for (const acc of ordered) {
+            const cap = isImageBatch ? (acc.maxImageStreams || 2) : (acc.maxVideoStreams || 3);
+            const activeForAcc = [...inflight.values()].filter((f) => f.accountId === acc.id).length;
+            const readyAt = nextSendByAcc.get(acc.id) ?? 0;
+            if (activeForAcc < cap && Date.now() >= readyAt) return acc;
+          }
+          return undefined;
+        };
+
+        const hasRoom = isRoundRobin
+          ? inflight.size < this.totalParallel() &&
+            listMuseAccounts(this.db)
+              .filter((a) => !a.quotaExhaustedAt)
+              .some((acc) => {
+                const cap = isImageBatch ? (acc.maxImageStreams || 2) : (acc.maxVideoStreams || 3);
+                return [...inflight.values()].filter((f) => f.accountId === acc.id).length < cap;
+              })
+          : inflight.size < this.parallel();
+
         // Dòng lỗi (CON-91) chỉ chạy lại khi mọi dòng khác đã xong, từng dòng một, sau khi nghỉ.
         const queued = sending ? this.runs(batch.id, ["queued"]) : [];
         const fresh = queued.find((r) => (r.attempt ?? 1) === 1);
         const retrying = !fresh && queued.length > 0 && inflight.size === 0;
-        const next = fresh ? (room ? fresh : undefined) : retrying && Date.now() >= retryAt ? queued[0] : undefined;
-        if (next && Date.now() >= nextSendAt) {
-          const out = batch.source === "anh" ? await this.sendAnh(next) : batch.source === "nv" ? await this.sendNv(next) : await this.sendBang(next);
-          if (out.pause) blocked = out.pause;
+        const next = fresh ? (hasRoom ? fresh : undefined) : retrying && Date.now() >= retryAt ? queued[0] : undefined;
+        const targetAcc = next ? pickAccount() : undefined;
+        if (next && targetAcc) {
+          lastPickedAccId = targetAcc.id;
+          const out =
+            batch.source === "anh"
+              ? await this.sendAnh(next, targetAcc, isRoundRobin)
+              : batch.source === "nv"
+                ? await this.sendNv(next, targetAcc, isRoundRobin)
+                : await this.sendBang(next, targetAcc, isRoundRobin);
+          if (out.pause === "quota" && isRoundRobin) {
+            const avail = listMuseAccounts(this.db).filter((a) => !a.quotaExhaustedAt);
+            if (avail.length > 0) {
+              if (next.anhPhase !== "back" && next.anhPhase !== HOOK_PHASE) {
+                this.requeueQuotaRun(next, "paused_quota", "Muse báo hết lượt", targetAcc.name, avail[0]!.name);
+              }
+            } else {
+              blocked = "quota";
+            }
+          } else if (out.pause) {
+            blocked = out.pause;
+          }
           if (out.inflight) inflight.set(next.id, out.inflight);
           if (out.failed) await noteFailure(next.rowNumber);
-          // Nghỉ ngẫu nhiên giữa hai lần gửi (D7).
-          if (out.sent) nextSendAt = Date.now() + this.pauseMs();
+          // Nghỉ ngẫu nhiên giữa hai lần gửi (D7; chế độ Luân phiên đếm riêng theo từng tài khoản, CON-220).
+          if (out.sent) {
+            const wait = Date.now() + this.pauseMs();
+            nextSendAt = wait;
+            nextSendByAcc.set(targetAcc.id, wait);
+          }
           continue;
         }
 
@@ -751,10 +824,21 @@ export class BatchRunner {
           if (this.stopRequested()) return this.setBatch(batch.id, "paused", "user");
           if (this.active?.mode !== "full") return; // Tool vừa mở lại: lô vẫn Tạm dừng, chờ người dùng bấm Tiếp tục.
           if (!this.runs(batch.id, ["queued"]).length) return this.setBatch(batch.id, "done", null);
+          if (isRoundRobin && listMuseAccounts(this.db).every((a) => !!a.quotaExhaustedAt)) {
+            return this.setBatch(batch.id, "paused", "quota");
+          }
         }
 
         this.noticeBang(batch, inflight, blocked);
-        const untilSend = next ? Math.max(0, nextSendAt - Date.now()) : Infinity;
+        const earliestAccSend = isRoundRobin
+          ? Math.min(
+              ...listMuseAccounts(this.db)
+                .filter((a) => !a.quotaExhaustedAt)
+                .map((a) => Math.max(0, (nextSendByAcc.get(a.id) ?? 0) - Date.now())),
+              Infinity,
+            )
+          : Math.max(0, nextSendAt - Date.now());
+        const untilSend = next ? earliestAccSend : Infinity;
         const untilRetry = retrying ? Math.max(0, retryAt - Date.now()) : Infinity;
         const wait = Math.min(inflight.size ? pollMs : Infinity, untilSend, untilRetry);
         await this.sleep(wait === Infinity ? pollMs : wait);
@@ -769,6 +853,11 @@ export class BatchRunner {
     return Math.min(6, Math.max(1, getSettings(this.db).parallelVideos || 1));
   }
 
+  /** Tổng số luồng tối đa trên toàn bộ các tài khoản khi chạy Luân phiên (CON-220, 1–30). */
+  private totalParallel(): number {
+    return Math.min(30, Math.max(1, getSettings(this.db).totalParallelLimit || 20));
+  }
+
   /** Dải báo trên trang lô: Muse chờ duyệt, hoặc lý do ngừng gửi dòng mới trong lúc còn chờ video đã gửi. */
   private noticeBang(batch: BatchRow, inflight: Map<number, Inflight>, blocked: PauseReason | undefined): void {
     const asking = [...inflight.values()].filter((f) => f.approval).map((f) => f.run.rowNumber);
@@ -781,9 +870,9 @@ export class BatchRunner {
   }
 
   /** Spec 17.5 bước 1–4 (Bảng): đọc lại dòng, mở cuộc trò chuyện mới trong tab riêng, đính kèm ảnh, gửi. */
-  private async sendBang(run: RunRow): Promise<SendOutcome> {
+  private async sendBang(run: RunRow, account?: MuseAccount, roundRobin = false): Promise<SendOutcome> {
     const snap = JSON.parse(run.inputSnapshot) as BangSnapshot;
-    if (run.anhPhase === HOOK_PHASE) return this.sendHookOnly(run, snap);
+    if (run.anhPhase === HOOK_PHASE) return this.sendHookOnly(run, snap, account, roundRobin);
     // Có hook thì một dòng dùng 2 lượt Muse (CON-137): video người mẫu + video chèn hook.
     if (getDailyQuota(this.db).remaining < (run.hookText != null ? 2 : 1)) {
       moveRun(this.db, run.id, "queued", "paused_limit", "Đủ giới hạn video hôm nay (D25)");
@@ -808,14 +897,14 @@ export class BatchRunner {
       return review("Clip hook của dòng đã đổi hoặc không còn trên máy", "thiếu clip hook");
     }
 
-    return this.sendNew(run, files as string[]);
+    return this.sendNew(run, files as string[], "video", account, roundRobin);
   }
 
   /**
    * Ghép lại hook (CON-137): mở lại cuộc trò chuyện Muse cũ của dòng trong tab riêng rồi gửi tin chèn hook. Không gửi lại
    * yêu cầu tạo video. Một lượt Muse.
    */
-  private async sendHookOnly(run: RunRow, snap: BangSnapshot): Promise<SendOutcome> {
+  private async sendHookOnly(run: RunRow, snap: BangSnapshot, account?: MuseAccount, roundRobin = false): Promise<SendOutcome> {
     if (getDailyQuota(this.db).remaining <= 0) {
       moveRun(this.db, run.id, "queued", "paused_limit", "Đủ giới hạn video hôm nay (D25)");
       return { pause: "limit" };
@@ -833,12 +922,13 @@ export class BatchRunner {
     }
     const url = run.museChatUrl;
     if (!chatSel.isThreadUrl(url) || this.canceling()) return review("Không còn cuộc trò chuyện Muse của video", "không có cuộc trò chuyện");
-    const tab = tabOf(run.id);
+    const acc = account ?? getActiveMuseAccount(this.db);
+    const tab = roundRobin ? tabForAccount(acc.id, run.id) : tabOf(run.id);
     if (!(await this.reopenChat(url, tab))) {
       await this.bot.closeTab?.(tab).catch(() => {});
       return review("Không mở lại được cuộc trò chuyện Muse của video", "không mở được cuộc trò chuyện");
     }
-    const f: Inflight = { run: { ...run, state: "checking_row" }, tab, deadline: Date.now() + this.timeoutMs(), approval: false, loginNoted: false };
+    const f: Inflight = { run: { ...run, state: "checking_row", accountId: acc.id, accountName: acc.name }, tab, accountId: acc.id, deadline: Date.now() + this.timeoutMs(), approval: false, loginNoted: false };
     // Chờ trang nạp xong video cũ rồi mới gửi, để đếm đúng mốc.
     for (let i = 0; i < 15; i++) {
       const w = await this.bot.watch(tab).catch(() => ({ closed: true, login: false, approval: false }) as WatchResult);
@@ -895,7 +985,7 @@ export class BatchRunner {
           continue;
         }
         if (err.code === "quota" || err.code === "rejected" || err.code === "muse_error" || err.code === "missing_images") {
-          if (err.code === "quota") setAccountQuotaExhausted(this.db, now());
+          if (err.code === "quota") setAccountQuotaExhausted(this.db, now(), f.accountId);
           const msg = err.code === "quota" ? "Muse hết lượt" : err.message;
           return { ...giveUp("failed", `${msg} khi nhờ chèn hook`, msg, err.screenshot), pause: err.code === "quota" ? "quota" : undefined };
         }
@@ -946,7 +1036,7 @@ export class BatchRunner {
    * cần 2 lượt), rồi gửi như Bảng video với character sheet là ảnh 1. Gửi xong thì nhớ số ảnh đang có trong cuộc trò
    * chuyện: ảnh Muse tạo là các ảnh sau vị trí này.
    */
-  private async sendAnh(run: RunRow): Promise<SendOutcome> {
+  private async sendAnh(run: RunRow, account?: MuseAccount, roundRobin = false): Promise<SendOutcome> {
     const snap = JSON.parse(run.inputSnapshot) as AnhSnapshot;
     if (getImageQuota(this.db).remaining < (snap.back ? 2 : 1)) {
       moveRun(this.db, run.id, "queued", "paused_limit", "Đủ giới hạn ảnh hôm nay");
@@ -966,7 +1056,7 @@ export class BatchRunner {
     if (!sheet) return review("Không còn file character sheet của nhân vật trên máy", "thiếu character sheet");
     const face = snap.nhanVatFaceFile ? this.o.bangFiles?.nhanVatPath(snap.nhanVatFaceFile) : undefined;
     if (snap.nhanVatFaceFile && !face) return review("Không còn file ảnh mặt của nhân vật trên máy", "thiếu ảnh mặt");
-    const out = await this.sendNew(run, face ? [sheet, face] : [sheet], "ảnh");
+    const out = await this.sendNew(run, face ? [sheet, face] : [sheet], "ảnh", account, roundRobin);
     if (out.inflight) {
       const baseline = await this.imageCount(out.inflight.tab);
       this.db.prepare("UPDATE runs SET anhBaseline = ? WHERE id = ?").run(baseline, run.id);
@@ -979,7 +1069,7 @@ export class BatchRunner {
    * Tạo nhân vật (CON-81, spec 17.14): đủ lượt ảnh trong ngày, bản nháp còn, còn file master (trừ lượt tạo master, không
    * kèm ảnh), rồi gửi trong một cuộc trò chuyện mới (D7). Gửi xong nhớ số ảnh đang có như Bảng ảnh.
    */
-  private async sendNv(run: RunRow): Promise<SendOutcome> {
+  private async sendNv(run: RunRow, account?: MuseAccount, roundRobin = false): Promise<SendOutcome> {
     const snap = JSON.parse(run.inputSnapshot) as NvSnapshot;
     if (getImageQuota(this.db).remaining < 1) {
       moveRun(this.db, run.id, "queued", "paused_limit", "Đủ giới hạn ảnh hôm nay");
@@ -993,7 +1083,7 @@ export class BatchRunner {
     if (!getDraft(this.db, snap.draftId)) return review("Bản nháp nhân vật đã bị xoá", "bản nháp đã bị xoá");
     const master = snap.masterFile ? this.o.bangFiles?.nvTaoPath(snap.masterFile) : undefined;
     if (snap.masterFile && !master) return review("Không còn file ảnh master trên máy", "thiếu ảnh master");
-    const out = await this.sendNew(run, master ? [master] : [], "ảnh");
+    const out = await this.sendNew(run, master ? [master] : [], "ảnh", account, roundRobin);
     if (out.inflight) {
       const baseline = await this.imageCount(out.inflight.tab);
       this.db.prepare("UPDATE runs SET anhBaseline = ? WHERE id = ?").run(baseline, run.id);
@@ -1009,13 +1099,20 @@ export class BatchRunner {
   }
 
   /** Spec 17.5 bước 2–4: sentAt ghi trước khi bấm Gửi; bot mở cuộc trò chuyện mới trong tab riêng, đính kèm ảnh, chỉ gửi khi Muse hiện đủ ảnh. */
-  private async sendNew(run: RunRow, files: string[], what = "video"): Promise<SendOutcome> {
+  private async sendNew(run: RunRow, files: string[], what = "video", account?: MuseAccount, roundRobin = false): Promise<SendOutcome> {
     if (this.canceling()) return {}; // Dòng còn ở bước kiểm tra: Huỷ lô chuyển nó thành Đã huỷ.
     if (!this.bot.isOpen) await this.bot.open({ interactive: false });
     else await this.bot.minimizeWindow?.();
-    const tab = tabOf(run.id);
-    const acc = getActiveMuseAccount(this.db);
-    const waiting = (): Inflight => ({ run: { ...run, state: "waiting" }, tab, deadline: Date.now() + this.timeoutMs(), approval: false, loginNoted: false });
+    const acc = account ?? getActiveMuseAccount(this.db);
+    const tab = roundRobin ? tabForAccount(acc.id, run.id) : tabOf(run.id);
+    const waiting = (): Inflight => ({
+      run: { ...run, state: "waiting", accountId: acc.id, accountName: acc.name },
+      tab,
+      accountId: acc.id,
+      deadline: Date.now() + this.timeoutMs(),
+      approval: false,
+      loginNoted: false,
+    });
     moveRun(
       this.db,
       run.id,
@@ -1250,7 +1347,7 @@ export class BatchRunner {
         } catch (e) {
           const err = e instanceof BotError ? e : undefined;
           if (err?.code === "quota") {
-            setAccountQuotaExhausted(this.db, now());
+            setAccountQuotaExhausted(this.db, now(), f.accountId);
             if (hookPhase) return { ...hookFail("Muse hết lượt", "paused_quota"), pause: "quota" };
             moveRun(this.db, run.id, "waiting", "paused_quota", "Muse báo hết lượt", { error: "Muse hết lượt" });
             return { finished: true, pause: "quota" };
@@ -1272,7 +1369,7 @@ export class BatchRunner {
       logRunEvent(this.db, run.id, "waiting", "Trang Muse đang hiện đăng nhập / kiểm tra bảo mật; vẫn chờ video");
     }
     if (w.notice === "quota") {
-      setAccountQuotaExhausted(this.db, now());
+      setAccountQuotaExhausted(this.db, now(), f.accountId);
       if (hookPhase) return { ...hookFail("Muse hết lượt", "paused_quota"), pause: "quota" };
       moveRun(this.db, run.id, "waiting", "paused_quota", "Muse báo hết lượt", { error: "Muse hết lượt" });
       return { finished: true, pause: "quota" };
@@ -1365,7 +1462,7 @@ export class BatchRunner {
         return { finished: true, pause: login ? "login" : "ui" };
       }
       if (err.code === "quota" || err.code === "rejected" || err.code === "muse_error") {
-        if (err.code === "quota") setAccountQuotaExhausted(this.db, now());
+        if (err.code === "quota") setAccountQuotaExhausted(this.db, now(), f.accountId);
         const msg = err.code === "quota" ? "Muse hết lượt" : err.message;
         moveRun(this.db, run.id, "sending", "failed", `${msg} khi xin ảnh quay lưng. ${keep}`, { error: msg, doneAt: now() }, err.screenshot);
         return { finished: true, pause: err.code === "quota" ? "quota" : undefined };
@@ -1498,7 +1595,7 @@ export class BatchRunner {
   private runs(batchId: number, states: string[]): RunRow[] {
     return this.db
       .prepare(
-        `SELECT id, batchId, rowNumber, state, inputSnapshot, requestText, overwrite, sentAt, tabSnapshot, museChatUrl, hookText, anhPhase, anhBaseline, nvDraftId, attempt, extraSends, extraSentAt FROM runs
+        `SELECT id, batchId, rowNumber, state, inputSnapshot, requestText, overwrite, sentAt, tabSnapshot, museChatUrl, hookText, anhPhase, anhBaseline, nvDraftId, attempt, extraSends, extraSentAt, accountId, accountName FROM runs
          WHERE batchId = ? AND state IN (${states.map(() => "?").join(", ")}) ORDER BY rowNumber`,
       )
       .all(batchId, ...states) as RunRow[];
@@ -1564,8 +1661,9 @@ const TOOL_EDIT_MARGIN_MS = 10 * 60_000;
 /** Lô chạy kiểu Bảng (gửi lần lượt, mỗi dòng một tab riêng, chờ song song, D28): Bảng video và Bảng ảnh. */
 export const isTabbed = (source: string | undefined) => source === "bang" || source === "anh" || source === "nv";
 
-/** Tab riêng của một lượt trong cửa sổ bot (D28). */
+/** Tab riêng của một lượt trong cửa sổ bot (D28). Chế độ Luân phiên nhiều tài khoản dùng tiền tố `acc-<id>-` để định tuyến về đúng hồ sơ Chrome (CON-220). */
 const tabOf = (runId: number) => `run-${runId}`;
+const tabForAccount = (accountId: number, runId: number) => `acc-${accountId}-run-${runId}`;
 
 function now(): string {
   return new Date().toISOString();

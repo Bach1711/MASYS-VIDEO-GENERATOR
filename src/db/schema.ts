@@ -301,4 +301,12 @@ export const MIGRATIONS: string[] = [
   `
   ALTER TABLE settings ADD COLUMN hideBotWindow INTEGER NOT NULL DEFAULT 1;
   `,
+  // 22. Chạy song song nhiều tài khoản Muse cùng lúc (CON-220): chế độ Luân phiên ('round_robin') hoặc Lần lượt ('sequential');
+  // tổng luồng tối đa (mặc định 20); số luồng video và số luồng ảnh trên từng tài khoản.
+  `
+  ALTER TABLE settings ADD COLUMN accountMode TEXT NOT NULL DEFAULT 'sequential';
+  ALTER TABLE settings ADD COLUMN totalParallelLimit INTEGER NOT NULL DEFAULT 20;
+  ALTER TABLE muse_accounts ADD COLUMN maxVideoStreams INTEGER NOT NULL DEFAULT 3;
+  ALTER TABLE muse_accounts ADD COLUMN maxImageStreams INTEGER NOT NULL DEFAULT 2;
+  `,
 ];

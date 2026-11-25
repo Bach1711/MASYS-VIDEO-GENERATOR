@@ -12,13 +12,14 @@ import {
   listMuseAccounts,
   renameMuseAccount,
   setAccountQuotaExhausted,
+  setAccountStreams,
   setActiveMuseAccount,
   type MuseAccount,
 } from "../db/accounts.js";
 import { activeBatch } from "../db/history.js";
 import type { DB } from "../db/index.js";
 import { getDailyQuota } from "../db/quota.js";
-import { getSettings, rememberMuseCheck, setHideBotWindow, setMuseReady } from "../db/settings.js";
+import { getSettings, MAX_TOTAL_PARALLEL, rememberMuseCheck, setAccountPoolSettings, setHideBotWindow, setMuseReady } from "../db/settings.js";
 import { listSheetConfigs, sheetName } from "../db/sheetConfigs.js";
 import { logger } from "../logger.js";
 import type { BatchRunner } from "../queue/runner.js";
@@ -109,6 +110,42 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
             Mỗi tài khoản dùng một hồ sơ Chrome riêng biệt (tự giữ phiên đăng nhập và cookie riêng). Thêm tài khoản mới rồi bấm{" "}
             <strong>Mở trình duyệt</strong> để tự đăng nhập Muse một lần cho tài khoản đó.
           </p>
+          <form method="post" action="/bot/accounts/pool-mode" class="row" style="margin:12px 0;align-items:center">
+            <label for="totalParallelLimit" class="inline-label">
+              Tổng luồng tối đa
+            </label>
+            <input
+              id="totalParallelLimit"
+              type="number"
+              name="totalParallelLimit"
+              min="1"
+              max={String(MAX_TOTAL_PARALLEL)}
+              value={String(getSettings(db).totalParallelLimit ?? 20)}
+              style="width:70px;flex:none"
+              aria-label="Tổng luồng tối đa"
+            />
+            <label class="inline" style="margin-left:8px">
+              <input
+                type="radio"
+                name="accountMode"
+                value="round_robin"
+                checked={getSettings(db).accountMode === "round_robin"}
+              />{" "}
+              <strong>Luân phiên</strong> (chạy đồng thời mọi tài khoản sẵn sàng)
+            </label>
+            <label class="inline">
+              <input
+                type="radio"
+                name="accountMode"
+                value="sequential"
+                checked={getSettings(db).accountMode !== "round_robin"}
+              />{" "}
+              <strong>Lần lượt</strong> (hết token tài khoản này mới sang tài khoản kế tiếp)
+            </label>
+            <button type="submit" class="secondary small">
+              Lưu chế độ chạy
+            </button>
+          </form>
           {locked && <p class="small warn-text">{locked}</p>}
           <div class="scroll">
             <table class="scan">
@@ -116,6 +153,7 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
                 <tr>
                   <th>#</th>
                   <th>Tên tài khoản</th>
+                  <th>Luồng (Ảnh / Video)</th>
                   <th>Trạng thái</th>
                   <th>Thao tác</th>
                 </tr>
@@ -129,6 +167,33 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
                       <td>
                         <strong>{acc.name}</strong>
                         {isActive && <span class="muted small"> (đang chọn)</span>}
+                      </td>
+                      <td>
+                        <form method="post" action="/bot/accounts/streams" class="row" style="align-items:center;flex-wrap:nowrap">
+                          <input type="hidden" name="id" value={String(acc.id)} />
+                          <span class="small muted" title="Số luồng ảnh tối đa của tài khoản này">🖼</span>
+                          <input
+                            type="number"
+                            name="maxImageStreams"
+                            min="1"
+                            max="6"
+                            value={String(acc.maxImageStreams ?? 2)}
+                            style="width:52px;padding:3px 6px;flex:none"
+                            aria-label={`Số luồng ảnh của ${acc.name}`}
+                            onchange="this.form.submit()"
+                          />
+                          <span class="small muted" title="Số luồng video tối đa của tài khoản này">🎬</span>
+                          <input
+                            type="number"
+                            name="maxVideoStreams"
+                            min="1"
+                            max="6"
+                            value={String(acc.maxVideoStreams ?? 3)}
+                            style="width:52px;padding:3px 6px;flex:none"
+                            aria-label={`Số luồng video của ${acc.name}`}
+                            onchange="this.form.submit()"
+                          />
+                        </form>
                       </td>
                       <td>{accountBadge(acc, isActive)}</td>
                       <td>
@@ -365,6 +430,25 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
     const id = Number((await c.req.parseBody()).id);
     setAccountQuotaExhausted(db, null, id);
     return c.redirect(`/bot?ok=${encodeURIComponent("Đã đặt lại trạng thái hết token.")}`, 303);
+  });
+
+  app.post("/bot/accounts/pool-mode", async (c) => {
+    const body = await c.req.parseBody();
+    const mode = body.accountMode === "round_robin" ? "round_robin" : "sequential";
+    const total = Number(body.totalParallelLimit);
+    setAccountPoolSettings(db, mode, total);
+    logger.info({ mode, total }, "Đã lưu chế độ chạy nhiều tài khoản Muse");
+    return c.redirect(
+      `/bot?ok=${encodeURIComponent(`Đã lưu chế độ chạy: ${mode === "round_robin" ? "Luân phiên nhiều tài khoản cùng lúc" : "Lần lượt từng tài khoản"} (tổng luồng tối đa ${getSettings(db).totalParallelLimit}).`)}`,
+      303,
+    );
+  });
+
+  app.post("/bot/accounts/streams", async (c) => {
+    const body = await c.req.parseBody();
+    const r = setAccountStreams(db, Number(body.id), Number(body.maxVideoStreams), Number(body.maxImageStreams));
+    if (!r.ok) return c.html(render(<Alert kind="warn">{r.message}</Alert>), 400);
+    return c.redirect(`/bot?ok=${encodeURIComponent(`Đã cập nhật số luồng cho "${r.account.name}" (${r.account.maxImageStreams} ảnh / ${r.account.maxVideoStreams} video).`)}`, 303);
   });
 
   app.post("/bot/accounts/delete", async (c) => {
