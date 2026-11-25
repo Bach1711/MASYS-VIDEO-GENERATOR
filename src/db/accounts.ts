@@ -12,6 +12,8 @@ export interface MuseAccount {
   profileDir: string;
   readyAt: string | null;
   quotaExhaustedAt: string | null;
+  maxVideoStreams: number;
+  maxImageStreams: number;
   createdAt: string;
   deletedAt: string | null;
 }
@@ -28,7 +30,7 @@ export function accountNameProblem(raw: string): string | undefined {
 export function listMuseAccounts(db: DB): MuseAccount[] {
   return db
     .prepare(
-      "SELECT id, name, profileDir, readyAt, quotaExhaustedAt, createdAt, deletedAt FROM muse_accounts WHERE deletedAt IS NULL ORDER BY id",
+      "SELECT id, name, profileDir, readyAt, quotaExhaustedAt, maxVideoStreams, maxImageStreams, createdAt, deletedAt FROM muse_accounts WHERE deletedAt IS NULL ORDER BY id",
     )
     .all() as MuseAccount[];
 }
@@ -36,7 +38,7 @@ export function listMuseAccounts(db: DB): MuseAccount[] {
 export function getMuseAccount(db: DB, id: number): MuseAccount | undefined {
   return db
     .prepare(
-      "SELECT id, name, profileDir, readyAt, quotaExhaustedAt, createdAt, deletedAt FROM muse_accounts WHERE id = ? AND deletedAt IS NULL",
+      "SELECT id, name, profileDir, readyAt, quotaExhaustedAt, maxVideoStreams, maxImageStreams, createdAt, deletedAt FROM muse_accounts WHERE id = ? AND deletedAt IS NULL",
     )
     .get(id) as MuseAccount | undefined;
 }
@@ -154,6 +156,21 @@ export function setAccountReady(db: DB, at: string | null, accountId?: number): 
 export function setAccountQuotaExhausted(db: DB, at: string | null, accountId?: number): void {
   const id = accountId ?? getActiveMuseAccount(db).id;
   db.prepare("UPDATE muse_accounts SET quotaExhaustedAt = ? WHERE id = ?").run(at, id);
+}
+
+/** Cập nhật số luồng video (1–6) và số luồng ảnh (1–6) của một tài khoản Muse (CON-220). */
+export function setAccountStreams(
+  db: DB,
+  id: number,
+  maxVideoStreams: number,
+  maxImageStreams: number,
+): { ok: true; account: MuseAccount } | { ok: false; message: string } {
+  const acc = getMuseAccount(db, id);
+  if (!acc) return { ok: false, message: "Không tìm thấy tài khoản này." };
+  const v = Math.min(6, Math.max(1, Math.floor(maxVideoStreams) || 3));
+  const img = Math.min(6, Math.max(1, Math.floor(maxImageStreams) || 2));
+  db.prepare("UPDATE muse_accounts SET maxVideoStreams = ?, maxImageStreams = ? WHERE id = ?").run(v, img, id);
+  return { ok: true, account: getMuseAccount(db, id)! };
 }
 
 /**

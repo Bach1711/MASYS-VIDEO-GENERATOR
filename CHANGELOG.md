@@ -4,8 +4,12 @@ Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được �
 
 ## Chưa phát hành
 
-**Tự thu nhỏ cửa sổ Chrome khi chạy lô và tự trả lời thúc giục khi Muse hỏi lại.**
+**Chạy song song nhiều tài khoản Muse cùng lúc (chế độ Luân phiên, tổng luồng tới 20–30 video), tự thu nhỏ cửa sổ Chrome và tự trả lời khi Muse hỏi lại.**
 
+- **Chế độ Luân phiên / Lần lượt trên trang Bot Muse:**
+  - **Luân phiên:** mở và chạy đồng thời tất cả các tài khoản Muse đã sẵn sàng, rải đều các dòng trong lô cho các tài khoản. Mỗi tài khoản đặt được số luồng ảnh (1–6, mặc định 2) và số luồng video (1–6, mặc định 3), cộng dồn tới **Tổng luồng tối đa** (mặc định 20, cao nhất 30). Một tài khoản hết token giữa chừng thì tự rút lui, các tài khoản còn lại gánh tiếp đến hết lô.
+  - **Lần lượt:** chạy từng tài khoản một, hết token mới tự đổi sang tài khoản kế tiếp.
+  - Giới hạn video và ảnh mỗi ngày ở Cài đặt nâng mức tối đa lên **500** để đáp ứng khi chạy nhiều tài khoản.
 - **Tự thu nhỏ cửa sổ Chrome của bot xuống thanh Taskbar:** khi chạy lô tự động (hoặc sau khi bấm *Kiểm tra trạng thái* thấy đã đăng nhập xong), cửa sổ Chrome tự động thu nhỏ xuống thanh Taskbar để không nhảy đè lên màn hình làm việc. Khi bạn bấm **Mở trình duyệt** hoặc khi Muse cần đăng nhập / giải mã bảo mật, cửa sổ sẽ tự hiện lên lại. Có thể bật/tắt ở **⚙ Nâng cao → Bot Muse**.
 - **Tự trả lời thúc giục khi Muse hỏi lại:** trong lúc chờ video, nếu Muse không làm ngay mà hỏi vặn lại, bot tự động gửi tin trả lời *"Được, hãy làm ngay theo đúng yêu cầu trên, không cần hỏi lại."* ngay trong cuộc trò chuyện đó (tối đa 2 lần) để Muse làm tiếp mà không mất lượt đã gửi.
 

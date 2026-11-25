@@ -536,4 +536,59 @@ describe("tự động đổi tài khoản Muse khi hết token (CON-218)", () =
     expect(getActiveMuseAccount(t.db).name).toBe("Tài khoản 2");
     expect(listMuseAccounts(t.db).every((a) => !!a.quotaExhaustedAt)).toBe(true);
   });
+
+  it("chế độ Luân phiên (round_robin, CON-220): chạy đồng thời nhiều tài khoản cùng lúc, nâng tổng số luồng lên tổng các tài khoản, không phải chờ thời gian nghỉ của nhau", async () => {
+    const { addMuseAccount, setAccountStreams, listMuseAccounts } = await import("../src/db/accounts.js");
+    const { setAccountPoolSettings } = await import("../src/db/settings.js");
+    const t = setup({
+      rows: 8,
+      slow: { 1: 15, 2: 15, 3: 15, 4: 15, 5: 15, 6: 15, 7: 15, 8: 15 },
+    });
+    const a2 = addMuseAccount(t.db, "Tài khoản 2");
+    const a3 = addMuseAccount(t.db, "Tài khoản 3");
+    expect(a2.ok && a3.ok).toBe(true);
+    // Đặt mỗi tài khoản chạy 3 luồng video, tổng luồng tối đa 20, chế độ Luân phiên.
+    for (const acc of listMuseAccounts(t.db)) setAccountStreams(t.db, acc.id, 3, 2);
+    setAccountPoolSettings(t.db, "round_robin", 20);
+
+    const batchId = await t.run([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(getBatch(t.db, batchId)!.status).toBe("done");
+    expect(states(t.db)).toEqual(["1:done", "2:done", "3:done", "4:done", "5:done", "6:done", "7:done", "8:done"]);
+    // Chạy 3 tài khoản × 3 luồng → mở đồng thời hơn 3 tab (vượt giới hạn 3 của 1 tài khoản đơn lẻ).
+    expect(t.maxOpen()).toBeGreaterThan(3);
+    // Tab có tiền tố acc-<id>-run-<runId> và các dòng được rải đều theo vòng tròn cho 3 tài khoản (1, 2, 3, 1, 2, 3, 1, 2).
+    const byAcc = t.db.prepare("SELECT bangRowId AS row, accountName FROM runs ORDER BY bangRowId").all() as { row: number; accountName: string }[];
+    expect(byAcc).toEqual([
+      { row: 1, accountName: "Tài khoản 1" },
+      { row: 2, accountName: "Tài khoản 2" },
+      { row: 3, accountName: "Tài khoản 3" },
+      { row: 4, accountName: "Tài khoản 1" },
+      { row: 5, accountName: "Tài khoản 2" },
+      { row: 6, accountName: "Tài khoản 3" },
+      { row: 7, accountName: "Tài khoản 1" },
+      { row: 8, accountName: "Tài khoản 2" },
+    ]);
+  });
+
+  it("chế độ Luân phiên (CON-220): 1 tài khoản hết token giữa chừng thì tự rút lui, các tài khoản còn lại gánh tiếp dòng đó đến hết lô", async () => {
+    const { addMuseAccount, listMuseAccounts } = await import("../src/db/accounts.js");
+    const { setAccountPoolSettings } = await import("../src/db/settings.js");
+    // Dòng 2 gửi lần đầu (trên Tài khoản 2) bị báo hết lượt; xếp lại thì Tài khoản 1 hoặc 3 sẽ làm tiếp.
+    const t = setup({
+      rows: 4,
+      slow: { 1: 4, 2: 4, 3: 4, 4: 4 },
+      sendFail: (row, nth) => (row === 2 && nth === 1 ? new BotError("quota", "Muse báo hết lượt", true) : undefined),
+    });
+    addMuseAccount(t.db, "Tài khoản 2");
+    addMuseAccount(t.db, "Tài khoản 3");
+    setAccountPoolSettings(t.db, "round_robin", 20);
+
+    const batchId = await t.run([1, 2, 3, 4]);
+    expect(getBatch(t.db, batchId)!.status).toBe("done");
+    expect(states(t.db)).toEqual(["1:done", "2:done", "3:done", "4:done"]);
+    const accs = listMuseAccounts(t.db);
+    expect(accs[1]!.quotaExhaustedAt).toBeTruthy(); // Tài khoản 2 bị đánh dấu hết token
+    expect(accs[0]!.quotaExhaustedAt).toBeNull();
+    expect(accs[2]!.quotaExhaustedAt).toBeNull();
+  });
 });
