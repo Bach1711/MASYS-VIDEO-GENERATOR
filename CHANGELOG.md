@@ -2,6 +2,16 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+**Tối ưu gắn và kiểm tra Proxy đa luồng: tự nhận định dạng `IP:Port:User:Pass`, nhập trực tiếp trên bảng và có nút Thử Proxy.**
+
+- **Tự hiểu mọi định dạng Proxy phổ biến tại Việt Nam:** ngoài dạng `http://user:pass@ip:port` hoặc `socks5://user:pass@ip:port`, giờ bạn có thể dán thẳng chuỗi `ip:port:user:pass` (ví dụ `103.145.22.10:8080:khach1:matkhau123` hoặc `socks5://103.145.22.10:1080:khach1:matkhau123`) mua từ các nhà cung cấp Proxy, tool tự nhận diện và chuẩn hoá ngay.
+- **Nhập và sửa Proxy trực tiếp trên bảng Tài khoản Muse (`/bot`):**
+  - Cột **Proxy** của từng dòng tài khoản có sẵn ô nhập và nút **Lưu** ngay trên mặt bảng (không cần bấm mở nút *Sửa* mới thấy).
+  - Chỗ **+ Thêm tài khoản Muse** có sẵn ô dán Proxy để gắn luôn từ lúc mới thêm tài khoản.
+- **Nút Thử Proxy:** tài khoản đã gắn Proxy có nút **Thử** ngay cạnh nút Lưu để kiểm tra xem Proxy còn sống, đúng mật khẩu và phản hồi bao nhiêu mili-giây trước khi mở trình duyệt chạy đa luồng.
+
 ## v2.18.0
 
 **Chạy song song nhiều tài khoản Muse cùng lúc (chế độ Luân phiên, tổng luồng tới 20–30 video), đọc % token / hạn mức còn lại, gắn Proxy riêng từng tài khoản, tự thu nhỏ cửa sổ Chrome và tự trả lời khi Muse hỏi lại.**

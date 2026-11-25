@@ -696,4 +696,78 @@ describe("trang Bot Muse", () => {
     expect(pageHtml).toContain("socks5://user1:***@192.168.1.10:1080");
     expect(pageHtml).not.toContain("secret99@");
   });
+
+  it("hỗ trợ định dạng Proxy IP:Port:User:Pass, gắn Proxy ngay lúc thêm tài khoản và nút Thử kết nối Proxy (CON-222)", async () => {
+    const net = await import("node:net");
+    const { createApp } = await import("../src/web/app.js");
+    const { loadConfig } = await import("../src/config.js");
+    const { listMuseAccounts, parseProxyConfig, testProxyConnection } = await import("../src/db/accounts.js");
+
+    // 1. Hỗ trợ định dạng 4 khúc IP:Port:User:Pass (cả không có scheme và có scheme http:// hoặc socks5://).
+    expect(parseProxyConfig("103.145.22.10:8080:khach1:matkhau123")).toEqual({
+      ok: true,
+      normalized: "http://khach1:matkhau123@103.145.22.10:8080",
+      playwright: { server: "http://103.145.22.10:8080", username: "khach1", password: "matkhau123" },
+    });
+    expect(parseProxyConfig("socks5://103.145.22.10:1080:khach2:pass456")).toEqual({
+      ok: true,
+      normalized: "socks5://khach2:pass456@103.145.22.10:1080",
+      playwright: { server: "socks5://103.145.22.10:1080", username: "khach2", password: "pass456" },
+    });
+
+    // 2. Dựng máy chủ HTTP Proxy giả lập để kiểm tra testProxyConnection & route /bot/accounts/test-proxy.
+    let requireAuth = true;
+    const proxyServer = net.createServer((socket) => {
+      socket.once("data", (buf) => {
+        const req = buf.toString("latin1");
+        const expectedAuth = `Proxy-Authorization: Basic ${Buffer.from("khach1:matkhau123").toString("base64")}`;
+        if (requireAuth && !req.includes(expectedAuth)) {
+          socket.end("HTTP/1.1 407 Proxy Authentication Required\r\n\r\n");
+        } else {
+          socket.end("HTTP/1.1 200 OK\r\n\r\n");
+        }
+      });
+    });
+    await new Promise<void>((r) => proxyServer.listen(0, "127.0.0.1", r));
+    const port = (proxyServer.address() as { port: number }).port;
+
+    try {
+      const okCheck = await testProxyConnection(`127.0.0.1:${port}:khach1:matkhau123`);
+      expect(okCheck.ok).toBe(true);
+      if (okCheck.ok) expect(okCheck.message).toContain(`Proxy HTTP 127.0.0.1:${port} hoạt động tốt`);
+
+      const wrongPass = await testProxyConnection(`127.0.0.1:${port}:khach1:sai_mat_khau`);
+      expect(wrongPass.ok).toBe(false);
+      if (!wrongPass.ok) expect(wrongPass.message).toContain("407");
+
+      // 3. Thêm tài khoản mới kèm luôn Proxy dạng IP:Port:User:Pass và bấm nút Thử Proxy trên giao diện.
+      const db = dbWithRun();
+      const config = loadConfig({ ...FAKE_KEY_ENV, MASYS_DATA_DIR: tmp });
+      const fake = {
+        isOpen: false,
+        send: async () => ({ chatUrl: "x" }),
+        check: async () => ({ state: "ready" as const }),
+        open: async () => {},
+        close: async () => {},
+      } as unknown as MuseBot;
+      const app = createApp(config, db, { bot: fake });
+
+      const addWithProxy = await app.request("/bot/accounts/add", {
+        method: "POST",
+        body: new URLSearchParams({ name: "Acc Proxy VN", proxy: `127.0.0.1:${port}:khach1:matkhau123` }),
+      });
+      expect(addWithProxy.status).toBe(303);
+      const created = listMuseAccounts(db).find((a) => a.name === "Acc Proxy VN");
+      expect(created?.proxy).toBe(`http://khach1:matkhau123@127.0.0.1:${port}`);
+
+      const testRes = await app.request("/bot/accounts/test-proxy", {
+        method: "POST",
+        body: new URLSearchParams({ id: String(created!.id) }),
+      });
+      expect(testRes.status).toBe(303);
+      expect(decodeURIComponent(testRes.headers.get("location") ?? "")).toContain("hoạt động tốt");
+    } finally {
+      await new Promise<void>((r) => proxyServer.close(() => r()));
+    }
+  });
 });
