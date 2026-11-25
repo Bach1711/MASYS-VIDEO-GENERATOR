@@ -111,3 +111,50 @@ export const notices = {
    */
   asking: /would you like|do you want|which (one|option|version)|please (confirm|choose|select)|let me know (which|if you|what)|bạn (có )?muốn|vui lòng (chọn|xác nhận)|hãy (chọn|xác nhận)|bạn (hãy )?(chọn|xác nhận)|xác nhận (giúp|lại|lựa chọn)|lựa chọn nào/i,
 };
+
+/**
+ * Hộp cài đặt & thông tin hạn mức / token trên Muse (Settings → Usage, CON-221).
+ */
+export const usage = {
+  settingsButton: (p: Page): Locator => p.getByRole("button", { name: /^(settings|cài đặt|account|profile)$/i }).first(),
+  usageTab: (p: Page): Locator =>
+    p.getByRole("tab", { name: /^(usage|sử dụng|hạn mức)$/i }).or(p.getByRole("button", { name: /^(usage|sử dụng|hạn mức)$/i })).first(),
+  closeDialog: (p: Page): Locator => p.getByRole("button", { name: /^(close|đóng)$/i }).first(),
+};
+
+/**
+ * Rút trích chuỗi tóm tắt hạn mức / % token còn lại từ nội dung chữ trên trang Muse (CON-221).
+ * Hỗ trợ các mẫu của Muse:
+ *  - "Weekly limit · 88% used" / "88% remaining" / "Free plan ... 100% used"
+ *  - "Additional tokens ... 88% ... 880M tokens remaining" / "Resets Dec 2"
+ *  - Hoặc dòng tóm tắt tiếng Việt/Anh có chứa `%` kèm `token` / `limit` / `usage` / `hạn mức`.
+ */
+export function extractUsageSummary(text: string): string | undefined {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (!flat) return undefined;
+
+  const parts: string[] = [];
+
+  // 1. Dò mẫu "Weekly limit" / "Free plan" kèm %
+  const weekly = flat.match(/(?:weekly\s+limit|free\s+plan|hạn\s+mức\s+tuần)[^.%]{0,60}?(\d{1,3}%\s*(?:used|remaining|left|đã\s+dùng|còn\s+lại)?)/i);
+  if (weekly?.[1]) parts.push(`Tuần: ${weekly[1].trim()}`);
+
+  // 2. Dò mẫu "Additional tokens" / "Token bổ sung" kèm % hoặc số token (ví dụ 880M tokens)
+  const addPct = flat.match(/(?:additional\s+tokens?|token\s+bổ\s+sung|extra\s+tokens?)[^.%]{0,80}?(\d{1,3}%\s*(?:used|remaining|left|đã\s+dùng|còn\s+lại)?)/i);
+  if (addPct?.[1]) parts.push(`Token bổ sung: ${addPct[1].trim()}`);
+
+  const tokCount = flat.match(/(\d+(?:[.,]\d+)?\s*[KMB]?\s*tokens?\s*(?:remaining|left|available|còn\s+lại))/i);
+  if (tokCount?.[1]) parts.push(tokCount[1].trim());
+
+  const reset = flat.match(/(resets?\s+(?:on\s+)?[A-Za-z]{3,9}\s+\d{1,2}|\bđặt\s+lại\s+\d{1,2}\/\d{1,2})/i);
+  if (reset?.[1]) parts.push(reset[1].trim());
+
+  if (parts.length > 0) return parts.join(" · ");
+
+  // 3. Dự phòng: bất kỳ cụm ngắn nào có "<số>% ... (tokens|limit|usage|credits|hạn mức)"
+  const generic = flat.match(/(\d{1,3}%\s*(?:used|remaining|left|of\s+your\s+[a-z]+\s+limit|token[a-z\s]*|hạn\s+mức[a-z\s]*))/i);
+  if (generic?.[1]) return generic[1].trim().slice(0, 80);
+
+  return undefined;
+}
+

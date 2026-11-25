@@ -613,4 +613,87 @@ describe("trang Bot Muse", () => {
     expect(delLast.status).toBe(400);
     expect(listMuseAccounts(db)).toHaveLength(1);
   });
+
+  it("đọc hạn mức / % token còn lại, kiểm tra tất cả phiên và lưu Proxy riêng cho từng tài khoản (CON-221)", async () => {
+    const { createApp } = await import("../src/web/app.js");
+    const { loadConfig } = await import("../src/config.js");
+    const { listMuseAccounts, parseProxyConfig } = await import("../src/db/accounts.js");
+    const { extractUsageSummary } = await import("../src/bot/museSelectors.js");
+
+    // 1. Kiểm tra bộ phân tích chuỗi hạn mức / token từ Muse.
+    expect(
+      extractUsageSummary("Plan: Free plan · Weekly limit 100% used · Additional tokens 88% remaining · 880M tokens remaining · Resets Dec 2"),
+    ).toBe("Tuần: 100% used · Token bổ sung: 88% remaining · 880M tokens remaining · Resets Dec 2");
+    expect(extractUsageSummary("Không có thông tin hạn mức")).toBeUndefined();
+
+    // 2. Kiểm tra bộ phân tích Proxy cho Playwright.
+    expect(parseProxyConfig("")).toEqual({ ok: true, normalized: null });
+    expect(parseProxyConfig("127.0.0.1:8080")).toEqual({
+      ok: true,
+      normalized: "http://127.0.0.1:8080",
+      playwright: { server: "http://127.0.0.1:8080" },
+    });
+    expect(parseProxyConfig("socks5://myuser:mypass@10.0.0.2:1080")).toEqual({
+      ok: true,
+      normalized: "socks5://myuser:mypass@10.0.0.2:1080",
+      playwright: { server: "socks5://10.0.0.2:1080", username: "myuser", password: "mypass" },
+    });
+    expect(parseProxyConfig("ftp://1.2.3.4:21").ok).toBe(false);
+    expect(parseProxyConfig("http://no-port-host").ok).toBe(false);
+
+    // 3. Kiểm tra giao diện & các route /bot/accounts/proxy, /bot/accounts/check-all, /bot/check.
+    const db = dbWithRun();
+    const config = loadConfig({ ...FAKE_KEY_ENV, MASYS_DATA_DIR: tmp });
+    const checkedDirs: string[] = [];
+    const fake = {
+      isOpen: true,
+      send: async () => ({ chatUrl: "x" }),
+      check: async () => ({ state: "ready" as const, usageText: "Tuần: 45% used · 920M tokens remaining" }),
+      checkProfile: async (dir: string) => {
+        checkedDirs.push(dir);
+        if (dir.endsWith("acc-2")) return { state: "login" as const };
+        return { state: "ready" as const, usageText: `Token bổ sung: 88% remaining (${path.basename(dir)})` };
+      },
+      open: async () => {},
+      close: async () => {},
+    } as unknown as MuseBot;
+    const runner = { runningBatchId: undefined as number | undefined } as unknown as import("../src/queue/runner.js").BatchRunner;
+    const app = createApp(config, db, { bot: fake, runner });
+
+    await app.request("/bot/accounts/add", { method: "POST", body: new URLSearchParams({ name: "Acc 2" }) });
+    await app.request("/bot/accounts/add", { method: "POST", body: new URLSearchParams({ name: "Acc 3" }) });
+
+    // Lưu Proxy hợp lệ cho Acc 2 (che mật khẩu trên bảng HTML) và từ chối Proxy sai.
+    const badProxy = await app.request("/bot/accounts/proxy", {
+      method: "POST",
+      body: new URLSearchParams({ id: "2", proxy: "http://khong-co-cong" }),
+    });
+    expect(badProxy.status).toBe(400);
+
+    const okProxy = await app.request("/bot/accounts/proxy", {
+      method: "POST",
+      body: new URLSearchParams({ id: "2", proxy: "socks5://user1:secret99@192.168.1.10:1080" }),
+    });
+    expect(okProxy.status).toBe(303);
+    expect(listMuseAccounts(db).find((a) => a.id === 2)?.proxy).toBe("socks5://user1:secret99@192.168.1.10:1080");
+
+    // Bấm Kiểm tra tất cả phiên: kiểm tra lần lượt cả 3 hồ sơ, cập nhật trạng thái và usageText.
+    const checkAll = await app.request("/bot/accounts/check-all", { method: "POST" });
+    expect(checkAll.status).toBe(303);
+    expect(checkedDirs).toHaveLength(3);
+
+    const accs = listMuseAccounts(db);
+    expect(accs[0]?.readyAt).toBeTruthy();
+    expect(accs[0]?.usageText).toContain("88% remaining (bot-profile)");
+    expect(accs[1]?.readyAt).toBeNull();
+    expect(accs[2]?.readyAt).toBeTruthy();
+    expect(accs[2]?.usageText).toContain("88% remaining (acc-3)");
+
+    const pageHtml = await (await app.request("/bot")).text();
+    expect(pageHtml).toContain("Phiên tốt: 2/3");
+    expect(pageHtml).toContain("Tác vụ đang chạy: 0");
+    expect(pageHtml).toContain("88% remaining (bot-profile)");
+    expect(pageHtml).toContain("socks5://user1:***@192.168.1.10:1080");
+    expect(pageHtml).not.toContain("secret99@");
+  });
 });

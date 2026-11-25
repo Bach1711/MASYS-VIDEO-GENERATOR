@@ -1,7 +1,7 @@
 import { serve } from "@hono/node-server";
 import { MuseBot } from "./bot/museBot.js";
 import { DEFAULT_MUSE_URL } from "./bot/museSelectors.js";
-import { activeProfileDir, getMuseAccount, resolveAccountProfileDir } from "./db/accounts.js";
+import { activeProfileDir, getMuseAccount, listMuseAccounts, parseProxyConfig, resolveAccountProfileDir } from "./db/accounts.js";
 import { getSettings } from "./db/settings.js";
 import { BangFiles } from "./bang/files.js";
 import { clearStaleHookJobs } from "./bang/rows.js";
@@ -52,6 +52,12 @@ const bot = new MuseBot({
     const m = /^acc-(\d+)-/.exec(tab ?? "");
     const acc = m ? getMuseAccount(db, Number(m[1])) : undefined;
     return acc ? resolveAccountProfileDir(config.dataDir, acc.profileDir) : activeProfileDir(db, config.dataDir);
+  },
+  proxyForProfileDir: (dir: string) => {
+    const acc = listMuseAccounts(db).find((a) => resolveAccountProfileDir(config.dataDir, a.profileDir) === dir);
+    if (!acc?.proxy) return undefined;
+    const p = parseProxyConfig(acc.proxy);
+    return p.ok ? p.playwright : undefined;
   },
   screenshotDir: config.screenshotDir,
   museUrl: () => getSettings(db).museUrl ?? DEFAULT_MUSE_URL,
