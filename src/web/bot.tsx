@@ -9,10 +9,15 @@ import {
   addMuseAccount,
   deleteMuseAccount,
   getActiveMuseAccount,
+  getMuseAccount,
   listMuseAccounts,
   renameMuseAccount,
+  resolveAccountProfileDir,
+  setAccountProxy,
   setAccountQuotaExhausted,
+  setAccountReady,
   setAccountStreams,
+  setAccountUsage,
   setActiveMuseAccount,
   type MuseAccount,
 } from "../db/accounts.js";
@@ -75,6 +80,10 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
     const accounts = listMuseAccounts(db);
     const activeAcc = getActiveMuseAccount(db);
     const locked = lockReason();
+    const goodSessions = accounts.filter((a) => !!a.readyAt && !a.quotaExhaustedAt).length;
+    const runningTasks = (
+      db.prepare("SELECT COUNT(*) AS n FROM runs WHERE state IN ('sending', 'waiting', 'verifying')").get() as { n: number }
+    ).n;
     const names = new Map(listSheetConfigs(db).map((c) => [c.spreadsheetId, sheetName(c)]));
     const events = db
       .prepare(
@@ -105,9 +114,24 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
         {notice}
 
         <section class="card">
-          <h2>Tài khoản Muse (Multi-Profile)</h2>
-          <p class="muted">
-            Mỗi tài khoản dùng một hồ sơ Chrome riêng biệt (tự giữ phiên đăng nhập và cookie riêng). Thêm tài khoản mới rồi bấm{" "}
+          <div class="row" style="justify-content:space-between;align-items:center">
+            <h2 style="margin:0">Tài khoản Muse (Multi-Profile)</h2>
+            <div class="row" style="align-items:center">
+              <span class="badge b-ready" data-testid="good-sessions">
+                Phiên tốt: {goodSessions}/{accounts.length}
+              </span>
+              <span class="badge b-running" data-testid="running-tasks">
+                Tác vụ đang chạy: {runningTasks}
+              </span>
+              <form method="post" action="/bot/accounts/check-all">
+                <button type="submit" class="secondary small" disabled={!!locked}>
+                  Kiểm tra tất cả phiên
+                </button>
+              </form>
+            </div>
+          </div>
+          <p class="muted" style="margin-top:8px">
+            Mỗi tài khoản dùng một hồ sơ Chrome riêng biệt (tự giữ phiên đăng nhập, cookie và Proxy riêng). Thêm tài khoản mới rồi bấm{" "}
             <strong>Mở trình duyệt</strong> để tự đăng nhập Muse một lần cho tài khoản đó.
           </p>
           <form method="post" action="/bot/accounts/pool-mode" class="row" style="margin:12px 0;align-items:center">
@@ -153,6 +177,8 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
                 <tr>
                   <th>#</th>
                   <th>Tên tài khoản</th>
+                  <th>Hạn mức / Token</th>
+                  <th>Proxy</th>
                   <th>Luồng (Ảnh / Video)</th>
                   <th>Trạng thái</th>
                   <th>Thao tác</th>
@@ -167,6 +193,29 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
                       <td>
                         <strong>{acc.name}</strong>
                         {isActive && <span class="muted small"> (đang chọn)</span>}
+                      </td>
+                      <td data-account-usage={acc.id}>
+                        {acc.usageText ? (
+                          <span
+                            class="small"
+                            title={
+                              acc.usageCheckedAt
+                                ? `Kiểm tra hạn mức lúc ${new Date(acc.usageCheckedAt).toLocaleString("vi-VN")}`
+                                : undefined
+                            }
+                          >
+                            {acc.usageText}
+                          </span>
+                        ) : (
+                          <span class="muted small">Chưa kiểm tra</span>
+                        )}
+                      </td>
+                      <td data-account-proxy={acc.id}>
+                        {acc.proxy ? (
+                          <code class="small">{acc.proxy.replace(/\/\/([^:@]+):([^@]+)@/, "//$1:***@")}</code>
+                        ) : (
+                          <span class="muted small">Không proxy</span>
+                        )}
                       </td>
                       <td>
                         <form method="post" action="/bot/accounts/streams" class="row" style="align-items:center;flex-wrap:nowrap">
@@ -227,9 +276,24 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
                             <div class="row" style="margin-top:6px;align-items:center">
                               <form method="post" action="/bot/accounts/rename" class="row" style="align-items:center">
                                 <input type="hidden" name="id" value={String(acc.id)} />
-                                <input type="text" name="name" value={acc.name} required maxlength={60} aria-label={`Tên mới cho ${acc.name}`} style="width:160px;flex:none" />
+                                <input type="text" name="name" value={acc.name} required maxlength={60} aria-label={`Tên mới cho ${acc.name}`} style="width:150px;flex:none" />
                                 <button type="submit" class="secondary small">
                                   Lưu tên
+                                </button>
+                              </form>
+                              <form method="post" action="/bot/accounts/proxy" class="row" style="align-items:center">
+                                <input type="hidden" name="id" value={String(acc.id)} />
+                                <input
+                                  type="text"
+                                  name="proxy"
+                                  value={(acc.proxy ?? "").replace(/\/\/([^:@]+):([^@]+)@/, "//$1:***@")}
+                                  maxlength={200}
+                                  placeholder="Không proxy (http://host:port)"
+                                  aria-label={`Proxy cho ${acc.name}`}
+                                  style="width:190px;flex:none"
+                                />
+                                <button type="submit" class="secondary small" disabled={!!locked}>
+                                  Lưu Proxy
                                 </button>
                               </form>
                               {accounts.length > 1 && (
@@ -451,6 +515,55 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
     return c.redirect(`/bot?ok=${encodeURIComponent(`Đã cập nhật số luồng cho "${r.account.name}" (${r.account.maxImageStreams} ảnh / ${r.account.maxVideoStreams} video).`)}`, 303);
   });
 
+  app.post("/bot/accounts/proxy", async (c) => {
+    const blocked = lockReason();
+    if (blocked) return c.html(render(<Alert kind="warn">{blocked}</Alert>), 409);
+    const body = await c.req.parseBody();
+    const id = Number(body.id);
+    let rawProxy = String(body.proxy ?? "");
+    const existing = getMuseAccount(db, id);
+    if (existing?.proxy && rawProxy.includes(":***@")) {
+      const m = /\/\/([^:@]+):([^@]+)@/.exec(existing.proxy);
+      if (m?.[2]) rawProxy = rawProxy.replace(":***@", `:${m[2]}@`);
+    }
+    const r = setAccountProxy(db, id, rawProxy);
+    if (!r.ok) return c.html(render(<Alert kind="warn">{r.message}</Alert>), 400);
+    if (getActiveMuseAccount(db).id === id && bot?.isOpen) {
+      await bot.close();
+      lastCheck = undefined;
+    }
+    logger.info({ accountId: r.account.id, name: r.account.name, hasProxy: !!r.account.proxy }, "Đã cập nhật Proxy tài khoản Muse");
+    return c.redirect(
+      `/bot?ok=${encodeURIComponent(r.account.proxy ? `Đã lưu Proxy cho "${r.account.name}".` : `Đã đặt "${r.account.name}" về Không proxy.`)}`,
+      303,
+    );
+  });
+
+  app.post("/bot/accounts/check-all", async (c) => {
+    if (!bot) return c.html(render(), 503);
+    const blocked = lockReason();
+    if (blocked) return c.html(render(<Alert kind="warn">{blocked}</Alert>), 409);
+    const accounts = listMuseAccounts(db);
+    let readyCount = 0;
+    for (const acc of accounts) {
+      try {
+        const dir = resolveAccountProfileDir(deps.config.dataDir, acc.profileDir);
+        const res = await bot.checkProfile(dir);
+        if (res.state === "ready") {
+          readyCount++;
+          setAccountReady(db, new Date().toISOString(), acc.id);
+          setAccountQuotaExhausted(db, null, acc.id);
+          if (res.usageText) setAccountUsage(db, res.usageText, acc.id);
+        } else if (res.state === "login" || res.state === "challenge") {
+          setAccountReady(db, null, acc.id);
+        }
+      } catch (e) {
+        logger.warn({ err: e, accountId: acc.id, name: acc.name }, "Lỗi khi kiểm tra phiên tài khoản Muse");
+      }
+    }
+    return c.redirect(`/bot?ok=${encodeURIComponent(`Đã kiểm tra tất cả phiên: ${readyCount}/${accounts.length} tài khoản sẵn sàng.`)}`, 303);
+  });
+
   app.post("/bot/accounts/delete", async (c) => {
     const blocked = lockReason();
     if (blocked) return c.html(render(<Alert kind="warn">{blocked}</Alert>), 409);
@@ -483,8 +596,11 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
     if (!bot) return c.html(render(), 503);
     lastCheck = { ...(await bot.check()), at: new Date() };
     rememberMuseCheck(db, lastCheck.state);
-    if (lastCheck.state === "ready") setAccountQuotaExhausted(db, null);
-    logger.info({ state: lastCheck.state, url: lastCheck.url, account: getActiveMuseAccount(db).name }, "Kiểm tra trang Muse");
+    if (lastCheck.state === "ready") {
+      setAccountQuotaExhausted(db, null);
+      if (lastCheck.usageText) setAccountUsage(db, lastCheck.usageText);
+    }
+    logger.info({ state: lastCheck.state, url: lastCheck.url, usageText: lastCheck.usageText, account: getActiveMuseAccount(db).name }, "Kiểm tra trang Muse");
     return c.redirect("/bot", 303);
   });
 

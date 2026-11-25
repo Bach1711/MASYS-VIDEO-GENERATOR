@@ -35,6 +35,8 @@ export interface CheckResult {
   /** URL trang hiện tại, đã bỏ phần sau dấu ? (có thể chứa mã phiên). */
   url?: string;
   screenshot?: string;
+  /** Thông tin hạn mức / % token còn lại đọc được từ trang Muse (CON-221). */
+  usageText?: string;
 }
 
 export interface MuseBotOptions {
@@ -59,6 +61,8 @@ export interface MuseBotOptions {
   sentImagesTimeoutMs?: number;
   /** Tự thu nhỏ cửa sổ Chrome của bot xuống thanh Taskbar khi mở tự động (CON-219). */
   hideWindow?: () => boolean;
+  /** Trả về cấu hình Proxy của Playwright theo thư mục hồ sơ Chrome (CON-221). */
+  proxyForProfileDir?: (profileDir: string) => { server: string; username?: string; password?: string } | undefined;
 }
 
 /** Muse xoá nội dung ô chat trước khi gửi: điền lại tối đa chừng này lần trong cùng tab (CON-98). */
@@ -131,17 +135,19 @@ export class MuseBot {
 
   private async launchDir(dir: string, onClose: () => void): Promise<BrowserContext> {
     fs.mkdirSync(dir, { recursive: true });
+    const proxy = this.o.proxyForProfileDir?.(dir);
     const ctx = await chromium.launchPersistentContext(dir, {
       channel: "chrome",
       headless: this.o.headless ?? false,
       viewport: null,
+      ...(proxy ? { proxy } : {}),
     });
     ctx.on("close", onClose);
     const initial = ctx.pages();
     const first = await ctx.newPage();
     for (const p of initial) if (p.url() === "about:blank") await p.close().catch(() => {});
     if (this.shouldHideWindow()) await this.setWindowState(first, "minimized");
-    logger.info({ profileDir: dir }, "Đã mở trình duyệt bot");
+    logger.info({ profileDir: dir, proxy: proxy?.server ?? null }, "Đã mở trình duyệt bot");
     return ctx;
   }
 
@@ -487,10 +493,75 @@ export class MuseBot {
     if (opts.reload || page.url() === "about:blank") await page.goto(this.o.museUrl(), { waitUntil: "domcontentloaded" });
     const state = await this.classify(page);
     const result: CheckResult = { state, url: stripQuery(page.url()) };
+    if (state === "ready") {
+      result.usageText = await this.readUsageOnPage(page);
+    }
     if (state === "ui_changed") result.screenshot = await this.screenshot(page, "ui_changed");
     if (state !== "ready") await this.bringToFront().catch(() => {});
     else if (this.shouldHideWindow()) await this.setWindowState(page, "minimized");
     return result;
+  }
+
+  /**
+   * Kiểm tra phiên đăng nhập và đọc thông tin hạn mức / % token còn lại cho một thư mục hồ sơ cụ thể (CON-221).
+   * Nếu hồ sơ đó đang mở sẵn thì đọc luôn trên đó; nếu chưa mở thì mở tạm, kiểm tra rồi đóng lại để giải phóng RAM.
+   */
+  async checkProfile(profileDir: string): Promise<CheckResult> {
+    const primaryDir = this.resolveProfileDir();
+    if (this.ctx && (this.openedProfileDir ?? primaryDir) === profileDir) {
+      return await this.check({ reload: false });
+    }
+    const extra = this.extraProfiles.get(profileDir);
+    if (extra?.ctx) {
+      const p = extra.ctx.pages().find((x) => !x.isClosed()) ?? (await extra.ctx.newPage());
+      if (p.url() === "about:blank") await p.goto(this.o.museUrl(), { waitUntil: "domcontentloaded" });
+      const state = await this.classify(p);
+      const usageText = state === "ready" ? await this.readUsageOnPage(p) : undefined;
+      return { state, url: stripQuery(p.url()), usageText };
+    }
+    let tempCtx: BrowserContext | undefined;
+    try {
+      tempCtx = await this.launchDir(profileDir, () => {});
+      const p = tempCtx.pages().find((x) => !x.isClosed()) ?? (await tempCtx.newPage());
+      await p.goto(this.o.museUrl(), { waitUntil: "domcontentloaded" });
+      const state = await this.classify(p);
+      const usageText = state === "ready" ? await this.readUsageOnPage(p) : undefined;
+      return { state, url: stripQuery(p.url()), usageText };
+    } finally {
+      await tempCtx?.close().catch(() => {});
+    }
+  }
+
+  /**
+   * Đọc thông tin hạn mức / % token còn lại trên trang Muse (CON-221).
+   * Thử đọc ngay trên mặt trang trước; nếu chưa có và thấy nút Settings thì mở nhẹ hộp Settings → Usage để đọc rồi đóng lại.
+   */
+  private async readUsageOnPage(page: Page): Promise<string | undefined> {
+    try {
+      const initialText = await bodyText(page);
+      const direct = sel.extractUsageSummary(initialText);
+      if (direct) return direct;
+
+      const settingsBtn = sel.usage.settingsButton(page);
+      if (await visible(settingsBtn)) {
+        await settingsBtn.click({ timeout: 2000 }).catch(() => {});
+        await page.waitForTimeout(300);
+        const usageTab = sel.usage.usageTab(page);
+        if (await visible(usageTab)) {
+          await usageTab.click({ timeout: 2000 }).catch(() => {});
+          await page.waitForTimeout(300);
+        }
+        const dialogText = await bodyText(page);
+        const closeBtn = sel.usage.closeDialog(page);
+        if (await visible(closeBtn)) await closeBtn.click({ timeout: 1500 }).catch(() => {});
+        else await page.keyboard.press("Escape").catch(() => {});
+        const fromDialog = sel.extractUsageSummary(dialogText);
+        if (fromDialog) return fromDialog;
+      }
+    } catch {
+      /* không ảnh hưởng tới kết quả kiểm tra chính */
+    }
+    return undefined;
   }
 
   /** Chờ trang hiện một trong các dấu hiệu đã biết; quá giờ thì coi là giao diện đổi. */

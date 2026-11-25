@@ -309,4 +309,12 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE muse_accounts ADD COLUMN maxVideoStreams INTEGER NOT NULL DEFAULT 3;
   ALTER TABLE muse_accounts ADD COLUMN maxImageStreams INTEGER NOT NULL DEFAULT 2;
   `,
+  // 23. Hiển thị hạn mức / % token còn lại và gắn Proxy riêng cho từng tài khoản Muse (CON-221).
+  // usageText: chuỗi hạn mức đọc từ Muse (ví dụ: "88% token bổ sung · đặt lại 02/12 · còn 880M token").
+  // usageCheckedAt: thời điểm đọc hạn mức gần nhất; proxy: URL proxy (http://... hoặc socks5://...), NULL = Không proxy.
+  `
+  ALTER TABLE muse_accounts ADD COLUMN usageText TEXT;
+  ALTER TABLE muse_accounts ADD COLUMN usageCheckedAt TEXT;
+  ALTER TABLE muse_accounts ADD COLUMN proxy TEXT;
+  `,
 ];

@@ -14,11 +14,15 @@ export interface MuseAccount {
   quotaExhaustedAt: string | null;
   maxVideoStreams: number;
   maxImageStreams: number;
+  usageText: string | null;
+  usageCheckedAt: string | null;
+  proxy: string | null;
   createdAt: string;
   deletedAt: string | null;
 }
 
 const MAX_NAME_LEN = 60;
+const MAX_PROXY_LEN = 200;
 
 export function accountNameProblem(raw: string): string | undefined {
   const s = raw.trim();
@@ -27,19 +31,53 @@ export function accountNameProblem(raw: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Kiểm tra và phân tích chuỗi Proxy cho Playwright (`http://host:port`, `https://host:port`, `socks5://host:port`,
+ * hỗ trợ `user:pass@host:port`, hoặc `host:port` không tiền tố tự hiểu là `http://host:port`).
+ * Trả chuỗi chuẩn hoá hoặc lỗi tiếng Việt rõ ràng (CON-221).
+ */
+export function parseProxyConfig(
+  raw: string | null | undefined,
+): { ok: true; normalized: string | null; playwright?: { server: string; username?: string; password?: string } } | { ok: false; message: string } {
+  const s = (raw ?? "").trim();
+  if (!s) return { ok: true, normalized: null };
+  if (s.length > MAX_PROXY_LEN) return { ok: false, message: `Địa chỉ Proxy tối đa ${MAX_PROXY_LEN} ký tự.` };
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? s : `http://${s}`;
+  let u: URL;
+  try {
+    u = new URL(withScheme);
+  } catch {
+    return { ok: false, message: "Địa chỉ Proxy không hợp lệ (ví dụ đúng: http://127.0.0.1:8080 hoặc socks5://user:pass@host:1080)." };
+  }
+  const proto = u.protocol.toLowerCase();
+  if (proto !== "http:" && proto !== "https:" && proto !== "socks5:" && proto !== "socks4:") {
+    return { ok: false, message: "Proxy chỉ hỗ trợ giao thức http://, https://, socks5:// hoặc socks4://." };
+  }
+  if (!u.hostname || !u.port) {
+    return { ok: false, message: "Proxy cần có đủ địa chỉ máy chủ và cổng (ví dụ: http://127.0.0.1:8080)." };
+  }
+  const server = `${proto}//${u.hostname}:${u.port}`;
+  const username = u.username ? decodeURIComponent(u.username) : undefined;
+  const password = u.password ? decodeURIComponent(u.password) : undefined;
+  return {
+    ok: true,
+    normalized: withScheme,
+    playwright: { server, ...(username ? { username } : {}), ...(password ? { password } : {}) },
+  };
+}
+
+const ACCOUNT_COLS =
+  "id, name, profileDir, readyAt, quotaExhaustedAt, maxVideoStreams, maxImageStreams, usageText, usageCheckedAt, proxy, createdAt, deletedAt";
+
 export function listMuseAccounts(db: DB): MuseAccount[] {
   return db
-    .prepare(
-      "SELECT id, name, profileDir, readyAt, quotaExhaustedAt, maxVideoStreams, maxImageStreams, createdAt, deletedAt FROM muse_accounts WHERE deletedAt IS NULL ORDER BY id",
-    )
+    .prepare(`SELECT ${ACCOUNT_COLS} FROM muse_accounts WHERE deletedAt IS NULL ORDER BY id`)
     .all() as MuseAccount[];
 }
 
 export function getMuseAccount(db: DB, id: number): MuseAccount | undefined {
   return db
-    .prepare(
-      "SELECT id, name, profileDir, readyAt, quotaExhaustedAt, maxVideoStreams, maxImageStreams, createdAt, deletedAt FROM muse_accounts WHERE id = ? AND deletedAt IS NULL",
-    )
+    .prepare(`SELECT ${ACCOUNT_COLS} FROM muse_accounts WHERE id = ? AND deletedAt IS NULL`)
     .get(id) as MuseAccount | undefined;
 }
 
@@ -170,6 +208,27 @@ export function setAccountStreams(
   const v = Math.min(6, Math.max(1, Math.floor(maxVideoStreams) || 3));
   const img = Math.min(6, Math.max(1, Math.floor(maxImageStreams) || 2));
   db.prepare("UPDATE muse_accounts SET maxVideoStreams = ?, maxImageStreams = ? WHERE id = ?").run(v, img, id);
+  return { ok: true, account: getMuseAccount(db, id)! };
+}
+
+/** Cập nhật thông tin hạn mức / % token còn lại đọc được từ trang Muse (CON-221). */
+export function setAccountUsage(db: DB, usageText: string | null, accountId?: number): void {
+  const id = accountId ?? getActiveMuseAccount(db).id;
+  const now = usageText ? new Date().toISOString() : null;
+  db.prepare("UPDATE muse_accounts SET usageText = ?, usageCheckedAt = ? WHERE id = ?").run(usageText, now, id);
+}
+
+/** Cập nhật cấu hình Proxy riêng cho một tài khoản Muse (CON-221). Chuỗi rỗng = xoá Proxy (Không proxy). */
+export function setAccountProxy(
+  db: DB,
+  id: number,
+  rawProxy: string,
+): { ok: true; account: MuseAccount } | { ok: false; message: string } {
+  const acc = getMuseAccount(db, id);
+  if (!acc) return { ok: false, message: "Không tìm thấy tài khoản này." };
+  const parsed = parseProxyConfig(rawProxy);
+  if (!parsed.ok) return parsed;
+  db.prepare("UPDATE muse_accounts SET proxy = ? WHERE id = ?").run(parsed.normalized, id);
   return { ok: true, account: getMuseAccount(db, id)! };
 }
 
