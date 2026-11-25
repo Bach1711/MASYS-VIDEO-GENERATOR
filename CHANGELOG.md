@@ -2,7 +2,7 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
-## Chưa phát hành
+## v2.18.0
 
 **Chạy song song nhiều tài khoản Muse cùng lúc (chế độ Luân phiên, tổng luồng tới 20–30 video), đọc % token / hạn mức còn lại, gắn Proxy riêng từng tài khoản, tự thu nhỏ cửa sổ Chrome và tự trả lời khi Muse hỏi lại.**
 
