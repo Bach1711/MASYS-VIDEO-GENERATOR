@@ -136,17 +136,19 @@ export class MuseBot {
   private async launchDir(dir: string, onClose: () => void): Promise<BrowserContext> {
     fs.mkdirSync(dir, { recursive: true });
     const proxy = this.o.proxyForProfileDir?.(dir);
+    const hide = this.shouldHideWindow();
     const ctx = await chromium.launchPersistentContext(dir, {
       channel: "chrome",
       headless: this.o.headless ?? false,
       viewport: null,
+      ...(hide ? { args: ["--start-minimized"] } : {}),
       ...(proxy ? { proxy } : {}),
     });
     ctx.on("close", onClose);
     const initial = ctx.pages();
     const first = await ctx.newPage();
     for (const p of initial) if (p.url() === "about:blank") await p.close().catch(() => {});
-    if (this.shouldHideWindow()) await this.setWindowState(first, "minimized");
+    if (hide) await this.setWindowState(first, "minimized");
     logger.info({ profileDir: dir, proxy: proxy?.server ?? null }, "Đã mở trình duyệt bot");
     return ctx;
   }
@@ -206,12 +208,18 @@ export class MuseBot {
       const ctx = await this.context(tab);
       const fresh = await ctx.newPage();
       this.tabs.set(tab, fresh);
+      // CON-223: trên Windows, ctx.newPage() tự động khôi phục (un-minimize) cửa sổ Chrome lên màn hình;
+      // thu nhỏ lại ngay lập tức nếu đang bật chế độ ẩn cửa sổ.
+      if (this.shouldHideWindow()) await this.setWindowState(fresh, "minimized");
       return fresh;
     }
     const ctx = await this.context();
     const owned = new Set(this.tabs.values());
     const pages = ctx.pages().filter((p) => !p.isClosed() && !owned.has(p));
-    return pages[pages.length - 1] ?? (await ctx.newPage());
+    if (pages.length > 0) return pages[pages.length - 1]!;
+    const fresh = await ctx.newPage();
+    if (this.shouldHideWindow()) await this.setWindowState(fresh, "minimized");
+    return fresh;
   }
 
   /** Đóng tab riêng của một lượt khi đã xong (tải video xong, Cần xem…). Không đụng trang làm việc chung. */
@@ -228,15 +236,26 @@ export class MuseBot {
   }
 
   /**
-   * Đặt trạng thái cửa sổ Chrome ("minimized" = thu nhỏ xuống Taskbar, "normal" = hiện lại trên màn hình) qua CDP (CON-219).
+   * Đặt trạng thái cửa sổ Chrome ("minimized" = thu nhỏ xuống Taskbar, "normal" = hiện lại trên màn hình) qua CDP (CON-219, CON-223).
+   * Lưu ý trên Chromium/Windows: nếu cửa sổ đang ở trạng thái "maximized" hoặc "fullscreen", gọi trực tiếp sang "minimized"
+   * đôi khi bị bỏ qua, nên cần chuyển về "normal" trước rồi mới chuyển sang "minimized".
    */
   private async setWindowState(page: Page, windowState: "minimized" | "normal"): Promise<void> {
     if (this.o.headless) return;
     try {
       const cdp = await page.context().newCDPSession(page);
       try {
-        const { windowId } = (await cdp.send("Browser.getWindowForTarget")) as { windowId: number };
-        await cdp.send("Browser.setWindowBounds", { windowId, bounds: { windowState } });
+        const info = (await cdp.send("Browser.getWindowForTarget")) as {
+          windowId: number;
+          bounds?: { windowState?: string };
+        };
+        const cur = info.bounds?.windowState;
+        if (windowState === "minimized" && (cur === "maximized" || cur === "fullscreen")) {
+          await cdp.send("Browser.setWindowBounds", { windowId: info.windowId, bounds: { windowState: "normal" } });
+        }
+        if (cur !== windowState) {
+          await cdp.send("Browser.setWindowBounds", { windowId: info.windowId, bounds: { windowState } });
+        }
       } finally {
         await cdp.detach().catch(() => {});
       }
@@ -245,11 +264,17 @@ export class MuseBot {
     }
   }
 
-  /** Thu nhỏ cửa sổ Chrome của bot xuống thanh Taskbar nếu bật chế độ ẩn cửa sổ (CON-219). */
+  /** Thu nhỏ mọi cửa sổ Chrome của bot xuống thanh Taskbar nếu bật chế độ ẩn cửa sổ (CON-219, CON-223). */
   async minimizeWindow(): Promise<void> {
-    if (!this.ctx || !this.shouldHideWindow()) return;
-    const p = this.ctx.pages().find((x) => !x.isClosed());
-    if (p) await this.setWindowState(p, "minimized");
+    if (!this.isOpen || !this.shouldHideWindow()) return;
+    if (this.ctx) {
+      const p = this.ctx.pages().find((x) => !x.isClosed());
+      if (p) await this.setWindowState(p, "minimized");
+    }
+    for (const e of this.extraProfiles.values()) {
+      const p = e.ctx?.pages().find((x) => !x.isClosed());
+      if (p) await this.setWindowState(p, "minimized");
+    }
   }
 
   /**
@@ -280,7 +305,7 @@ export class MuseBot {
    * Trình duyệt tắt thì trả `closed`; tool vẫn theo dõi ô Video bình thường.
    */
   async watch(tab?: string): Promise<WatchResult> {
-    if (!this.ctx || this.busy) return { closed: !this.ctx, login: false, approval: false };
+    if (!this.isOpen || this.busy) return { closed: !this.isOpen, login: false, approval: false };
     if (tab !== undefined && (!this.tabs.get(tab) || this.tabs.get(tab)!.isClosed())) return { closed: true, login: false, approval: false };
     const page = await this.page(tab);
     const body = normalize(await bodyText(page));
@@ -303,15 +328,17 @@ export class MuseBot {
    */
   async reply(text: string, tab: string, clips: string[] = []): Promise<void> {
     if (this.busy) throw new BotError("busy", "Bot đang gửi một yêu cầu khác", false);
-    if (!this.ctx) throw new BotError("closed", STATE_TEXT.closed, false);
+    if (!this.isOpen) throw new BotError("closed", STATE_TEXT.closed, false);
     const own = this.tabs.get(tab);
     if (!own || own.isClosed()) throw new BotError("closed", "Tab của dòng này đã bị đóng", false);
     this.busy = true;
     try {
       const page = own;
+      if (this.shouldHideWindow()) await this.setWindowState(page, "minimized");
       const state = await this.classify(page);
       if (state !== "ready") {
         if (state === "ui_changed") return await this.fail(page, state, STATE_TEXT.ui_changed, false);
+        await this.setWindowState(page, "normal");
         await page.bringToFront().catch(() => {});
         throw new BotError(state, STATE_TEXT[state], false);
       }
@@ -353,6 +380,7 @@ export class MuseBot {
         await page.waitForTimeout(500);
       }
       await send.click();
+      if (this.shouldHideWindow()) await this.setWindowState(page, "minimized");
       logger.info({ url: stripQuery(page.url()), clips: clips.length }, "Đã bấm Gửi tin tiếp theo trên Muse");
       this.sent.set(tab, { text, noticesBefore });
       const deadline = Date.now() + (this.o.confirmTimeoutMs ?? 30_000);
@@ -386,7 +414,7 @@ export class MuseBot {
    * trong trang; ảnh `https:` đọc bằng phiên của hồ sơ bot (không bị chặn khác miền). Không bấm gì, không gửi gì.
    */
   async downloadImages(tab: string, from: number): Promise<Uint8Array[]> {
-    if (!this.ctx) throw new BotError("ui_changed", "Trình duyệt bot đã đóng", true);
+    if (!this.isOpen) throw new BotError("ui_changed", "Trình duyệt bot đã đóng", true);
     const page = await this.page(tab);
     const list = (await sel.chat.resultImages(page)).slice(from, from + MAX_IMAGES);
     if (!list.length) throw new BotError("ui_changed", "Chưa thấy ảnh mới trong cuộc trò chuyện", true);
@@ -424,8 +452,10 @@ export class MuseBot {
    */
   async openChat(url: string, tab?: string): Promise<void> {
     const page = await this.page(tab);
+    if (this.shouldHideWindow()) await this.setWindowState(page, "minimized");
     if (stripQuery(page.url()) !== stripQuery(url)) await page.goto(url, { waitUntil: "domcontentloaded" });
     await this.classify(page);
+    if (this.shouldHideWindow()) await this.setWindowState(page, "minimized");
   }
 
   /**
@@ -434,7 +464,7 @@ export class MuseBot {
    * `count`: số video kết quả trong cuộc trò chuyện (nhiều hơn 1 thì ghi chú, vẫn lấy video cuối).
    */
   async downloadVideo(tab?: string): Promise<{ data: Uint8Array; count: number }> {
-    if (!this.ctx) throw new BotError("ui_changed", "Trình duyệt bot đã đóng", true);
+    if (!this.isOpen) throw new BotError("ui_changed", "Trình duyệt bot đã đóng", true);
     const page = await this.page(tab);
     // Chạy trong trang Muse (tsconfig không có thư viện DOM nên đọc qua globalThis).
     const r = await page.evaluate(async (maxBytes: number) => {
@@ -638,16 +668,19 @@ export class MuseBot {
    */
   async send(text: string, files: string[] = [], tab?: string): Promise<{ chatUrl: string }> {
     if (this.busy) throw new BotError("busy", "Bot đang gửi một yêu cầu khác", false);
-    if (!this.ctx) throw new BotError("closed", STATE_TEXT.closed, false);
+    if (!this.isOpen) throw new BotError("closed", STATE_TEXT.closed, false);
     this.busy = true;
     let clicked = false;
     try {
       const page = await this.page(tab);
+      if (this.shouldHideWindow()) await this.setWindowState(page, "minimized");
       // Tab riêng vừa mở còn trống: vào trang Muse trước.
       if (page.url() === "about:blank") await page.goto(this.o.museUrl(), { waitUntil: "domcontentloaded" });
+      if (this.shouldHideWindow()) await this.setWindowState(page, "minimized");
       const before = await this.classify(page);
       if (before !== "ready") {
         if (before === "ui_changed") return await this.fail(page, before, STATE_TEXT.ui_changed, false);
+        await this.setWindowState(page, "normal");
         await page.bringToFront().catch(() => {});
         throw new BotError(before, STATE_TEXT[before], false);
       }
@@ -737,6 +770,7 @@ export class MuseBot {
       }
       clicked = true;
       await send.click();
+      if (this.shouldHideWindow()) await this.setWindowState(page, "minimized");
       logger.info({ url: stripQuery(startUrl) }, "Đã bấm Gửi trên Muse");
       this.sent.set(tab ?? "", { text, noticesBefore });
 
