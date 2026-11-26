@@ -1,13 +1,13 @@
 # Tiến độ dự án MASYS Video Generator
 
-> Cập nhật lần cuối: **25/11/2026**, phát hành **v2.18.1** (CON-222: Tối ưu gắn Proxy đa luồng — tự nhận định dạng `IP:Port:User:Pass`, nhập trực tiếp trên bảng và nút Kiểm tra Proxy); trước đó cùng ngày đã phát hành **v2.18.0** gom CON-219, CON-220 và CON-221. Trước đó CON-217 và CON-218 đã phát hành trong v2.17.0. Trước đó CON-138 (Muse luôn tạo ảnh và gửi vào khung chat trước rồi mới tạo video) đã phát hành trong v2.16.0. Trước đó CON-137 (Muse chèn hook theo clip mẫu bằng tin thứ hai trong cùng cuộc trò chuyện, bỏ ghép trên máy) đã phát hành trong v2.15.0. Trước đó CON-135 (bật Thêm hook thì cột Video không còn bị khuất; ô Video chỉ hiện bản có hook) và CON-136 (đã bật Thêm hook thì Tạo video luôn ghép hook, ô "Clip có chữ sẵn") đã phát hành trong v2.14.0. Trước đó phát hành v2.13.0 (CON-112: nút Bỏ chọn, giữ dòng đã chọn khi đổi trang, tải các dòng đã chọn thành một file zip; CON-113: cột Người mẫu tự điền từ Bảng ảnh, video tự đặt tên "Tên người mẫu + STT"). Trước đó phát hành v2.12.0 (CON-107: Bảng video chọn tất cả, chọn dòng xong, tải các dòng đã chọn). Trước đó phát hành v2.11.0 (CON-98, CON-99, CON-100). Trước đó CON-89, CON-90 và CON-91 (v2.10.0 đã phát hành: câu không hỏi lại, hủy lô dừng ngay, Bảng video tự chạy lại dòng lỗi). Trước đó CON-88 và CON-87 (v2.9.0 đã phát hành: tải ảnh ngay trên ô ảnh, ảnh face khung dọc 9:16). Trước đó CON-85 (v2.8.0 đã phát hành: nút Xem prompt, thẻ nhân vật có ảnh gốc, khung ảnh trong prompt). Trước đó CON-82 (v2.7.0 đã phát hành: tạo nhân vật chạy tự động đến hết). Trước đó CON-81 (v2.6.0 đã phát hành: tạo nhân vật ngay trong app bằng Muse). Trước đó CON-80 (v2.5.0 đã phát hành: nhân vật có ảnh 4 góc + ảnh mặt). Trước đó CON-78 (v2.4.0 đã phát hành: xuất ảnh từ Bảng ảnh sang Bảng video). Từ nay nhiều ticket gom vào một bản phát hành khi người phụ trách nói "phát hành". Trước đó CON-79 (v2.3.1 đã phát hành: sửa lỗi huỷ lô chặn cập nhật), CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
+> Cập nhật lần cuối: **26/11/2026**, CON-223 (Sửa lỗi cửa sổ Chrome tự bật lại lên màn hình khi mở tab mới để gửi yêu cầu Muse) đang chờ duyệt; trước đó ngày 25/11/2026 đã phát hành **v2.18.1** (CON-222) và **v2.18.0** (CON-219, CON-220, CON-221). Trước đó CON-217 và CON-218 đã phát hành trong v2.17.0. Trước đó CON-138 (Muse luôn tạo ảnh và gửi vào khung chat trước rồi mới tạo video) đã phát hành trong v2.16.0. Trước đó CON-137 (Muse chèn hook theo clip mẫu bằng tin thứ hai trong cùng cuộc trò chuyện, bỏ ghép trên máy) đã phát hành trong v2.15.0. Trước đó CON-135 (bật Thêm hook thì cột Video không còn bị khuất; ô Video chỉ hiện bản có hook) và CON-136 (đã bật Thêm hook thì Tạo video luôn ghép hook, ô "Clip có chữ sẵn") đã phát hành trong v2.14.0. Trước đó phát hành v2.13.0 (CON-112: nút Bỏ chọn, giữ dòng đã chọn khi đổi trang, tải các dòng đã chọn thành một file zip; CON-113: cột Người mẫu tự điền từ Bảng ảnh, video tự đặt tên "Tên người mẫu + STT"). Trước đó phát hành v2.12.0 (CON-107: Bảng video chọn tất cả, chọn dòng xong, tải các dòng đã chọn). Trước đó phát hành v2.11.0 (CON-98, CON-99, CON-100). Trước đó CON-89, CON-90 và CON-91 (v2.10.0 đã phát hành: câu không hỏi lại, hủy lô dừng ngay, Bảng video tự chạy lại dòng lỗi). Trước đó CON-88 và CON-87 (v2.9.0 đã phát hành: tải ảnh ngay trên ô ảnh, ảnh face khung dọc 9:16). Trước đó CON-85 (v2.8.0 đã phát hành: nút Xem prompt, thẻ nhân vật có ảnh gốc, khung ảnh trong prompt). Trước đó CON-82 (v2.7.0 đã phát hành: tạo nhân vật chạy tự động đến hết). Trước đó CON-81 (v2.6.0 đã phát hành: tạo nhân vật ngay trong app bằng Muse). Trước đó CON-80 (v2.5.0 đã phát hành: nhân vật có ảnh 4 góc + ảnh mặt). Trước đó CON-78 (v2.4.0 đã phát hành: xuất ảnh từ Bảng ảnh sang Bảng video). Từ nay nhiều ticket gom vào một bản phát hành khi người phụ trách nói "phát hành". Trước đó CON-79 (v2.3.1 đã phát hành: sửa lỗi huỷ lô chặn cập nhật), CON-77 (v2.3.0 đã phát hành: Bảng ảnh — tạo ảnh nhân vật theo character sheet), CON-74 (v2.2.0 đã phát hành: thêm hook đầu video), CON-73 (v2.1.0 đã phát hành: chạy song song, mẫu hai mặt mới, tên KOL Fashion MASYS Video) — GĐ1–GĐ4 xong; GĐ5 "không Drive, không sheet" (spec v6.0 mục 17) theo góp ý 29/10: prompt giữ bối cảnh (CON-70), Bảng cục bộ + ảnh từ máy (CON-71), bot đính kèm ảnh + áo hai mặt (CON-52), tải video về (CON-72). File này được cập nhật trong PR của mỗi ticket CON.
 > Muốn xem sơ đồ thành hình: bấm đúp **`TIEN-DO.html`** trong thư mục dự án (tạo lại bằng `npm run tien-do`).
 > Đặc tả: [`SPEC-app-tao-video-ao.md`](SPEC-app-tao-video-ao.md) v6.3 · Linear: project **MASYS Video Generator**
 
-**Tổng quan:** 53/53 ticket xong · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 5/5 🎉 · GĐ6 25/25 🎉 · GĐ7 6/6 🎉
+**Tổng quan:** 53/54 ticket xong (1 chờ duyệt) · GĐ1 8/8 🎉 · GĐ2 3/3 🎉 · GĐ3 3/3 🎉 · GĐ4 3/3 🎉 · GĐ5 5/5 🎉 · GĐ6 25/25 🎉 · GĐ7 6/7
 
 ```
-[■■■■■■■■■■]  53/53 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-85, CON-87…CON-91, CON-98…CON-100, CON-107, CON-112, CON-113, CON-135, CON-136, CON-137, CON-138, CON-217…CON-222
+[■■■■■■■■■■]  53/54 — xong CON-35…CON-52, CON-70…CON-74, CON-77…CON-85, CON-87…CON-91, CON-98…CON-100, CON-107, CON-112, CON-113, CON-135, CON-136, CON-137, CON-138, CON-217…CON-222; chờ duyệt CON-223
 ```
 
 ## Sơ đồ kiến trúc theo trạng thái
@@ -74,6 +74,7 @@ flowchart LR
         roundrobin["Chạy song song nhiều tài khoản<br/>(Luân phiên, 20–30 luồng)<br/>CON-220"]
         usageproxy["Đọc % token còn lại &<br/>Proxy riêng từng tài khoản<br/>CON-221"]
         proxyux["Hỗ trợ IP:Port:User:Pass,<br/>ô Proxy trên bảng & nút Thử<br/>CON-222"]
+        minfix["Giữ cửa sổ Chrome thu nhỏ<br/>cả khi mở tab mới & gửi<br/>CON-223"]
         logo["Logo MASYS: tab Chrome,<br/>thanh trên cùng, Trang chủ<br/>CON-48"]
         shirt["Ghép ảnh áo: cột Ảnh áo,<br/>ảnh thu nhỏ, đoạn ghép áo<br/>trong yêu cầu gửi Muse<br/>CON-46"]
     end
@@ -146,6 +147,7 @@ flowchart LR
     autoswitch --> roundrobin
     roundrobin --> usageproxy
     usageproxy --> proxyux
+    hidewin --> minfix
     scan --> shirt
     editor --> shirt
 
@@ -204,6 +206,7 @@ flowchart LR
     class roundrobin done
     class usageproxy done
     class proxyux done
+    class minfix review
     class gsheets,gdrive,chrome,muse,op ext
 ```
 
@@ -291,9 +294,11 @@ flowchart LR
 | 51 | [CON-220](https://linear.app/conducdaudan/issue/CON-220) | Chạy song song nhiều tài khoản Muse cùng lúc (chế độ Luân phiên / Lần lượt, tổng luồng tới 20–30 video, v2.18.0) | 🟩 Xong | [#67](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/67) | 25/11/2026 |
 | 52 | [CON-221](https://linear.app/conducdaudan/issue/CON-221) | Trang Tài khoản Muse: đọc % token / hạn mức còn lại, kiểm tra tất cả phiên và gắn Proxy riêng (v2.18.0) | 🟩 Xong | [#68](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/68) | 25/11/2026 |
 | 53 | [CON-222](https://linear.app/conducdaudan/issue/CON-222) | Tối ưu gắn Proxy đa luồng: hỗ trợ định dạng IP:Port:User:Pass, nhập trực tiếp trên bảng và nút Kiểm tra Proxy (v2.18.1) | 🟩 Xong | [#70](https://github.com/Bach1711/MASYS-VIDEO-GENERATOR/pull/70) | 25/11/2026 |
+| 54 | [CON-223](https://linear.app/conducdaudan/issue/CON-223) | Sửa lỗi cửa sổ Chrome tự bật lại lên màn hình khi mở tab mới để gửi yêu cầu Muse | 🟦 Chờ duyệt | | |
 
 ## Nhật ký cập nhật
 
+- **26/11/2026 · CON-223** (chờ duyệt): sửa lỗi khi chạy lô mà cửa sổ Chrome của bot vẫn tự bật lại lên màn hình lúc mở tab mới (`ctx.newPage()`) hoặc lúc bấm gửi. Truyền cờ `--start-minimized` khi khởi chạy Chrome, hạ `maximized -> normal -> minimized` qua CDP để Windows không bỏ qua lệnh, và tự thu nhỏ lại ngay sau khi tạo tab mới cũng như sau khi bấm Gửi (áp dụng cho cả tài khoản chính lẫn các tài khoản phụ chạy Luân phiên).
 - **25/11/2026 · Phát hành v2.18.1** (CON-222).
 - **25/11/2026 · CON-222** (xong, đã gộp vào main, đã phát hành v2.18.1): hỗ trợ tự nhận diện định dạng Proxy 4 phần phổ biến tại Việt Nam (`IP:Port:User:Pass` hoặc `socks5://IP:Port:User:Pass`), đưa ô nhập Proxy kèm nút **Lưu** và nút **Thử** (kiểm tra kết nối và xác thực Proxy trực tiếp) ra ngay cột **Proxy** trên bảng tài khoản và ô nhập Proxy ngay tại dòng **+ Thêm tài khoản Muse**.
 - **25/11/2026 · Phát hành v2.18.0** (CON-219 + CON-220 + CON-221).

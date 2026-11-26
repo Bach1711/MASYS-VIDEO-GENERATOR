@@ -770,4 +770,47 @@ describe("trang Bot Muse", () => {
       await new Promise<void>((r) => proxyServer.close(() => r()));
     }
   });
+
+  it("setWindowState chuyển maximized -> normal -> minimized và thu nhỏ cả khi tạo tab mới (CON-223)", async () => {
+    const sentCdp: { method: string; params?: unknown }[] = [];
+    let currentWindowState = "maximized";
+    const fakePage = {
+      isClosed: () => false,
+      context: () => ({
+        newCDPSession: async () => ({
+          send: async (method: string, params?: { windowId?: number; bounds?: { windowState?: string } }) => {
+            sentCdp.push({ method, params });
+            if (method === "Browser.getWindowForTarget") {
+              return { windowId: 42, bounds: { windowState: currentWindowState } };
+            }
+            if (method === "Browser.setWindowBounds" && params?.bounds?.windowState) {
+              currentWindowState = params.bounds.windowState;
+            }
+            return {};
+          },
+          detach: async () => {},
+        }),
+      }),
+    };
+    const b = new MuseBot({
+      profileDir: path.join(tmp, "p-min"),
+      screenshotDir: path.join(tmp, "s-min"),
+      museUrl: () => "https://muse.ai/",
+      headless: false,
+      hideWindow: () => true,
+    });
+    const priv = b as unknown as {
+      ctx?: { pages: () => unknown[] };
+      setWindowState(p: unknown, s: "minimized" | "normal"): Promise<void>;
+    };
+    priv.ctx = { pages: () => [fakePage] };
+    await b.minimizeWindow();
+    // Đang maximized thì phải hạ xuống normal trước rồi mới minimized để Windows không bỏ qua lệnh.
+    expect(sentCdp).toEqual([
+      { method: "Browser.getWindowForTarget", params: undefined },
+      { method: "Browser.setWindowBounds", params: { windowId: 42, bounds: { windowState: "normal" } } },
+      { method: "Browser.setWindowBounds", params: { windowId: 42, bounds: { windowState: "minimized" } } },
+    ]);
+    expect(currentWindowState).toBe("minimized");
+  });
 });
