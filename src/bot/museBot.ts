@@ -501,13 +501,48 @@ export class MuseBot {
     this.openedProfileDir = undefined;
   }
 
-  async close(): Promise<void> {
-    await this.closePrimary();
+  /**
+   * Đóng riêng hồ sơ Chrome của một tài khoản (ví dụ khi 1 tài khoản trong nhóm chạy Luân phiên hết token
+   * và các tab đang dở của nó đã tải xong, CON-242). Không đụng tới các hồ sơ tài khoản khác đang chạy.
+   */
+  async closeAccount(accountId: number): Promise<void> {
+    const dir = this.resolveProfileDir(`acc-${accountId}-run-0`);
+    const primaryDir = this.openedProfileDir ?? this.resolveProfileDir();
+    for (const [t, d] of [...this.profileByTab.entries()]) {
+      if (d === dir || t.startsWith(`acc-${accountId}-`)) {
+        this.tabs.delete(t);
+        this.sent.delete(t);
+        this.profileByTab.delete(t);
+      }
+    }
+    const extra = this.extraProfiles.get(dir);
+    if (extra) {
+      await extra.opening?.catch(() => {});
+      await extra.ctx?.close().catch(() => {});
+      this.extraProfiles.delete(dir);
+      logger.info({ accountId, profileDir: dir }, "Đã đóng trình duyệt của tài khoản hết token để giải phóng RAM");
+      return;
+    }
+    if (this.ctx && primaryDir === dir) {
+      await this.closePrimary();
+      logger.info({ accountId, profileDir: dir }, "Đã đóng trình duyệt chính của tài khoản hết token để giải phóng RAM");
+    }
+  }
+
+  /**
+   * Đóng toàn bộ các hồ sơ Chrome phụ (`extraProfiles`) đang mở khi chạy xong lô hoặc chuyển chế độ (CON-242).
+   */
+  async closeExtraProfiles(): Promise<void> {
     for (const e of this.extraProfiles.values()) {
       await e.opening?.catch(() => {});
       await e.ctx?.close().catch(() => {});
     }
     this.extraProfiles.clear();
+  }
+
+  async close(): Promise<void> {
+    await this.closePrimary();
+    await this.closeExtraProfiles();
     this.profileByTab.clear();
     this.tabs.clear();
     this.sent.clear();

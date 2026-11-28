@@ -2,6 +2,13 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
+## Chưa phát hành
+
+**Tự động đóng các cửa sổ Chrome chạy ngầm để giải phóng RAM khi lô chạy xong hoặc tài khoản phụ hết token.**
+
+- Khi chạy chế độ **Luân phiên** nhiều tài khoản, tài khoản nào hết token giữa chừng (và đã tải nốt các tab đang dở của nó) sẽ được đóng ngay cửa sổ Chrome của riêng tài khoản đó trong lúc các tài khoản khác vẫn chạy tiếp.
+- Khi cả lô đã chạy xong 100%, các hồ sơ Chrome phụ mở thêm tự động đóng lại để giải phóng RAM cho máy tính (phiên đăng nhập và cookie vẫn được giữ nguyên cho lần chạy sau).
+
 ## v2.18.2
 
 **Sửa lỗi cửa sổ Chrome tự bật lại lên màn hình khi mở tab mới để gửi yêu cầu tạo video/ảnh.**

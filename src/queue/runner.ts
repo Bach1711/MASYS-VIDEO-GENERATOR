@@ -45,6 +45,10 @@ export interface MuseDriver {
   bringToFront(): Promise<void>;
   /** Đóng cả cửa sổ bot (Huỷ lô, CON-90). Việc đang làm dở trên Muse báo lỗi ngay. */
   close?(): Promise<void>;
+  /** Đóng riêng trình duyệt của một tài khoản khi tài khoản đó hết token trong chế độ Luân phiên (CON-242). */
+  closeAccount?(accountId: number): Promise<void>;
+  /** Đóng các hồ sơ Chrome phụ mở thêm khi chạy Luân phiên sau khi lô đã hoàn tất (CON-242). */
+  closeExtraProfiles?(): Promise<void>;
   /**
    * Gửi thêm một tin trong cuộc trò chuyện đang mở ở tab: Bảng ảnh xin ảnh quay lưng (D33); Bảng video nhờ chèn hook,
    * `clips` = clip hook mẫu đính kèm (CON-137).
@@ -725,6 +729,15 @@ export class BatchRunner {
           if (out.finished) {
             inflight.delete(f.run.id);
             await this.bot.closeTab?.(f.tab).catch(() => {});
+            // CON-242: ở chế độ Luân phiên, nếu tài khoản này đã hết token và không còn tab nào đang dở thì đóng luôn
+            // trình duyệt của tài khoản đó để giải phóng RAM ngay trong lúc các tài khoản khác vẫn chạy tiếp.
+            if (rrMode()) {
+              const acc = listMuseAccounts(this.db).find((a) => a.id === f.accountId);
+              const stillRunning = [...inflight.values()].some((x) => x.accountId === f.accountId);
+              if (acc?.quotaExhaustedAt && !stillRunning) {
+                await this.bot.closeAccount?.(f.accountId).catch(() => {});
+              }
+            }
           }
           if (out.ok) failedRows.clear();
           if (out.failed) await noteFailure(f.run.rowNumber);
@@ -786,6 +799,10 @@ export class BatchRunner {
             } else {
               blocked = "quota";
             }
+            const stillRunning = [...inflight.values()].some((x) => x.accountId === targetAcc.id);
+            if (!stillRunning) {
+              await this.bot.closeAccount?.(targetAcc.id).catch(() => {});
+            }
           } else if (out.pause) {
             blocked = out.pause;
           }
@@ -823,8 +840,13 @@ export class BatchRunner {
           if (blocked) return this.setBatch(batch.id, "paused", blocked);
           if (this.stopRequested()) return this.setBatch(batch.id, "paused", "user");
           if (this.active?.mode !== "full") return; // Tool vừa mở lại: lô vẫn Tạm dừng, chờ người dùng bấm Tiếp tục.
-          if (!this.runs(batch.id, ["queued"]).length) return this.setBatch(batch.id, "done", null);
+          if (!this.runs(batch.id, ["queued"]).length) {
+            // CON-242: lô đã chạy xong hết → tự động đóng các hồ sơ Chrome phụ mở thêm để giải phóng RAM.
+            await this.bot.closeExtraProfiles?.().catch(() => {});
+            return this.setBatch(batch.id, "done", null);
+          }
           if (isRoundRobin && listMuseAccounts(this.db).every((a) => !!a.quotaExhaustedAt)) {
+            await this.bot.closeExtraProfiles?.().catch(() => {});
             return this.setBatch(batch.id, "paused", "quota");
           }
         }

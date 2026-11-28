@@ -55,6 +55,8 @@ function setup(o: Opts = {}) {
   const replies: { row: number; tab: string; text: string }[] = [];
   const opened: { url: string; tab?: string; interactive?: boolean }[] = [];
   const closed: string[] = [];
+  const closedAccounts: number[] = [];
+  let extraProfilesClosed = 0;
   let maxOpen = 0;
   let tries = 0;
   let closes = 0;
@@ -74,6 +76,12 @@ function setup(o: Opts = {}) {
       closes++;
       tabs.clear();
       closeBot();
+    },
+    async closeAccount(accountId: number) {
+      closedAccounts.push(accountId);
+    },
+    async closeExtraProfiles() {
+      extraProfilesClosed++;
     },
     async send(text: string, _files?: string[], tab?: string) {
       tries++;
@@ -131,7 +139,23 @@ function setup(o: Opts = {}) {
     const name = getRow(db, row)!.videoFile;
     return name ? fs.readFileSync(path.join(dataDir, "tep", "video", name)).at(-1) : undefined;
   };
-  return { db, runner, run, batchOf, sends, replies, opened, closed, videoRow, maxOpen: () => maxOpen, tabs, closes: () => closes, minimizes: () => minimizes };
+  return {
+    db,
+    runner,
+    run,
+    batchOf,
+    sends,
+    replies,
+    opened,
+    closed,
+    closedAccounts,
+    extraProfilesClosed: () => extraProfilesClosed,
+    videoRow,
+    maxOpen: () => maxOpen,
+    tabs,
+    closes: () => closes,
+    minimizes: () => minimizes,
+  };
 }
 
 const states = (db: DB) => (db.prepare("SELECT bangRowId AS row, state FROM runs ORDER BY bangRowId").all() as { row: number; state: string }[]).map((r) => `${r.row}:${r.state}`);
@@ -590,5 +614,9 @@ describe("tự động đổi tài khoản Muse khi hết token (CON-218)", () =
     expect(accs[1]!.quotaExhaustedAt).toBeTruthy(); // Tài khoản 2 bị đánh dấu hết token
     expect(accs[0]!.quotaExhaustedAt).toBeNull();
     expect(accs[2]!.quotaExhaustedAt).toBeNull();
+    // CON-242: Tài khoản 2 hết token và không còn tab dở thì tự đóng trình duyệt của riêng tài khoản 2 ngay;
+    // khi cả lô chạy xong thì tự đóng các hồ sơ Chrome phụ để giải phóng RAM.
+    expect(t.closedAccounts).toContain(2);
+    expect(t.extraProfilesClosed()).toBeGreaterThan(0);
   });
 });
