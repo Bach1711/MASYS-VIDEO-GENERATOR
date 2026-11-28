@@ -25,7 +25,7 @@ import {
 import { activeBatch } from "../db/history.js";
 import type { DB } from "../db/index.js";
 import { getDailyQuota } from "../db/quota.js";
-import { getSettings, MAX_TOTAL_PARALLEL, rememberMuseCheck, setAccountPoolSettings, setHideBotWindow, setMuseReady } from "../db/settings.js";
+import { getSettings, MAX_TOTAL_PARALLEL, rememberMuseCheck, setAccountPoolSettings, setHideBotWindow, setMuseReady, setSoundNotify } from "../db/settings.js";
 import { listSheetConfigs, sheetName } from "../db/sheetConfigs.js";
 import { logger } from "../logger.js";
 import type { BatchRunner } from "../queue/runner.js";
@@ -390,6 +390,22 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
               Tự thu nhỏ (ẩn) cửa sổ Chrome xuống thanh Taskbar khi chạy lô tự động (chỉ hiện lên khi cần đăng nhập hoặc bấm Mở trình duyệt)
             </label>
           </form>
+          <div class="row" style="margin-top:8px;align-items:center">
+            <form method="post" action="/bot/sound-notify" class="row" style="align-items:center">
+              <input type="hidden" name="sound" value={getSettings(db).soundNotify ? "0" : "1"} />
+              <label class="inline">
+                <input
+                  type="checkbox"
+                  checked={getSettings(db).soundNotify === 1}
+                  onchange="this.form.submit()"
+                />{" "}
+                🔔 Phát âm báo và hiện thông báo góc màn hình khi cả lô đã chạy xong hoặc khi lô bị tạm dừng (cần đăng nhập / hết sạch token)
+              </label>
+            </form>
+            <button type="button" class="secondary small" onclick="window.masysTestSound && window.masysTestSound()">
+              🔔 Nghe thử chuông
+            </button>
+          </div>
         </section>
 
         <section class="card">
@@ -639,6 +655,12 @@ export function registerBotRoutes(app: Hono, deps: BotDeps) {
     if (hide) await bot?.minimizeWindow();
     else await bot?.bringToFront();
     return c.redirect(`/bot?ok=${encodeURIComponent(hide ? "Đã bật tự thu nhỏ cửa sổ Chrome khi chạy lô." : "Đã tắt tự thu nhỏ cửa sổ Chrome.")}`, 303);
+  });
+
+  app.post("/bot/sound-notify", async (c) => {
+    const sound = (await c.req.parseBody()).sound === "1";
+    setSoundNotify(db, sound);
+    return c.redirect(`/bot?ok=${encodeURIComponent(sound ? "Đã bật âm báo và thông báo màn hình khi lô chạy xong." : "Đã tắt âm báo khi lô chạy xong.")}`, 303);
   });
 
   app.post("/bot/send", async (c) => {

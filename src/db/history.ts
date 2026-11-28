@@ -42,6 +42,13 @@ export function activeBatch(db: DB): { id: number; status: string; pauseReason: 
     .get() as { id: number; status: string; pauseReason: string | null } | undefined;
 }
 
+/** Lô mới nhất vừa chạy hoặc vừa xong/tạm dừng, dùng để phát âm báo & thông báo màn hình khi chuyển trạng thái (CON-243). */
+export function latestBatch(db: DB): { id: number; status: string; pauseReason: string | null } | undefined {
+  return db
+    .prepare("SELECT id, status, pauseReason FROM batches ORDER BY id DESC LIMIT 1")
+    .get() as { id: number; status: string; pauseReason: string | null } | undefined;
+}
+
 export interface LogEntry {
   id: number;
   at: string;

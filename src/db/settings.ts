@@ -38,18 +38,24 @@ export interface Settings {
   accountMode: "sequential" | "round_robin";
   /** Tổng số luồng (tab) tối đa trên toàn bộ các tài khoản khi chạy Luân phiên (CON-220, 1–30, mặc định 20). */
   totalParallelLimit: number;
+  /** Phát âm báo & thông báo màn hình khi lô chạy xong hoặc tạm dừng cần xử lý (CON-243): 1 = bật. */
+  soundNotify: number;
 }
 
 export function getSettings(db: DB): Settings {
   return db
     .prepare(
-      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt, bangTemplate, bangShirtTemplate, twoSidedTemplate, parallelVideos, hookOn, hookDayText, hookDay, imageTemplate, imageBackTemplate, dailyImageLimit, lastNhanVatId, activeAccountId, hideBotWindow, accountMode, totalParallelLimit FROM settings WHERE id = 1",
+      "SELECT driveRootFolderId, timeoutMinutes, pauseMinSec, pauseMaxSec, dailyVideoLimit, museUrl, requestTemplate, shirtTemplate, museReadyAt, bangTemplate, bangShirtTemplate, twoSidedTemplate, parallelVideos, hookOn, hookDayText, hookDay, imageTemplate, imageBackTemplate, dailyImageLimit, lastNhanVatId, activeAccountId, hideBotWindow, accountMode, totalParallelLimit, soundNotify FROM settings WHERE id = 1",
     )
     .get() as Settings;
 }
 
 export function setHideBotWindow(db: DB, hide: boolean): void {
   db.prepare("UPDATE settings SET hideBotWindow = ? WHERE id = 1").run(hide ? 1 : 0);
+}
+
+export function setSoundNotify(db: DB, on: boolean): void {
+  db.prepare("UPDATE settings SET soundNotify = ? WHERE id = 1").run(on ? 1 : 0);
 }
 
 export const MAX_TOTAL_PARALLEL = 30;

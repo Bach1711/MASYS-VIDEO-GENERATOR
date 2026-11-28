@@ -813,4 +813,33 @@ describe("trang Bot Muse", () => {
     ]);
     expect(currentWindowState).toBe("minimized");
   });
+
+  it("bật/tắt âm báo và thông báo màn hình khi lô chạy xong hoặc tạm dừng (CON-243)", async () => {
+    const { getSettings } = await import("../src/db/settings.js");
+    const { app, db } = await setup(async () => ({ chatUrl: "x" }), false);
+    // Mặc định bật soundNotify = 1
+    expect(getSettings(db).soundNotify).toBe(1);
+    const html1 = await (await app.request("/bot")).text();
+    expect(html1).toContain("masys-batch-notify");
+    expect(html1).toContain('data-sound="1"');
+    expect(html1).toContain("🔔 Nghe thử chuông");
+
+    // Tắt âm báo
+    const toggleOff = await app.request("/bot/sound-notify", {
+      method: "POST",
+      body: new URLSearchParams({ sound: "0" }),
+    });
+    expect(toggleOff.status).toBe(303);
+    expect(getSettings(db).soundNotify).toBe(0);
+    const html2 = await (await app.request("/bot")).text();
+    expect(html2).toContain('data-sound="0"');
+
+    // Bật lại âm báo
+    const toggleOn = await app.request("/bot/sound-notify", {
+      method: "POST",
+      body: new URLSearchParams({ sound: "1" }),
+    });
+    expect(toggleOn.status).toBe(303);
+    expect(getSettings(db).soundNotify).toBe(1);
+  });
 });

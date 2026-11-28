@@ -1,7 +1,8 @@
 import path from "node:path";
 import type { Hono } from "hono";
 import type { DB } from "../db/index.js";
-import { activeBatch, listBatches, listLogs, PROBLEM_STATES } from "../db/history.js";
+import { activeBatch, latestBatch, listBatches, listLogs, PROBLEM_STATES } from "../db/history.js";
+import { getSettings } from "../db/settings.js";
 import { listSheetConfigs, sheetName } from "../db/sheetConfigs.js";
 import { FIELD_TEXT, KIND_TEXT, listSheetEdits } from "../db/sheetEdits.js";
 import { PAUSE_SHORT, type BatchRunner, type PauseReason } from "../queue/runner.js";
@@ -56,10 +57,111 @@ function SheetEditLog(props: { db: DB }) {
   );
 }
 
-/** Dải báo trên đầu mọi trang khi có lô đang chạy hoặc tạm dừng. */
+/** Script theo dõi trạng thái lô để phát âm báo (AudioContext) và thông báo màn hình khi lô chạy xong hoặc tạm dừng (CON-243). */
+const NOTIFY_JS = `(() => {
+  const el = document.getElementById("masys-batch-notify");
+  if (!el) return;
+  const soundOn = el.getAttribute("data-sound") === "1";
+  const batchId = el.getAttribute("data-batch-id") || "";
+  const status = el.getAttribute("data-batch-status") || "";
+  const reason = el.getAttribute("data-pause-reason") || "";
+
+  function playTone(kind) {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const notes = kind === "done" ? [523.25, 659.25, 783.99] : [440, 349.23];
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        const start = ctx.currentTime + i * 0.14;
+        gain.gain.setValueAtTime(0.18, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.25);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.26);
+      });
+    } catch {}
+  }
+
+  function showDesktopNotify(title, body) {
+    try {
+      if (!("Notification" in window)) return;
+      if (Notification.permission === "granted") {
+        new Notification(title, { body });
+      }
+    } catch {}
+  }
+
+  window.masysTestSound = () => {
+    playTone("done");
+    try {
+      if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();
+      }
+    } catch {}
+  };
+
+  if (!batchId) return;
+  const key = "masys_last_batch_state";
+  let prev = null;
+  try {
+    prev = JSON.parse(sessionStorage.getItem(key) || "null");
+  } catch {}
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ id: batchId, status }));
+  } catch {}
+
+  if (status === "running") {
+    try {
+      if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();
+      }
+    } catch {}
+    return;
+  }
+
+  if (prev && prev.id === batchId && prev.status === "running" && (status === "done" || status === "paused")) {
+    if (status === "done") {
+      document.title = "✅ Đã xong lô #" + batchId + " · " + document.title;
+      if (soundOn) {
+        playTone("done");
+        showDesktopNotify("KOL Fashion MASYS Video", "✅ Lô #" + batchId + " đã chạy xong 100%!");
+      }
+    } else if (status === "paused") {
+      document.title = "⚠️ Tạm dừng lô #" + batchId + " · " + document.title;
+      if (soundOn) {
+        playTone("paused");
+        showDesktopNotify("KOL Fashion MASYS Video", "⚠️ Lô #" + batchId + " đang tạm dừng (" + (reason || "cần kiểm tra") + ").");
+      }
+    }
+  }
+})();`;
+
+/** Dải báo trên đầu mọi trang khi có lô đang chạy hoặc tạm dừng, kèm bộ phát âm báo khi lô hoàn thành / tạm dừng (CON-243). */
 export function StatusBanner(props: { db: DB; runner?: BatchRunner }) {
   const b = activeBatch(props.db);
-  if (!b) return null;
+  const latest = b ?? latestBatch(props.db);
+  const soundOn = getSettings(props.db).soundNotify === 1;
+  const pauseText = latest?.pauseReason ? (PAUSE_SHORT[latest.pauseReason as PauseReason] ?? "chờ bấm Tiếp tục") : "";
+  const notifyTag = (
+    <>
+      <div
+        id="masys-batch-notify"
+        hidden
+        data-sound={soundOn ? "1" : "0"}
+        data-batch-id={latest ? String(latest.id) : ""}
+        data-batch-status={latest?.status ?? ""}
+        data-pause-reason={pauseText}
+      />
+      <script dangerouslySetInnerHTML={{ __html: NOTIFY_JS }} />
+    </>
+  );
+  if (!b) return notifyTag;
   const live = props.runner?.runningBatchId === b.id;
   const notice = props.runner?.notices.get(b.id);
   const text =
@@ -67,13 +169,16 @@ export function StatusBanner(props: { db: DB; runner?: BatchRunner }) {
       ? `Lô #${b.id} đang chạy`
       : `Lô #${b.id} đang tạm dừng: ${PAUSE_SHORT[b.pauseReason as PauseReason] ?? "chờ bấm Tiếp tục"}${live ? " (đang theo dõi nốt dòng dở)" : ""}`;
   return (
-    <div class={`card banner ${b.status === "running" && !notice ? "running" : "warn"}`} role="status">
-      <span>
-        <strong>{text}</strong>
-        {notice && <> · {notice}</>}
-      </span>
-      <a href={`/batch/${b.id}`}>Xem lô →</a>
-    </div>
+    <>
+      {notifyTag}
+      <div class={`card banner ${b.status === "running" && !notice ? "running" : "warn"}`} role="status">
+        <span>
+          <strong>{text}</strong>
+          {notice && <> · {notice}</>}
+        </span>
+        <a href={`/batch/${b.id}`}>Xem lô →</a>
+      </div>
+    </>
   );
 }
 
