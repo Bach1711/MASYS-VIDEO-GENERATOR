@@ -2,7 +2,7 @@
 
 Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được đăng nguyên văn làm ghi chú trên GitHub Releases và hiện trong tool, ở **Cài đặt → Phiên bản**. Viết bằng tiếng Việt, cho người dùng đọc: nói về thay đổi họ thấy được, không nói về code.
 
-## Chưa phát hành
+## v2.19.0
 
 **Tự động đóng các cửa sổ Chrome chạy ngầm để giải phóng RAM và phát âm báo / thông báo màn hình khi lô chạy xong hoặc tạm dừng.**
 
