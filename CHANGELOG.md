@@ -4,10 +4,14 @@ Mỗi bản phát hành có một mục `## vX.Y.Z`. Nội dung mục được �
 
 ## Chưa phát hành
 
-**Tự động đóng các cửa sổ Chrome chạy ngầm để giải phóng RAM khi lô chạy xong hoặc tài khoản phụ hết token.**
+**Tự động đóng các cửa sổ Chrome chạy ngầm để giải phóng RAM và phát âm báo / thông báo màn hình khi lô chạy xong hoặc tạm dừng.**
 
-- Khi chạy chế độ **Luân phiên** nhiều tài khoản, tài khoản nào hết token giữa chừng (và đã tải nốt các tab đang dở của nó) sẽ được đóng ngay cửa sổ Chrome của riêng tài khoản đó trong lúc các tài khoản khác vẫn chạy tiếp.
-- Khi cả lô đã chạy xong 100%, các hồ sơ Chrome phụ mở thêm tự động đóng lại để giải phóng RAM cho máy tính (phiên đăng nhập và cookie vẫn được giữ nguyên cho lần chạy sau).
+- **Tự đóng Chrome phụ để giải phóng RAM:**
+  - Khi chạy chế độ **Luân phiên** nhiều tài khoản, tài khoản nào hết token giữa chừng (và đã tải nốt các tab đang dở của nó) sẽ được đóng ngay cửa sổ Chrome của riêng tài khoản đó trong lúc các tài khoản khác vẫn chạy tiếp.
+  - Khi cả lô đã chạy xong 100%, các hồ sơ Chrome phụ mở thêm tự động đóng lại để giải phóng RAM cho máy tính (phiên đăng nhập và cookie vẫn được giữ nguyên cho lần chạy sau).
+- **🔔 Âm báo và thông báo góc màn hình khi lô chạy xong hoặc tạm dừng:**
+  - Khi bạn đang mở tab khác làm việc mà cả lô đã chạy **Xong 100%** (hoặc bị **Tạm dừng** vì cần đăng nhập / hết sạch token mọi tài khoản), tool tự phát một âm báo nhẹ, hiện thông báo ở góc màn hình Windows và đổi tiêu đề tab trình duyệt thành `✅ Đã xong lô #N` / `⚠️ Tạm dừng lô #N`.
+  - Có thể bật/tắt âm báo và bấm **🔔 Nghe thử chuông** tại **⚙ Nâng cao → Bot Muse**.
 
 ## v2.18.2
 

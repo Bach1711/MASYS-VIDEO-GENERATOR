@@ -317,4 +317,8 @@ export const MIGRATIONS: string[] = [
   ALTER TABLE muse_accounts ADD COLUMN usageCheckedAt TEXT;
   ALTER TABLE muse_accounts ADD COLUMN proxy TEXT;
   `,
+  // 24. Âm báo và thông báo màn hình khi lô chạy xong hoặc tạm dừng cần xử lý (CON-243): mặc định bật (1).
+  `
+  ALTER TABLE settings ADD COLUMN soundNotify INTEGER NOT NULL DEFAULT 1;
+  `,
 ];
